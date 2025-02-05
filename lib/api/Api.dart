@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:moviedex/api/secrets.dart';
+import 'package:moviedex/api/secrets.dart.local';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/utils.dart';
 

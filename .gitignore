@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+*.local
 .DS_Store
 .atom/
 .build/
@@ -11,9 +12,6 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-
-#secrets
-/lib/api/secrets.dart
 
 # IntelliJ related
 *.iml
