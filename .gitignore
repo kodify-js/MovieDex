@@ -13,7 +13,7 @@
 migrate_working_dir/
 
 #secrets
-./lib/api/secrets.dart
+/lib/api/secrets.dart
 
 # IntelliJ related
 *.iml
