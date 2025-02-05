@@ -15,7 +15,7 @@ class _HorizontalScrollListState extends State<HorizontalScrollList> {
   Widget build(BuildContext context) {
     final List<Contentclass> data = widget.data;
     return ListView.builder(
-          itemCount: data!.length,
+          itemCount: data.length,
           scrollDirection: Axis.horizontal,
           controller: ScrollController(),
           physics: const PageScrollPhysics().applyTo(
