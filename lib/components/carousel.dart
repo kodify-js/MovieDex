@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/pages/info_page.dart';
+import 'package:moviedex/pages/watch_page.dart';
 
 class Carousel extends StatelessWidget {
   const Carousel({
@@ -8,11 +10,13 @@ class Carousel extends StatelessWidget {
   });
 
   final List<Contentclass> data;
-
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
     return SizedBox(
-      width: MediaQuery.of(context).size.width,
+      width: width,
+      height: isMobile ? 300 : 500,
       child: AspectRatio(
         aspectRatio: 16/9,
         child: ListView.builder(
@@ -24,12 +28,22 @@ class Carousel extends StatelessWidget {
           ),
           itemBuilder: (context, index) {
             return Container(
-              width: MediaQuery.of(context).size.width,
+              width: width,
               decoration: BoxDecoration(
-                image: DecorationImage(image: NetworkImage(data[index].backdrop))
+                image: DecorationImage(image: NetworkImage(data[index].backdrop),fit: BoxFit.cover)
               ),
               child: Container(
-                color: Color.fromARGB(100, 0, 0, 0),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Theme.of(context).colorScheme.surface,
+                      Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
+                      Colors.transparent
+                    ]
+                  )
+                ),
                 padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,7 +72,9 @@ class Carousel extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: TextButton(
-                          onPressed: (){},
+                          onPressed: (){
+                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index],)));
+                          },
                           style: ButtonStyle(
                             backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
                             shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
@@ -82,7 +98,9 @@ class Carousel extends StatelessWidget {
                                                               ),
                         ),
                         TextButton(
-                        onPressed: (){},
+                        onPressed: (){
+                                                      Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,name: data[index].title, type: data[index].type,)));
+                        },
                         style: ButtonStyle(
                           backgroundColor: WidgetStatePropertyAll(Color.fromARGB(199, 0, 0, 0)),
                           shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),

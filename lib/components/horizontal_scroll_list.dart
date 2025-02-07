@@ -14,6 +14,8 @@ class _HorizontalScrollListState extends State<HorizontalScrollList> {
   @override
   Widget build(BuildContext context) {
     final List<Contentclass> data = widget.data;
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
     return ListView.builder(
           itemCount: data.length,
           scrollDirection: Axis.horizontal,
@@ -24,11 +26,12 @@ class _HorizontalScrollListState extends State<HorizontalScrollList> {
           itemBuilder: (context, index) {
             return GestureDetector(
               onTap: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,type: data[index].type)));
+                Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,name: data[index].title, type: data[index].type)));
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Card(
+                child: SizedBox(
+                  width: isMobile ? 150 : 200,
                   child: AspectRatio(
                     aspectRatio: 1/1.4,
                     child: ClipRRect(

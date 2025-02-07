@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/pages/home_page.dart';
 
+
 void main() {
   runApp(MovieDex());
 }

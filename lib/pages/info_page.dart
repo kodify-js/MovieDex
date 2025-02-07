@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:moviedex/api/Api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/components/horizontal_scroll_list.dart';
+import 'package:moviedex/pages/search_page.dart';
+import 'package:moviedex/pages/watch_page.dart';
 
 class Infopage extends StatefulWidget {
   final int id;
+  final String name;
   final String type;
-  const Infopage({super.key, required this.id,required this.type});
+  const Infopage({super.key, required this.id,required this.type,required this.name});
 
   @override
   State<Infopage> createState() => _InfopageState();
@@ -14,40 +17,22 @@ class Infopage extends StatefulWidget {
 
 class _InfopageState extends State<Infopage> {
   Api api = Api();
+  TextEditingController textEditingController = TextEditingController();
   @override
   Widget build(BuildContext context) {
-    TextEditingController textEditingController = TextEditingController();
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width<600;
     return Scaffold(
       appBar: AppBar(
-                title: const Text("Movie Dex",style: TextStyle(
+        title: Text(widget.name,style: TextStyle(
           fontWeight: FontWeight.bold,
         ),
         ),
-         backgroundColor: Colors.black,
+        backgroundColor: Colors.black,
         actions: [
-          Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: 200,
-              height: 40,  // Fixed height for better vertical centering
-              child: TextField(
-                controller: textEditingController,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: "Search",
-                  contentPadding: EdgeInsets.zero,  // Removes internal padding
-                  focusColor: Color.fromRGBO(0, 0, 0, 1),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color.fromRGBO(0, 0, 0, 1)
-                    ),
-                    borderRadius: BorderRadius.horizontal(left: Radius.circular(20))
-                  )
-                ),
-              ),
-            ),
-          ),
+          IconButton(onPressed: (){
+            Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SearchPage()));
+          }, icon: Icon(Icons.search),color: Theme.of(context).colorScheme.onSecondary,),
         ],
       ),
       body: SingleChildScrollView(
@@ -70,8 +55,8 @@ class _InfopageState extends State<Infopage> {
                 return Column(
                   children: [
                     Container(
-                      width: MediaQuery.of(context).size.width,
-                      height: MediaQuery.of(context).size.height * 0.6,
+                      width: width,
+                      height: isMobile?300:500,
                       decoration: BoxDecoration(
                         image: DecorationImage(
                           image: NetworkImage(data.poster),
@@ -95,11 +80,13 @@ class _InfopageState extends State<Infopage> {
                         child: Padding(
                           padding: const EdgeInsets.all(8.0),
                           child: Column(
+                            crossAxisAlignment: isMobile?CrossAxisAlignment.center:CrossAxisAlignment.start,
+                            mainAxisAlignment: isMobile?MainAxisAlignment.center:MainAxisAlignment.start,
                             children: [
                               Spacer(),
                               Container(
-                                margin: const EdgeInsets.all(16),
-                                child:                               data.logoPath!.isEmpty
+                                margin: const EdgeInsets.only(left: 16,right: 16),
+                                child: data.logoPath!.isEmpty
                                 ? Text(
                                     data.title,
                                     style: TextStyle(
@@ -109,30 +96,58 @@ class _InfopageState extends State<Infopage> {
                                     ),
                                   )
                                 : SizedBox(
-                                    height: 60, // 15% of screen height
+                                    height: 60,
                                     child: Image.network(
                                       data.logoPath ?? '',
-                                      alignment: Alignment.centerLeft,
-                                      fit: BoxFit.contain, // ensures the logo fits within bounds
+                                      fit: BoxFit.cover, // ensures the logo fits within bounds
                                     ),
                                   ),
                               ),
-                              SizedBox(
-                                width: MediaQuery.of(context).size.width,
-                                child: TextButton(onPressed: (){},
-                                style: ButtonStyle(
-                                  backgroundColor: WidgetStatePropertyAll(Colors.white),
-                                  shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                Row(
+                                  spacing: 8,
                                   children: [
-                                    Icon(Icons.play_arrow_rounded,size: 24,color: Colors.black),
-                                    Text("Play",style: TextStyle(color: Colors.black,fontSize: 18,fontWeight: FontWeight.bold))
+                                    Container(
+                                      width: isMobile?width-24:100,
+                                      margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
+                                      child: TextButton(onPressed: (){
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data)));
+                                      },
+                                      style: ButtonStyle(
+                                        backgroundColor: WidgetStatePropertyAll(Colors.white),
+                                        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.play_arrow_rounded,size: 24,color: Colors.black),
+                                          Text("Play",style: TextStyle(color: Colors.black,fontSize: 18,fontWeight: FontWeight.bold))
+                                        ],
+                                      )
+                                      ),
+                                    ),
+                                     Theme.of(context).platform != TargetPlatform.iOS && Theme.of(context).platform != TargetPlatform.android && !isMobile?
+                                    Container(
+                                      width: isMobile?width:150,
+                                      margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
+                                      child: TextButton(onPressed: (){
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data)));
+                                      },
+                                      style: ButtonStyle(
+                                        backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(110, 29, 29, 29)),
+                                        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.play_arrow_rounded,size: 24,color: Colors.white),
+                                          Text("Add to list",style: TextStyle(color: Colors.white,fontSize: 18,fontWeight: FontWeight.bold))
+                                        ],
+                                      )
+                                      ),
+                                    ):const SizedBox(),
                                   ],
-                                )
                                 ),
-                              ),
+                              Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android?
                               Container(
                                 width: MediaQuery.of(context).size.width,
                                 margin: const EdgeInsets.only(top: 8),
@@ -149,7 +164,7 @@ class _InfopageState extends State<Infopage> {
                                   ],
                                 )
                                 ),
-                              ),
+                              ):const SizedBox(),
                             ],
                           ),
                         ),
@@ -179,7 +194,7 @@ class _InfopageState extends State<Infopage> {
                                 )),
                                 SizedBox(height: 8),
                                 SizedBox(
-                                  height: 200,
+                                  height: isMobile?200:300,
                                   child: HorizontalScrollList(data: data),
                                 ),
                               ],

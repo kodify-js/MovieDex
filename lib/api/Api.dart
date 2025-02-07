@@ -9,13 +9,13 @@ class Api {
     Api({
         this.baseUrl = "https://api.tmdb.org"
     });
-    Future fetchPopular({ required type,language})async{
+    Future fetchPopular({ required type,ImageSize? imageSize,language})async{
         try {
-            final data = await http.get(Uri.parse('$baseUrl/3/discover/${type}?api_key=$apiKey&include_video=true&language=en-US&page=1&sort_by=popularity.desc&with_original_language=$language'));
+            final data = await http.get(Uri.parse('$baseUrl/3/discover/${type}?api_key=$apiKey&include_video=true&language=en-US&page=1&sort_by=popularity.desc&with_original_language=${language??"en"}'));
             final response = jsonDecode(data.body);
             if(response['success'] != null) throw "An unexpected error occured";
             final result = (response['results'] as List).map((movie) {
-                Contentclass data = Contentclass(id: movie['id'], backdrop: imagePath(size: ImageSize.original,path: movie['backdrop_path']), title: movie['title'] ?? movie['name'], language: movie['original_language'], genres: [], type: type, description: movie['overview'], poster: 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342${movie["poster_path"]}&output=webp');
+                Contentclass data = Contentclass(id: movie['id'], backdrop: imagePath(size: imageSize??ImageSize.original,path: movie['backdrop_path']), title: movie['title'] ?? movie['name'], language: movie['original_language'], genres: [], type: type, description: movie['overview'], poster: 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342${movie["poster_path"]}&output=webp');
                 return data;
             }).toList();
             for(int i=0;i<5;i++){
@@ -71,7 +71,7 @@ Future getCatagorylist({
               title: movie['title'] ?? movie['name'] ?? 'Unknown', 
               language: movie['original_language'], 
               genres: [], 
-              type: type, 
+              type: movie['media_type']??type, 
               description: movie['overview'] ?? '', 
               poster: imagePath(size: ImageSize.w342, path: movie['poster_path'])
           ))
@@ -96,7 +96,7 @@ Future getDetails({required int id,required String type}) async {
           title: response['title'] ?? response['name'] ?? 'Unknown',
           language: response['original_language'],
           genres: response['genres'].map((genre) => genre['name']).toList(),
-          type: type,
+          type: response['media_type']??type,
           description: response['overview'] ?? '',
           poster: imagePath(size: ImageSize.original, path: response['poster_path']),
           rating: response['vote_average'],
@@ -133,6 +133,33 @@ Future getRecommendations({required int id,required String type}) async {
       return recommendations;      
   }catch(e){
       throw Exception("Failed to load recommendations: ${e.toString()}");
+  }
+  }
+
+Future search({required String query}) async {
+  try {
+      if (query.isEmpty) throw Exception("Please enter a search query");
+      final data = await http.get(Uri.parse('$baseUrl/3/search/multi?api_key=$apiKey&language=en-US&query=$query&page=1&include_adult=false'));
+      final response = jsonDecode(data.body);
+      if (response['status_code'] != null) throw Exception("Failed to fetch data");
+      
+      final List<Contentclass> searchResults = (response['results'] as List)
+          .where((movie) => 
+              movie['backdrop_path'] != null && 
+              movie['poster_path'] != null)
+          .map((movie) => Contentclass(
+              id: movie['id'], 
+              backdrop: imagePath(size: ImageSize.original, path: movie['backdrop_path']), 
+              title: movie['title'] ?? movie['name'] ?? 'Unknown',
+              language: movie['original_language'],
+              genres: [],
+              type: movie['media_type'],
+              description: movie['overview'] ?? '',
+              poster: imagePath(size: ImageSize.w342, path: movie['poster_path'])
+              )).toList();
+      return searchResults;
+  }catch(e){
+      throw Exception("Failed to search: ${e.toString()}");
   }
   }
 }

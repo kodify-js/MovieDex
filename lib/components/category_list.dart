@@ -23,16 +23,19 @@ class _CategorylistState extends State<Categorylist> {
   Api api = Api();
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
     return Column(
        crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        SizedBox(height: 16),
         Text(widget.lable,style: TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.bold
                     )),
                     SizedBox(height: 8),
                     SizedBox(
-    height: 200,
+    height: isMobile ? 200 : 250,
     child: FutureBuilder(
       future: api.getCatagorylist(type: ContentType.movie.value, language: "en", index: widget.index),
       builder: (context, snapshot) {

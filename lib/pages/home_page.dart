@@ -3,6 +3,7 @@ import 'package:moviedex/api/Api.dart';
 import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/components/carousel.dart';
 import 'package:moviedex/components/category_list.dart';
+import 'package:moviedex/pages/search_page.dart';
 class Home extends StatefulWidget {
   const Home({super.key});
   @override
@@ -13,7 +14,6 @@ class _HomeState extends State<Home>{
   Api api = Api();
   @override
   Widget build(BuildContext context){
-    TextEditingController textEditingController = TextEditingController();
     return Scaffold(
       appBar: AppBar(
         title: const Text("Movie Dex",style: TextStyle(
@@ -22,29 +22,9 @@ class _HomeState extends State<Home>{
         ),
          backgroundColor: Colors.black,
         actions: [
-          Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: 200,
-              height: 40,  // Fixed height for better vertical centering
-              child: TextField(
-                controller: textEditingController,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: "Search",
-                  contentPadding: EdgeInsets.zero,  // Removes internal padding
-                  focusColor: Color.fromRGBO(0, 0, 0, 1),
-                  border: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Color.fromRGBO(0, 0, 0, 1)
-                    ),
-                    borderRadius: BorderRadius.horizontal(left: Radius.circular(20))
-                  )
-                ),
-              ),
-            ),
-          ),
+          IconButton(onPressed: (){
+            Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SearchPage()));
+          }, icon: Icon(Icons.search),color: Theme.of(context).colorScheme.onSecondary,),
         ],
       ),
       body: SafeArea(
@@ -69,7 +49,6 @@ class _HomeState extends State<Home>{
                 children: [
                   // main card
                   Carousel(data: data),
-                  SizedBox(height: 8),
                   Padding(
                     padding: EdgeInsets.all(8),
                     child: ListView.builder(
