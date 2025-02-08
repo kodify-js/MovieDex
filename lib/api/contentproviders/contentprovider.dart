@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:moviedex/api/contentproviders/autoembed.dart';
-import 'package:http/http.dart' as http;
 
 class ContentProvider {
   final int id;

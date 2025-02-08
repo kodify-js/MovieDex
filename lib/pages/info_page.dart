@@ -56,7 +56,7 @@ class _InfopageState extends State<Infopage> {
                   children: [
                     Container(
                       width: width,
-                      height: isMobile?300:500,
+                      height: 500,
                       decoration: BoxDecoration(
                         image: DecorationImage(
                           image: NetworkImage(data.poster),
@@ -96,7 +96,7 @@ class _InfopageState extends State<Infopage> {
                                     ),
                                   )
                                 : SizedBox(
-                                    height: 60,
+                                    width: isMobile?width/2:width/4,
                                     child: Image.network(
                                       data.logoPath ?? '',
                                       fit: BoxFit.cover, // ensures the logo fits within bounds

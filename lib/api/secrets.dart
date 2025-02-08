@@ -1,2 +1,2 @@
 const appName = "Movie Dex";
-const apiKey = "<Your Api Key>";
+const apiKey = "<YOUR API KEY>";

@@ -3,6 +3,7 @@ import 'package:flutter_debouncer/flutter_debouncer.dart';
 import 'package:moviedex/api/Api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -122,11 +123,11 @@ class _SearchPageState extends State<SearchPage> {
                         crossAxisSpacing: 4,
                         mainAxisSpacing: 4
                       ),
-                      itemCount: data!.length,
+                      itemCount: data.length,
                       itemBuilder: (context,index){
                         return GestureDetector(
                           onTap: (){
-                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index])));
+                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,name: data[index].title,type: data[index].type)));
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -200,7 +201,7 @@ class _SearchPageState extends State<SearchPage> {
                               ),
                               Container(
                                 margin: EdgeInsets.only(left: 16,right: 8),
-                                width: 200,
+                                width: 150,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -234,7 +235,7 @@ class _SearchPageState extends State<SearchPage> {
                       itemBuilder: (context,index){
                         return GestureDetector(
                           onTap: (){
-                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index])));
+                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,name: data[index].title,type: data[index].type)));
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 4),

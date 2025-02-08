@@ -59,7 +59,7 @@ class Carousel extends StatelessWidget {
                           ),
                         )
                       : SizedBox(
-                          height: 60, // 15% of screen height
+                          width: isMobile?width/2:width/4,
                           child: Image.network(
                             data[index].logoPath ?? '',
                             alignment: Alignment.centerLeft,
