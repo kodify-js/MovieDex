@@ -1,3 +1,10 @@
+
+class Season {
+  final int id;
+  final int season;
+  const Season({required this.id,required this.season});
+}
+
 class Contentclass {
   int id;
   String backdrop,title,language,description,poster;
@@ -5,6 +12,7 @@ class Contentclass {
   String? logoPath;
   double? rating;
   List genres;
+  List<Season>? seasons;
   Contentclass({
     required this.id,
     required this.backdrop,
@@ -16,5 +24,6 @@ class Contentclass {
     required this.poster,
     this.logoPath,
     this.rating,
+    this.seasons,
   });
 }

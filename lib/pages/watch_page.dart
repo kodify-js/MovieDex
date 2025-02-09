@@ -1,15 +1,17 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
-import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/components/content_player.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+
 
 class Watch extends StatefulWidget {
   final Contentclass? data;
-  const Watch({super.key, this.data});
+  final int? episodeNumber,seasonNumber;
+  const Watch({super.key, this.data, this.episodeNumber, this.seasonNumber});
 
   @override
   State<Watch> createState() => _WatchState();
@@ -18,10 +20,18 @@ class Watch extends StatefulWidget {
 class _WatchState extends State<Watch> {
   TextEditingController textEditingController = TextEditingController();
   late ContentProvider contentProvider;
+
+  Future getStream() async {
+    var stream = await contentProvider.autoembed.getStream();
+    if(stream.isEmpty){
+      stream = await contentProvider.vidsrc.getStream();
+    }
+    return stream;
+  }
   @override
   void initState() {
     super.initState();
-    contentProvider = ContentProvider(id: widget.data!.id);
+    contentProvider = ContentProvider(id: widget.data!.id,type: widget.data!.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
   }
 
   @override
@@ -44,7 +54,7 @@ void dispose() {
 
     return Scaffold(
       body: FutureBuilder(
-        future: contentProvider.autoembed.getStream(), 
+        future: getStream(),
         builder: (context,snapshot){
             if(snapshot.connectionState == ConnectionState.waiting){
               return const Center(
@@ -56,7 +66,7 @@ void dispose() {
                 // child: WebViewWidget(controller: controller),
               );
             }
-            List<StreamClass>? streams = snapshot.data!;
+            List<StreamClass> streams = snapshot.data!;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -22,7 +22,7 @@ class _ContentPlayerState extends State<ContentPlayer> {
   @override
   void initState() {
     super.initState();
-    String? videoUrl = widget.streams[0].sources[0].url;
+    String? videoUrl = widget.streams[0].url;
     _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
       ..initialize().then((_) => setState(() {}));
     _customVideoPlayerController = CustomVideoPlayerController(

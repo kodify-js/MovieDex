@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/secrets.dart.local';
 import 'package:moviedex/api/utils.dart';
 
@@ -100,7 +101,15 @@ Future getDetails({required int id,required String type}) async {
           description: response['overview'] ?? '',
           poster: imagePath(size: ImageSize.original, path: response['poster_path']),
           rating: response['vote_average'],
+          seasons: []
           );
+        if (type == 'tv') {
+          DateTime currentDate = DateTime.now();
+            final List<Season> seasons = (response['seasons'] as List).where((season) => DateTime.parse(season['air_date']??"2000-12-12").isBefore(currentDate) )
+                .map((season) => Season(id: season['id'], season: season['season_number']))
+                .toList();
+            content.seasons = seasons;
+          }
         content.logoPath = await getLogo(id,type);
         return content;
   }catch(e){
@@ -108,6 +117,29 @@ Future getDetails({required int id,required String type}) async {
   }
   }
 
+// Fetch Episodes for tv shows
+Future getEpisodes({required int id,required int season}) async {
+  try {
+      final data = await http.get(Uri.parse('$baseUrl/3/tv/$id/season/$season?api_key=$apiKey&language=en-US'));
+      final response = jsonDecode(data.body);
+      if (response['status_code'] != null) throw Exception("Failed to fetch data");
+      
+      final List<Episode> episodes = (response['episodes'] as List)
+          .map((episode) => Episode(
+              id: episode['id'], 
+              name: episode['name'] ?? 'Unknown',
+              episode: episode['episode_number'],
+              season: episode['season_number'],
+              description: episode['overview'] ?? '',
+              airDate: episode['air_date'],
+              image: imagePath(size: ImageSize.original, path: episode['still_path'])
+              ))
+          .toList();
+      return episodes;
+  }catch(e){
+      throw Exception("Failed to load episodes: ${e.toString()}");
+  }
+  }
 
 Future getRecommendations({required int id,required String type}) async {
   try {

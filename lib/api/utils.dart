@@ -1,3 +1,5 @@
+import 'package:hive/hive.dart';
+
 enum ContentType{
   movie("movie"),
   tv("tv");
@@ -15,4 +17,8 @@ List movieGenres = [{"id":28,"name":"Action"},{"id":12,"name":"Adventure"},{"id"
 
 imagePath({required ImageSize size,required path}){
   return 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/${size.value}$path&output=webp';
+}
+
+hivePut({Box? storage,required String key,required String value})async {
+  await storage?.put(key, value);
 }
