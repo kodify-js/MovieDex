@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animated_icons/icons8.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/components/episode_list_player.dart';
 import 'package:video_player/video_player.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter/services.dart';
@@ -12,7 +13,9 @@ import 'dart:html' as html;
 
 class ContentPlayer extends StatefulWidget {
   final List<StreamClass> streams;
-  const ContentPlayer({super.key, required this.streams});
+  final String contentType;
+  final int? currentEpisode;
+  const ContentPlayer({super.key, required this.streams, required this.contentType, this.currentEpisode});
 
   @override
   State<ContentPlayer> createState() => _ContentPlayerState();
@@ -27,12 +30,25 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   bool _isCountrollesVisible = true;
   bool _isFullScreen = false;
   bool _isSettingsVisible = false;
+  bool _isEpisodesVisible = false;
   String _currentQuality = 'Auto';
+  String _currentLanguage = 'original';
   String _settingsPage = 'main';
   Duration? _duration;
   Duration? _position;
   var _progress = 0.0;
   var _onUpdateControllerTime;
+  List settingElements = ["Quality","Language"];
+
+  String getSourceOfQuality(StreamClass data){
+    final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
+    if(source.isEmpty){
+      _currentQuality = 'Auto';
+      return data.url;
+    }else{
+      return source[0].url;
+    }
+  }
 
   void _onControllerUpdate() async {
     final controller = _controller;
@@ -65,6 +81,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   void initState() {
     super.initState();
     String videoUrl = widget.streams[0].url;
+    _currentLanguage = widget.streams[0].language;
     _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
       ..initialize().then((_) {
         setState(() {
@@ -90,6 +107,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _isCountrollesVisible = false;
         if (!_isSettingsVisible) {
           _isSettingsVisible = false;
+        }
+        if (!_isEpisodesVisible) {
+          _isEpisodesVisible = false;
         }
       });
     });
@@ -129,9 +149,50 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
+  void _toggleEpisodesMenu() {
+    setState(() {
+      _isEpisodesVisible = !_isEpisodesVisible;
+      _cancelAndRestartHideTimer();
+    });
+  }
+
   void _showSettingsOptions(String page) {
     setState(() {
       _settingsPage = page;
+    });
+  }
+
+  void _selectQuality(String quality, String url) {
+    setState(() {
+      if (_currentQuality != quality) {
+        _controller.dispose();
+        _currentQuality = quality;
+        _controller = VideoPlayerController.networkUrl(Uri.parse(url))
+          ..initialize().then((_) {
+            setState(() {
+              _controller.addListener(_onControllerUpdate);
+              _controller.play();
+            });
+          });
+        _isSettingsVisible = false;
+      }
+    });
+  }
+
+  void _selectLanguage(StreamClass data) {
+    setState(() {
+      if (_currentLanguage != data.language) {
+        _controller.dispose();
+        _currentLanguage = data.language;
+        _controller = VideoPlayerController.networkUrl(Uri.parse(_currentQuality == 'Auto' ? data.url : getSourceOfQuality(data)))
+          ..initialize().then((_) {
+            setState(() {
+              _controller.addListener(_onControllerUpdate);
+              _controller.play();
+            });
+          });
+        _isSettingsVisible = false;
+      }
     });
   }
 
@@ -299,6 +360,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
+                                        if (widget.contentType == 'tv')
+                                          IconButton(
+                                              onPressed: _toggleEpisodesMenu,
+                                              icon: Icon(Icons.list),
+                                              iconSize: 20,
+                                              color: Colors.white),
                                         IconButton(
                                             onPressed: _toggleSettingsMenu,
                                             icon: Icon(Icons.settings),
@@ -381,42 +448,21 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                           onPressed: _toggleSettingsMenu,
                                         ),
                                       ),
-                                      ListTile(
-                                        title: TextButton(
-                                          onPressed: () => _showSettingsOptions('quality'),
-                                          style: TextButton.styleFrom(
-                                            backgroundColor: colorScheme.secondary,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: Text('Quality', style: TextStyle(color: Colors.white)),
-                                        ),
-                                      ),
-                                      ListTile(
-                                        title: TextButton(
-                                          onPressed: () => _showSettingsOptions('language'),
-                                          style: TextButton.styleFrom(
-                                            backgroundColor: colorScheme.secondary,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: Text('Language', style: TextStyle(color: Colors.white)),
-                                        ),
-                                      ),
-                                      ListTile(
-                                        title: TextButton(
-                                          onPressed: () => _showSettingsOptions('server'),
-                                          style: TextButton.styleFrom(
-                                            backgroundColor: colorScheme.secondary,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          child: Text('Server', style: TextStyle(color: Colors.white)),
-                                        ),
-                                      ),
+                                      for(String element in settingElements)
+                                        SizedBox(
+                                          width: 250,
+                                          height: 50,
+                                          child: TextButton(
+                                                onPressed: () => _showSettingsOptions(element.toLowerCase()),
+                                                style: TextButton.styleFrom(
+                                                  backgroundColor: colorScheme.secondary,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius.circular(0),
+                                                  ),
+                                                ),
+                                                child: Text(element, style: TextStyle(color: Colors.white)),
+                                              ),
+                                        )
                                     ],
                                   )
                                 : Column(
@@ -431,19 +477,11 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                       if (_settingsPage == 'quality') ...[
                                         SizedBox(
                                           width: 250,
+                                          height: 50,
                                           child: TextButton(
-                                              onPressed: () {
-                                               _controller.dispose();
-                                                   _controller = VideoPlayerController.networkUrl(Uri.parse(widget.streams[0]))
-                                                      ..initialize().then((_) {
-                                                        setState(() {
-                                                          _controller.addListener(_onControllerUpdate);
-                                                          _controller.play();
-                                                        });
-                                                      });
-                                              },
+                                              onPressed: () => _selectQuality('Auto', widget.streams[0].url),
                                               style: TextButton.styleFrom(
-                                                backgroundColor: colorScheme.secondary,
+                                                backgroundColor: _currentQuality == 'Auto' ? colorScheme.primary : colorScheme.secondary,
                                                 shape: RoundedRectangleBorder(
                                                   borderRadius: BorderRadius.circular(0),
                                                 ),
@@ -452,84 +490,56 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                             ),
                                         ),
                                         for(SourceClass data in widget.streams[0].sources)
-                                          SizedBox(
+                                          if(data.quality!='Auto')
+                                            SizedBox(
                                             width: 250,
+                                            height: 50,
                                             child: TextButton(
-                                              onPressed: () {
-                                                // Handle auto quality selection
-                                              },
+                                              onPressed: () => _selectQuality(data.quality, data.url),
                                               style: TextButton.styleFrom(
-                                                backgroundColor: colorScheme.secondary,
+                                                backgroundColor: _currentQuality == data.quality ? colorScheme.primary : colorScheme.secondary,
                                                 shape: RoundedRectangleBorder(
                                                   borderRadius: BorderRadius.circular(0),
                                                 ),
                                               ),
-                                              child: Text(data.quality, style: TextStyle(color: Colors.white)),
+                                              child: Text('${data.quality}p', style: TextStyle(color: Colors.white)),
                                             ),
                                           )
                                       ] else if (_settingsPage == 'language') ...[
-                                        ListTile(
-                                          title: TextButton(
-                                            onPressed: () {
-                                              // Handle language selection
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: colorScheme.secondary,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('English', style: TextStyle(color: Colors.white)),
-                                          ),
-                                        ),
-                                        ListTile(
-                                          title: TextButton(
-                                            onPressed: () {
-                                              // Handle language selection
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: colorScheme.secondary,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('Spanish', style: TextStyle(color: Colors.white)),
-                                          ),
-                                        ),
-                                        // Add more languages as needed
-                                      ] else if (_settingsPage == 'server') ...[
-                                        ListTile(
-                                          title: TextButton(
-                                            onPressed: () {
-                                              // Handle server selection
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: colorScheme.secondary,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('Server 1', style: TextStyle(color: Colors.white)),
-                                          ),
-                                        ),
-                                        ListTile(
-                                          title: TextButton(
-                                            onPressed: () {
-                                              // Handle server selection
-                                            },
-                                            style: TextButton.styleFrom(
-                                              backgroundColor: colorScheme.secondary,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                            child: Text('Server 2', style: TextStyle(color: Colors.white)),
-                                          ),
-                                        ),
-                                        // Add more servers as needed
-                                      ],
+                                              for(StreamClass data in widget.streams)
+                                                SizedBox(
+                                                  width: 250,
+                                                  height: 50,
+                                                  child: TextButton(
+                                                    onPressed: () => _selectLanguage(data),
+                                                    style: TextButton.styleFrom(
+                                                      backgroundColor: _currentLanguage == data.language ? colorScheme.primary : colorScheme.secondary,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius: BorderRadius.circular(0),
+                                                      ),
+                                                    ),
+                                                    child: Text(data.language, style: TextStyle(color: Colors.white)),
+                                                  ),
+                                                )
+                                      ]
                                     ],
                                   ),
+                          ),
+                        )
+                      : Container(),
+                  _isEpisodesVisible
+                      ? Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          child: EpisodeListForPlayer(
+                            currentEpisode: widget.currentEpisode,
+                            onEpisodeSelected: (episode) {
+                              // Handle episode selection
+                              setState(() {
+                                _isEpisodesVisible = false;
+                              });
+                            },
                           ),
                         )
                       : Container(),

@@ -8,8 +8,8 @@ class Autoembed {
   final int id;
   final String type;
   final int? episodeNumber,seasonNumber;
-  const Autoembed({required this.id,required this.type,this.episodeNumber,this.seasonNumber});
-
+  Autoembed({required this.id,required this.type,this.episodeNumber,this.seasonNumber});
+  bool isError = false;
   Future<List<StreamClass>> getStream() async {
     try {
       final response = await http.get(Uri.parse('https://simple-proxy.metalewis21.workers.dev/?destination=https://hin.autoembed.cc/${ContentType.movie.value==type?"movie":"tv"}/$id${ContentType.movie.value==type?"":"/${episodeNumber??"1"}/${seasonNumber??"1"}"}'));
@@ -17,7 +17,7 @@ class Autoembed {
       final List source = jsonDecode('${script.split("],")[0]}]');
       final result = source.map((data) async {
       List<SourceClass> sources = await _getSources(url: data['file']);
-      return StreamClass(language: data['label'],url: data['file'], sources: sources);
+      return StreamClass(language: data['label'],url: data['file'],isError: isError, sources: sources);
       }).toList();
       if(result.isEmpty) throw "An unexpected error occured";
       return Future.wait(result);
@@ -33,8 +33,10 @@ class Autoembed {
       final result = data.where((url) => url.contains(".m3u8")).map((link) {
       return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
     }).toList();
+    isError = false;
     return result;
     } catch (e) {
+      isError = true;
       throw Exception("Failed to load video: ${e.toString()}");
     }
   }

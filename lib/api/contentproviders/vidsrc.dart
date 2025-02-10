@@ -21,11 +21,13 @@ class Vidsrc {
       // Extract array of objects
       RegExp exp = new RegExp(r"((https?:www\.)|(https?:\/\/)|(www\.))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}(\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?");
       Iterable<RegExpMatch> matches = exp.allMatches(sourceString);
+      var i=0;
       final result = matches.map((match) async {
          final url = sourceString.substring(match.start, match.end);
         List<SourceClass> sources = await _getSources(url: url);
+        i++;
         return StreamClass(
-          language: "original",
+          language: "original ${i}",
           url: url,
           sources: sources
         );
@@ -47,7 +49,7 @@ class Vidsrc {
         return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
       }).toList();
       }
-      return [SourceClass(quality: "original", url: url)];
+      return [SourceClass(quality: "Auto", url: url)];
     } catch (e) {
       throw Exception("Failed to load video: ${e.toString()}");
     }

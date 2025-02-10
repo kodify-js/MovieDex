@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +21,7 @@ class _WatchState extends State<Watch> {
 
   Future getStream() async {
     var stream = await contentProvider.autoembed.getStream();
+    stream = stream.where((data)=>!data.isError).toList();
     if(stream.isEmpty){
       stream = await contentProvider.vidsrc.getStream();
     }
@@ -70,7 +69,7 @@ void dispose() {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: ContentPlayer(streams:streams)),
+              Expanded(child: ContentPlayer(streams:streams,contentType: widget.data!.type,)),
             ],
           );
         }

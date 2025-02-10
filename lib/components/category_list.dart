@@ -53,7 +53,7 @@ class _CategorylistState extends State<Categorylist> {
         return HorizontalScrollList(data: data);
       }
     ),
-                    ),
+  ),
       ],
     );
   }
