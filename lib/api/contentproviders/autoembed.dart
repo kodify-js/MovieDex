@@ -14,7 +14,7 @@ class Autoembed {
     final List source = jsonDecode('${script.split("],")[0]}]');
     final result = (source as List).map((data) async {
       List<SourceClass> sources = await _getSources(url: data['file']);
-      return StreamClass(language: data['label'], sources: sources);
+      return StreamClass(language: data['label'],url: data['file'], sources: sources);
     }).toList();
     return Future.wait(result);
   }
