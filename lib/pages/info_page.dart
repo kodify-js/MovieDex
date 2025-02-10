@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/Api.dart';
 import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
+import 'package:moviedex/components/description_text.dart';
+import 'package:moviedex/components/episodes_section.dart';
+import 'package:hive/hive.dart';
 
 class Infopage extends StatefulWidget {
   final int id;
@@ -18,8 +22,19 @@ class Infopage extends StatefulWidget {
 class _InfopageState extends State<Infopage> {
   Api api = Api();
   TextEditingController textEditingController = TextEditingController();
+  bool isDescriptionExpanded = false;
+  int selectedSeason = 1;
+  Box? storage;
+  @override
+  void initState() {
+    super.initState();
+    Hive.openBox(widget.name).then((value) => storage = value);
+  }
   @override
   Widget build(BuildContext context) {
+    storage?.get("season")??hivePut(storage: storage,key: "season",value: "S1");
+    selectedSeason = int.parse((storage?.get("season")??"S1").replaceAll("S", ""));
+    storage?.get("episode")??hivePut(storage: storage,key: "episode",value: "E1");
     final width = MediaQuery.of(context).size.width;
     final isMobile = width<600;
     return Scaffold(
@@ -42,7 +57,12 @@ class _InfopageState extends State<Infopage> {
               future: api.getDetails(id: widget.id, type: widget.type),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height - AppBar().preferredSize.height,
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
                 }
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
@@ -56,7 +76,7 @@ class _InfopageState extends State<Infopage> {
                   children: [
                     Container(
                       width: width,
-                      height: isMobile?300:500,
+                      height: 500,
                       decoration: BoxDecoration(
                         image: DecorationImage(
                           image: NetworkImage(data.poster),
@@ -96,21 +116,15 @@ class _InfopageState extends State<Infopage> {
                                     ),
                                   )
                                 : SizedBox(
-                                    height: 60,
+                                    width: isMobile?width/2:width/4,
                                     child: Image.network(
                                       data.logoPath ?? '',
                                       fit: BoxFit.cover, // ensures the logo fits within bounds
                                     ),
                                   ),
                               ),
-                                Row(
-                                  spacing: 8,
-                                  children: [
-                                    Container(
-                                      width: isMobile?width-24:100,
-                                      margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
-                                      child: TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data)));
+                              isMobile?TextButton(onPressed: (){
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber:  int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,)));
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(Colors.white),
@@ -120,17 +134,38 @@ class _InfopageState extends State<Infopage> {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Icon(Icons.play_arrow_rounded,size: 24,color: Colors.black),
-                                          Text("Play",style: TextStyle(color: Colors.black,fontSize: 18,fontWeight: FontWeight.bold))
+                                          Text("Play ${widget.type==ContentType.tv.value?'${storage?.get("season")??"S1"}${storage?.get("episode")??"E1"}':""}",style: TextStyle(color: Colors.black,fontSize: 18,fontWeight: FontWeight.bold))
+                                        ],
+                                      )
+                                ):Container(),
+                                Row(
+                                  spacing: 8,
+                                  children: [
+                                    !isMobile?Container(
+                                      width :150,
+                                      margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
+                                      child: TextButton(onPressed: (){
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber: int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason)));
+                                      },
+                                      style: ButtonStyle(
+                                        backgroundColor: WidgetStatePropertyAll(Colors.white),
+                                        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.play_arrow_rounded,size: 24,color: Colors.black),
+                                          Text("Play ${widget.type==ContentType.tv.value?'${storage?.get("season")??"S1"}${storage?.get("episode")??"E1"}':""}",style: TextStyle(color: Colors.black,fontSize: 18,fontWeight: FontWeight.bold))
                                         ],
                                       )
                                       ),
-                                    ),
-                                     Theme.of(context).platform != TargetPlatform.iOS && Theme.of(context).platform != TargetPlatform.android && !isMobile?
+                                    ):Container(),
+                                    !isMobile?
                                     Container(
                                       width: isMobile?width:150,
                                       margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
                                       child: TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data)));
+                                        
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(110, 29, 29, 29)),
@@ -139,7 +174,7 @@ class _InfopageState extends State<Infopage> {
                                       child: Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.play_arrow_rounded,size: 24,color: Colors.white),
+                                          Icon(Icons.add,size: 24,color: Colors.white),
                                           Text("Add to list",style: TextStyle(color: Colors.white,fontSize: 18,fontWeight: FontWeight.bold))
                                         ],
                                       )
@@ -147,7 +182,7 @@ class _InfopageState extends State<Infopage> {
                                     ):const SizedBox(),
                                   ],
                                 ),
-                              Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android?
+                              (Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android) && isMobile?
                               Container(
                                 width: MediaQuery.of(context).size.width,
                                 margin: const EdgeInsets.only(top: 8),
@@ -170,11 +205,73 @@ class _InfopageState extends State<Infopage> {
                         ),
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(height: 8),
+                          DescriptionText(text: data.description),
+                          SizedBox(height: 8),
+                          Text("Genres: ${data.genres.join(", ")}",style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey
+                          )),
+                          Row(
+                            children: [
+                              Text("Rating: ${data.rating}",style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey
+                              )),
+                              Icon(Icons.star_rounded,color: Colors.yellow,)
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16,top: 8),
+                            child: Row(
+                              spacing: 16,
+                              children: [
+                                isMobile?Column(
+                                  children: [
+                                    IconButton(onPressed: (){}, icon: Icon(Icons.add),color: Colors.white, iconSize: 32,),
+                                    Text("Add to list",style: TextStyle(
+                                      color: Colors.white
+                                    ),)
+                                  ],
+                                ):Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android?
+                                Column(
+                                  children: [
+                                    IconButton(onPressed: (){}, icon: Icon(Icons.download),color: Colors.white, iconSize: 32,),
+                                    Text("Download",style: TextStyle(
+                                      color: Colors.white
+                                    ),)
+                                  ],
+                                ):const SizedBox(),
+                                Column(
+                                  children: [
+                                    IconButton(onPressed: (){}, icon: Icon(Icons.share),color: Colors.white, iconSize: 32,),
+                                    Text("Share",style: TextStyle(
+                                      color: Colors.white
+                                    ),)
+                                  ],
+                                )
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                    data.type==ContentType.movie.value?
                     FutureBuilder(
                       future: api.getRecommendations(id: widget.id, type: widget.type), 
                       builder: (context,snapshot){
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                         return const Center(child: CircularProgressIndicator());
+                          return SizedBox(
+                            height: 300,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
                         }
                         if (snapshot.hasError) {
                           return Center(child: Text('Error: ${snapshot.error}'));
@@ -201,7 +298,8 @@ class _InfopageState extends State<Infopage> {
                             ),
                           );
                         }
-                    )                     
+                    ):
+                    EpisodesSection(data: data,initialSeason: selectedSeason,), 
                   ],
                 );
               },

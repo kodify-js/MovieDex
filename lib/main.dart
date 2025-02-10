@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/pages/home_page.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   runApp(MovieDex());
 }
 
@@ -24,7 +27,7 @@ class MovieDex extends StatelessWidget {
         onError: Colors.white,
         ),
       ),
-      home: const Home(),
+      home: const Home()
     );
   }
 }
