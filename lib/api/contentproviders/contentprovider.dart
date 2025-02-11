@@ -9,4 +9,6 @@ class ContentProvider {
   ContentProvider({required this.id,required this.type,this.episodeNumber,this.seasonNumber});
   Autoembed get autoembed => Autoembed(id: id,type: type,episodeNumber: episodeNumber,seasonNumber: seasonNumber);
   Vidsrc get vidsrc => Vidsrc(id: id,type: type,episodeNumber: episodeNumber,seasonNumber: seasonNumber);
+  
+  List get providers => [autoembed,vidsrc];
 }

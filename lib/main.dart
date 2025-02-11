@@ -7,7 +7,7 @@ void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   runApp(MovieDex());
-}
+} 
 
 class MovieDex extends StatelessWidget {
   const MovieDex({super.key});

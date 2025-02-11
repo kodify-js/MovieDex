@@ -71,7 +71,7 @@ class _InfopageState extends State<Infopage> {
                   return const Center(child: Text('No data available'));
                 }
 
-                Contentclass data = snapshot.data;
+                Contentclass data = snapshot.data!;
                 return Column(
                   children: [
                     Container(
@@ -124,7 +124,7 @@ class _InfopageState extends State<Infopage> {
                                   ),
                               ),
                               isMobile?TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber:  int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,)));
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber:  int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,title: '${data.title} ${data.type=='tv'?storage!.get("episode"):""}',)));
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(Colors.white),
@@ -145,7 +145,7 @@ class _InfopageState extends State<Infopage> {
                                       width :150,
                                       margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
                                       child: TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber: int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason)));
+                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber: int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,title: '${data.title} ${data.type=='tv'?storage!.get("episode"):""}',)));
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(Colors.white),

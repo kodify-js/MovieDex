@@ -73,7 +73,7 @@ class Carousel extends StatelessWidget {
                           padding: const EdgeInsets.only(right: 8),
                           child: TextButton(
                           onPressed: (){
-                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index],)));
+                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index],title: data[index].title,)));
                           },
                           style: ButtonStyle(
                             backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),

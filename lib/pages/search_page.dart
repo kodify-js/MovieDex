@@ -168,15 +168,15 @@ class _SearchPageState extends State<SearchPage> {
                   child: Text(snapshot.error.toString(),style: TextStyle(fontSize: 24,fontWeight: FontWeight.bold),),
                 );
                 } 
-                final List<Contentclass> data = snapshot.data;
+                final List<Contentclass> data = snapshot.data!;
                 return Expanded(
                   child: isMobile?
                   ListView.builder(
-                    itemCount: data!.length,
+                    itemCount: data.length,
                     itemBuilder: (context,index){
                       return GestureDetector(
                         onTap: (){
-                          Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index])));
+                          Navigator.of(context).push(MaterialPageRoute(builder: (context) => Infopage(id: data[index].id,name: data[index].title,type: data[index].type)));
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(8.0),
@@ -231,7 +231,7 @@ class _SearchPageState extends State<SearchPage> {
                         crossAxisSpacing: 4,
                         mainAxisSpacing: 4
                       ),
-                      itemCount: data!.length,
+                      itemCount: data.length,
                       itemBuilder: (context,index){
                         return GestureDetector(
                           onTap: (){

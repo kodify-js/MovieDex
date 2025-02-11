@@ -49,8 +49,8 @@ class _CategorylistState extends State<Categorylist> {
           return const Center(child: Text('No data available'));
         }
 
-        final List<Contentclass> data = snapshot.data?[0][widget.lable];
-        return HorizontalScrollList(data: data);
+        final List<Contentclass>? data = snapshot.data?[0][widget.lable];
+        return HorizontalScrollList(data: data!);
       }
     ),
   ),

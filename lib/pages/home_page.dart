@@ -41,7 +41,7 @@ class _HomeState extends State<Home>{
                 child: Text(snapshot.error.toString(),style: TextStyle(fontSize: 24,fontWeight: FontWeight.bold),),
               );
             }
-            final data = snapshot.data;
+            final data = snapshot.data!;
             return SingleChildScrollView(
               scrollDirection: Axis.vertical,
               child: Column(

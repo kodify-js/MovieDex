@@ -103,13 +103,12 @@ Future getDetails({required int id,required String type}) async {
           rating: response['vote_average'],
           seasons: []
           );
-        if (type == 'tv') {
-          DateTime currentDate = DateTime.now();
-            final List<Season> seasons = (response['seasons'] as List).where((season) => DateTime.parse(season['air_date']??"2000-12-12").isBefore(currentDate) )
-                .map((season) => Season(id: season['id'], season: season['season_number']))
-                .toList();
-            content.seasons = seasons;
-          }
+        if(type==ContentType.tv.value){
+            for (var data in (response['seasons'] as List)) {
+              Season season = Season(id: data['id'], season: data['season_number']);
+              content.seasons?.add(season);
+            } 
+        }
         content.logoPath = await getLogo(id,type);
         return content;
   }catch(e){

@@ -22,7 +22,7 @@ class Autoembed {
       if(result.isEmpty) throw "An unexpected error occured";
       return Future.wait(result);
     } catch (e) {
-      throw Exception("Failed to load video: ${e.toString()}");
+      return [];
     }
   }
 
@@ -33,11 +33,11 @@ class Autoembed {
       final result = data.where((url) => url.contains(".m3u8")).map((link) {
       return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
     }).toList();
-    isError = false;
+    if(result.isEmpty) throw "No valid sources found";
     return result;
     } catch (e) {
       isError = true;
-      throw Exception("Failed to load video: ${e.toString()}");
+      return [];
     }
   }
 }
