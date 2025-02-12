@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:moviedex/api/Api.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/utils.dart';
-import 'package:moviedex/components/horizontal_scroll_list.dart';
+import 'package:moviedex/components/horizontal_movie_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
 import 'package:moviedex/components/description_text.dart';
@@ -30,6 +30,39 @@ class _InfopageState extends State<Infopage> {
     super.initState();
     Hive.openBox(widget.name).then((value) => storage = value);
   }
+
+  void _navigateToPlayer(Contentclass data) async {
+    // Ensure the box is open before navigating
+    if (!storage!.isOpen) {
+      storage = await Hive.openBox(widget.name);
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => WatchPage(
+          data: data,
+          episodeNumber: int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),
+          seasonNumber: selectedSeason,
+          title: '${data.title} ${data.type=='tv'?storage!.get("episode"):""}',
+          storage: storage,
+        ),
+      ),
+    ).then((value) async {
+      // Reopen the box if it was closed when returning
+      if (storage != null && !storage!.isOpen) {
+        storage = await Hive.openBox(widget.name);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    if (storage?.isOpen ?? false) {
+      storage?.close();
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     storage?.get("season")??hivePut(storage: storage,key: "season",value: "S1");
@@ -105,7 +138,7 @@ class _InfopageState extends State<Infopage> {
                               Spacer(),
                               Container(
                                 margin: const EdgeInsets.only(left: 16,right: 16),
-                                child: data.logoPath!.isEmpty
+                                child: data.logoPath==null
                                 ? Text(
                                     data.title,
                                     style: TextStyle(
@@ -123,7 +156,7 @@ class _InfopageState extends State<Infopage> {
                                   ),
                               ),
                               isMobile?TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber:  int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,title: '${data.title} ${data.type=='tv'?storage!.get("episode"):""}',)));
+                                        _navigateToPlayer(data);
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(Colors.white),
@@ -144,7 +177,7 @@ class _InfopageState extends State<Infopage> {
                                       width :150,
                                       margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
                                       child: TextButton(onPressed: (){
-                                        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data,episodeNumber: int.parse((storage?.get("episode")??"E1").replaceAll("E", "")),seasonNumber: selectedSeason,title: '${data.title} ${data.type=='tv'?storage!.get("episode"):""}',)));
+                                        _navigateToPlayer(data);
                                       },
                                       style: ButtonStyle(
                                         backgroundColor: WidgetStatePropertyAll(Colors.white),
@@ -260,44 +293,8 @@ class _InfopageState extends State<Infopage> {
                       ),
                     ),
                     data.type==ContentType.movie.value?
-                    FutureBuilder(
-                      future: api.getRecommendations(id: widget.id, type: widget.type), 
-                      builder: (context,snapshot){
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return SizedBox(
-                            height: 300,
-                            child: const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Center(child: Text('Error: ${snapshot.error}'));
-                        }
-                        if (!snapshot.hasData || snapshot.data == null || snapshot.data!.isEmpty) {
-                          return const Center(child: Text('No data available'));
-                        }
-                        final List<Contentclass> data = snapshot.data!;
-                          return Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text("Recommendations",style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold
-                                )),
-                                SizedBox(height: 8),
-                                SizedBox(
-                                  height: isMobile?200:300,
-                                  child: HorizontalScrollList(data: data),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                    ):
-                    EpisodesSection(data: data,initialSeason: selectedSeason,), 
+                    HorizontalMovieList(title: "Recommendations", fetchMovies: () => api.getRecommendations(id: widget.id, type: widget.type), showNumber: false):
+                    EpisodesSection(data: data,initialSeason: selectedSeason), 
                   ],
                 );
               },

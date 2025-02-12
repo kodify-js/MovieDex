@@ -1,23 +1,36 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/services.dart';
+import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
+import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/components/content_player.dart';
 import 'package:lottie/lottie.dart';
+import 'package:hive/hive.dart';
 
-class Watch extends StatefulWidget {
-  final Contentclass? data;
-  final int? episodeNumber,seasonNumber;
+class WatchPage extends StatefulWidget {
+  final Contentclass data;
+  final int? episodeNumber, seasonNumber;
   final String title;
-  const Watch({super.key, this.data, this.episodeNumber, this.seasonNumber,required this.title});
+  final Box? storage; // Add storage parameter
 
+  const WatchPage({
+    super.key, 
+    required this.data, 
+    this.episodeNumber, 
+    this.seasonNumber,
+    required this.title,
+    this.storage, // Add this parameter
+  });
+  
   @override
-  State<Watch> createState() => _WatchState();
+  State<WatchPage> createState() => _WatchPageState();
 }
 
-class _WatchState extends State<Watch> {
+class _WatchPageState extends State<WatchPage> {
   TextEditingController textEditingController = TextEditingController();
   late ContentProvider contentProvider;
   int _providerIndex = 0;
@@ -32,6 +45,12 @@ class _WatchState extends State<Watch> {
   Timer? _messageTimer;
   List<StreamClass> _stream = [];
   bool isError = false;
+  List<Episode>? episodes;
+  bool isLoading = true;
+  int? currentEpisodeNumber;
+  int? currentSeasonNumber;
+  Box? storage;
+
   void getStream() async {
     try{
     if(_providerIndex >= contentProvider.providers.length) isError = true;
@@ -50,6 +69,18 @@ class _WatchState extends State<Watch> {
   @override
   void initState() {
     super.initState();
+    currentEpisodeNumber = widget.episodeNumber;
+    currentSeasonNumber = widget.seasonNumber;
+    
+    // Use provided storage or create new one
+    storage = widget.storage;
+    if (storage == null || !storage!.isOpen) {
+      _initStorage();
+    }
+
+    if (widget.data.type == ContentType.tv.value) {
+      _loadEpisodes();
+    }
     // Set full immersive mode
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.immersiveSticky,
@@ -64,6 +95,43 @@ class _WatchState extends State<Watch> {
     _startMessageRotation();
   }
 
+  Future<void> _initStorage() async {
+    try {
+      if (storage?.isOpen ?? false) return;
+      
+      storage = await Hive.openBox(widget.data.title);
+      await storage?.put("season", "S${widget.seasonNumber ?? 1}");
+      await storage?.put("episode", "E${widget.episodeNumber ?? 1}");
+    } catch (e) {
+      debugPrint('Error initializing storage: $e');
+    }
+  }
+
+  Future<void> _loadEpisodes() async {
+    try {
+      if (currentSeasonNumber == null) return;
+      
+      final episodesList = await Api().getEpisodes(
+        id: widget.data.id,
+        season: currentSeasonNumber!,
+      );
+      
+      if (mounted) {
+        setState(() {
+          episodes = episodesList;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+      // Handle error
+    }
+  }
+
   void _startMessageRotation() {
     _messageTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (mounted) {
@@ -74,9 +142,35 @@ class _WatchState extends State<Watch> {
     });
   }
 
+  void _handleEpisodeSelected(int episodeNumber) async {
+    setState(() {
+      isLoading = true;
+      currentEpisodeNumber = episodeNumber;
+      _stream = []; // Clear current stream
+    });
+
+    // Create new content provider for selected episode
+    contentProvider = ContentProvider(
+      id: widget.data.id,
+      type: widget.data.type,
+      episodeNumber: episodeNumber,
+      seasonNumber: currentSeasonNumber,
+    );
+
+    // Reset provider index
+    _providerIndex = 0;
+    
+    // Get new stream
+    getStream();
+  }
+
   @override
   void dispose() {
     _messageTimer?.cancel();
+    // Don't close the storage if it was passed from parent
+    if (widget.storage == null && (storage?.isOpen ?? false)) {
+      storage?.close();
+    }
     // Reset system UI on exit
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
@@ -178,15 +272,23 @@ class _WatchState extends State<Watch> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _stream.isNotEmpty?SizedBox(
-        width: double.infinity,
-        height: double.infinity,
-        child: ContentPlayer(
-                streams: _stream,
-                contentType: widget.data!.type,
-                title: widget.title,
-              ),
-      ):!isError?_buildLoadingState():_buildErrorState(),
+      body: _stream.isNotEmpty 
+        ? SizedBox(
+            width: double.infinity,
+            height: double.infinity,
+            child: ContentPlayer(
+              data: widget.data,
+              streams: _stream,
+              contentType: widget.data.type,
+              title: widget.title,
+              episodes: episodes,
+              currentEpisode: currentEpisodeNumber,
+              onEpisodeSelected: _handleEpisodeSelected,
+            ),
+          )
+        : !isError 
+            ? _buildLoadingState()
+            : _buildErrorState(),
     );
   }
 }

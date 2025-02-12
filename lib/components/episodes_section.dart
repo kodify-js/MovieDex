@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:moviedex/api/Api.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/components/episodes_list.dart';

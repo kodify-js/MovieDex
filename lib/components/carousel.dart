@@ -49,7 +49,7 @@ class Carousel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    data[index].logoPath!.isEmpty
+                    data[index].logoPath==null
                       ? Text(
                           data[index].title,
                           style: TextStyle(
@@ -73,14 +73,14 @@ class Carousel extends StatelessWidget {
                           padding: const EdgeInsets.only(right: 8),
                           child: TextButton(
                           onPressed: (){
-                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: data[index],title: data[index].title,)));
+                            Navigator.of(context).push(MaterialPageRoute(builder: (context) => WatchPage(data: data[index],title: data[index].title,)));
                           },
                           style: ButtonStyle(
                             backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
                             shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
                           ),
                           child: SizedBox(
-                            width: 120,
+                            width: 125,
                             child: Row(
                               children: [
                                 Icon(Icons.play_arrow_rounded,size: 24,color: Colors.white),
@@ -106,7 +106,7 @@ class Carousel extends StatelessWidget {
                           shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
                         ),
                         child: SizedBox(
-                          width: 120,
+                          width: 125,
                           child: Row(
                             children: [
                               SizedBox(width: 5),

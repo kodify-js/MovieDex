@@ -5,6 +5,7 @@ class ThemeProvider extends ChangeNotifier {
   late Box _settingsBox;
   bool _amoledMode = false;
   Color _accentColor = Colors.blue;
+  String _fontFamily = 'Inter'; // Add font family
 
   ThemeProvider() {
     _initSettings();
@@ -12,12 +13,13 @@ class ThemeProvider extends ChangeNotifier {
 
   bool get amoledMode => _amoledMode;
   Color get accentColor => _accentColor;
-  Color get effectiveColor => _accentColor;
+  String get fontFamily => _fontFamily; // Add getter
 
   Future<void> _initSettings() async {
     _settingsBox = await Hive.openBox('settings');
     _amoledMode = _settingsBox.get('amoledMode', defaultValue: false);
     _accentColor = Color(_settingsBox.get('accentColor', defaultValue: Colors.blue.value));
+    _fontFamily = _settingsBox.get('fontFamily', defaultValue: 'Inter');
     notifyListeners();
   }
 
@@ -25,9 +27,9 @@ class ThemeProvider extends ChangeNotifier {
     final isDark = true; // Always dark theme
     
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: effectiveColor,
+      seedColor: _accentColor,  // Use _accentColor directly
       brightness: Brightness.dark,
-      primary: effectiveColor,
+      primary: _accentColor,    // Use _accentColor directly
       surface: _amoledMode ? Colors.black : null,
       background: _amoledMode ? Colors.black : const Color(0xFF0A0A0A),
       onBackground: Colors.white,
@@ -38,6 +40,7 @@ class ThemeProvider extends ChangeNotifier {
       colorScheme: colorScheme,
       useMaterial3: true,
       scaffoldBackgroundColor: colorScheme.surface,
+      fontFamily: _fontFamily, // Add font family to theme
       cardTheme: CardTheme(
         color: colorScheme.surfaceContainerHighest,
         elevation: 0,
@@ -52,20 +55,24 @@ class ThemeProvider extends ChangeNotifier {
       textTheme: TextTheme(
         bodyLarge: TextStyle(
           color: Colors.white,
+          fontFamily: _fontFamily,
         ),
         bodyMedium: TextStyle(
           color: Colors.white70,
+          fontFamily: _fontFamily,
         ),
         titleLarge: TextStyle(
           color: Colors.white,
+          fontFamily: _fontFamily,
         ),
       ).apply(
         bodyColor: Colors.white,
         displayColor: Colors.white,
+        fontFamily: _fontFamily,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: _amoledMode ? Colors.black : null,
-        selectedItemColor: effectiveColor,
+        selectedItemColor: _accentColor,
         unselectedItemColor: Colors.white60,
       ),
       appBarTheme: AppBarTheme(
@@ -102,6 +109,12 @@ class ThemeProvider extends ChangeNotifier {
   void setAccentColor(Color color) {
     _accentColor = color;
     _settingsBox.put('accentColor', color.value);
+    notifyListeners();
+  }
+
+  void setFontFamily(String fontFamily) {
+    _fontFamily = fontFamily;
+    _settingsBox.put('fontFamily', fontFamily);
     notifyListeners();
   }
 }

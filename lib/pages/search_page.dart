@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_debouncer/flutter_debouncer.dart';
-import 'package:moviedex/api/Api.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/pages/info_page.dart';
@@ -156,7 +156,7 @@ class _SearchPageState extends State<SearchPage> {
               }
             ): 
             FutureBuilder(
-              future: api.fetchPopular(type: "movie",imageSize: ImageSize.w342,language: "en"), 
+              future: api.getPopular(type: "movie",imageSize: ImageSize.w342,language: "en"), 
               builder: (context,snapshot){
               if(snapshot.connectionState == ConnectionState.waiting){
                 return const Center(

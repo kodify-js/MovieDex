@@ -1,24 +1,34 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/api/class/episode_class.dart';
+import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/components/episode_list_player.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
-// web imports
-// import 'dart:html' as html;
+import 'package:moviedex/api/services/watch_history_service.dart';
+import 'package:moviedex/components/next_episode_button.dart';
 
 class ContentPlayer extends StatefulWidget {
+  final Contentclass data;
   final List<StreamClass> streams;
   final String contentType;
   final int? currentEpisode;
-  final String title;  // Add this
+  final String title;
+  final List<Episode>? episodes;
+  final Function(int)? onEpisodeSelected;  // Add this callback
   const ContentPlayer({
     super.key, 
+    required this.data,
     required this.streams, 
     required this.contentType, 
     this.currentEpisode,
-    required this.title,  // Add this
+    required this.title,  
+    this.episodes,
+    this.onEpisodeSelected,  // Add this to constructor
   });
 
   @override
@@ -26,8 +36,8 @@ class ContentPlayer extends StatefulWidget {
 }
 
 class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateMixin {
-  late VideoPlayerController _controller;
-  late Timer _hideTimer;
+  VideoPlayerController? _controller;
+  Timer? _hideTimer;
   bool _isPlaying = false;
   bool _isCountrollesVisible = true;
   bool _isFullScreen = false;
@@ -94,6 +104,15 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   late Animation<double> _seekForwardRotation;
   late Animation<double> _seekRewindRotation;
   
+  //_settings
+  late Box _settingsBox;
+  bool _useCustomProxy = false;
+  bool _autoPlayNext = true;
+  bool _useHardwareDecoding = true;
+  String _defaultQuality = 'Auto';
+  
+  late Box? storage;
+
   String getSourceOfQuality(StreamClass data){
     final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
     if(source.isEmpty){
@@ -105,63 +124,98 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _onControllerUpdate() async {
-    if (!mounted || !_controller.value.isInitialized || _isDraggingSlider) return;
+    if (!mounted || _controller == null || !_controller!.value.isInitialized || _isDraggingSlider) return;
 
-    // Get current video state
-    final duration = _controller.value.duration;
-    final position = _controller.value.position;
-    final isPlaying = _controller.value.isPlaying;
-    final isBuffering = _controller.value.isBuffering;
-
-    // Only update if position or duration changed
-    if (_position != position || _duration != duration) {
+    final duration = _controller!.value.duration;
+    final position = _controller!.value.position;
+    
+    // Update values only if they have changed
+    if (duration != _duration || position != _position) {
       setState(() {
         _duration = duration;
         _position = position;
-        _isPlaying = isPlaying;
-        _isBuffering = isBuffering;
+        _isPlaying = _controller!.value.isPlaying;
+        _isBuffering = _controller!.value.isBuffering;
         
-        // Calculate progress
+        // Calculate progress only if duration is valid
         if (duration.inMilliseconds > 0) {
           _progress = position.inMilliseconds / duration.inMilliseconds;
+        } else {
+          _progress = 0.0;
         }
       });
     }
 
     // Update buffer progress
-    if (_controller.value.buffered.isNotEmpty) {
-      final bufferedEnd = _controller.value.buffered.last.end;
-      if (mounted) {
+    if (_controller!.value.buffered.isNotEmpty) {
+      final bufferedEnd = _controller!.value.buffered.last.end;
+      if (mounted && duration.inMilliseconds > 0) {
         setState(() {
           _bufferingProgress = bufferedEnd.inMilliseconds / duration.inMilliseconds;
         });
       }
     }
+
+    // Save to continue watching every 5 seconds
+    if (position.inSeconds % 5 == 0 && duration.inMilliseconds > 0) {
+      await WatchHistoryService.instance.updateContinueWatching(
+        widget.data,
+        position,
+        duration,
+      );
+    }
+  }
+
+  Future<void> _saveSetting(String key, dynamic value) async {
+    await _settingsBox.put(key, value);
+  }
+
+
+   Future<void> _initSettings() async {
+    _settingsBox = await Hive.openBox('settings');
+    _defaultQuality = _settingsBox.get('defaultQuality', defaultValue: 'Auto');
+    _useCustomProxy = _settingsBox.get('useCustomProxy', defaultValue: false);
+    _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
+    _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
   }
 
   @override
   void initState() {
     super.initState();
+    _initStorage();
+    _initSettings().then((_) {
+      List<SourceClass> source = widget.streams[0].sources.where((e)=>e.quality==_defaultQuality.replaceAll("p", "")).toList();
+      if(source.isNotEmpty){
+        setState(() {
+          _currentQuality = _defaultQuality;
+        });
+      }
+      String videoUrl = _defaultQuality=='Auto'?widget.streams[0].url:source.isNotEmpty?source[0].url:widget.streams[0].url;
+      _currentLanguage = widget.streams[0].language;
+      _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
+        ..initialize().then((_) {
+          if (mounted) {
+            setState(() {
+              _isInitialized = true;
+              _duration = _controller!.value.duration;
+              _position = _controller!.value.position;
+              _controller!.addListener(_onControllerUpdate);
+              _controller!.play();
+            });
+          }
+        });
+    });
     _transformationController = TransformationController();
     _zoomAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     )..addStatusListener(_onZoomAnimationStatus);
-    String videoUrl = widget.streams[0].url;
-    _currentLanguage = widget.streams[0].language;
-    _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
-      ..initialize().then((_) {
-        setState(() {
-          _isInitialized = true;
-          _controller.addListener(_onControllerUpdate);
-          _controller.play();
-        });
-      });
+
     _startHideTimer();
 
     // Add periodic position update
     Timer.periodic(const Duration(milliseconds: 200), (timer) {
-      if (mounted && _controller.value.isInitialized) {
+      if (mounted && _controller != null && _controller!.value.isInitialized) {
         _onControllerUpdate();
       }
     });
@@ -234,15 +288,57 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
+  Future<void> _initStorage() async {
+    try {
+      storage = await Hive.openBox(widget.data.title);
+      if (!storage!.isOpen) return;
+      
+      // Initialize episode info if not set
+      if (!storage!.containsKey("season")) {
+        await storage?.put("season", "S${widget.currentEpisode ?? 1}");
+      }
+      if (!storage!.containsKey("episode")) {
+        await storage?.put("episode", "E${widget.currentEpisode ?? 1}");
+      }
+    } catch (e) {
+      debugPrint('Error initializing storage: $e');
+    }
+  }
+
   @override
   void dispose() {
+    // Update continue watching when exiting player
+    if (_controller != null && _controller!.value.isInitialized) {
+      final position = _controller!.value.position;
+      final duration = _controller!.value.duration;
+      
+      // Only add to continue watching if watched more than 1% and less than 95%
+      if (position.inSeconds > 0 && 
+          (position.inSeconds / duration.inSeconds) < 0.95) {
+        WatchHistoryService.instance.updateContinueWatching(
+          widget.data,
+          position,
+          duration,
+        );
+      } else if (position.inSeconds / duration.inSeconds >= 0.95) {
+        // If watched more than 95%, add to watch history
+        WatchHistoryService.instance.addToHistory(widget.data);
+        // Remove from continue watching if exists
+        WatchHistoryService.instance.removeFromContinueWatching(widget.data.id);
+      }
+    }
+
+    // Add to history when finished watching
+    if (_progress >= 0.9) {
+      WatchHistoryService.instance.addToHistory(widget.data);
+    }
     _zoomAnimationController.dispose();
     _transformationController.dispose();
     _seekAnimationController.dispose();
     _doubleTapTimer?.cancel();
     _consecutiveTapTimer?.cancel();
-    _controller.dispose();
-    _hideTimer.cancel();
+    _controller?.dispose();
+    _hideTimer?.cancel();
     _forwardAnimationController.dispose();
     _rewindAnimationController.dispose();
     _seekForwardAnimationController.dispose();
@@ -313,8 +409,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _startHideTimer() {
+    _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (!_isSettingsVisible && !_isEpisodesVisible) {  // Only hide if menus are closed
+      if (!_isSettingsVisible && !_isEpisodesVisible && mounted) {
         setState(() {
           _isCountrollesVisible = false;
         });
@@ -323,8 +420,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _cancelAndRestartHideTimer() {
-    _hideTimer.cancel();
-    _isCountrollesVisible = true;
+    _hideTimer?.cancel();
+    setState(() {
+      _isCountrollesVisible = true;
+    });
     _startHideTimer();
   }
 
@@ -390,46 +489,68 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
-  void _selectQuality(String quality, String url) {
-    setState(() {
-      if (_currentQuality != quality) {
-        _controller.dispose();
+  void _selectQuality(String quality, String url) async {
+    if (_currentQuality != quality) {
+      // Store current position before disposing
+      final currentPosition = _controller?.value.position ?? Duration.zero;
+      final wasPlaying = _controller?.value.isPlaying ?? false;
+      
+      setState(() {
+        _controller?.dispose();
         _currentQuality = quality;
+        _saveSetting('defaultQuality', '${quality}p');
         _controller = VideoPlayerController.networkUrl(Uri.parse(url))
           ..initialize().then((_) {
             setState(() {
               _isInitialized = true;
-              _controller.addListener(_onControllerUpdate);
-              _controller.play();
+              _controller!.addListener(_onControllerUpdate);
+              // Seek to previous position
+              _controller!.seekTo(currentPosition).then((_) {
+                // Resume playback if it was playing
+                if (wasPlaying) {
+                  _controller!.play();
+                }
+              });
             });
           });
         _isSettingsVisible = false;
-      }
-    });
+      });
+    }
   }
 
-  void _selectLanguage(StreamClass data) {
-    setState(() {
-      if (_currentLanguage != data.language) {
-        _controller.dispose();
+  void _selectLanguage(StreamClass data) async {
+    if (_currentLanguage != data.language) {
+      // Store current position before disposing
+      final currentPosition = _controller?.value.position ?? Duration.zero;
+      final wasPlaying = _controller?.value.isPlaying ?? false;
+      
+      setState(() {
+        _controller?.dispose();
         _currentLanguage = data.language;
-        _controller = VideoPlayerController.networkUrl(Uri.parse(_currentQuality == 'Auto' ? data.url : getSourceOfQuality(data)))
-          ..initialize().then((_) {
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(_currentQuality == 'Auto' ? data.url : getSourceOfQuality(data))
+        )..initialize().then((_) {
             setState(() {
               _isInitialized = true;
-              _controller.addListener(_onControllerUpdate);
-              _controller.play();
+              _controller!.addListener(_onControllerUpdate);
+              // Seek to previous position
+              _controller!.seekTo(currentPosition).then((_) {
+                // Resume playback if it was playing
+                if (wasPlaying) {
+                  _controller!.play();
+                }
+              });
             });
           });
         _isSettingsVisible = false;
-      }
-    });
+      });
+    }
   }
 
   void _selectSpeed(double speed) {
     setState(() {
       _playbackSpeed = speed;
-      _controller.setPlaybackSpeed(speed);
+      _controller?.setPlaybackSpeed(speed);
       _isSettingsVisible = false;
     });
   }
@@ -445,7 +566,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
 
   void _handleDoubleTapSeek(BuildContext context, TapDownDetails details) {
-    if (!_controller.value.isInitialized) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
     
     final screenWidth = MediaQuery.of(context).size.width;
     final tapPosition = details.globalPosition.dx;
@@ -485,35 +606,35 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
 
   void _seekRelative(int seconds) async {
-    if (!_controller.value.isInitialized) return;
+    if (!_controller!.value.isInitialized) return;
 
-    final currentPosition = _controller.value.position;
-    final duration = _controller.value.duration;
+    final currentPosition = _controller!.value.position;
+    final duration = _controller!.value.duration;
     final newPosition = currentPosition + Duration(seconds: seconds);
 
     // Ensure we don't seek beyond bounds
     if (newPosition < Duration.zero) {
-      await _controller.seekTo(Duration.zero);
+      await _controller!.seekTo(Duration.zero);
     } else if (newPosition > duration) {
-      await _controller.seekTo(duration);
+      await _controller!.seekTo(duration);
     } else {
-      await _controller.seekTo(newPosition);
+      await _controller!.seekTo(newPosition);
     }
 
     // Update progress after seeking
     setState(() {
-      _position = _controller.value.position;
+      _position = _controller!.value.position;
       _progress = _position!.inMilliseconds / duration.inMilliseconds;
     });
   }
 
   void _togglePlayPause() {
-    if (_isBuffering) return;
+    if (_isBuffering || _controller == null) return;
     setState(() {
       if (_isPlaying) {
-        _controller.pause();
+        _controller!.pause();
       } else {
-        _controller.play();
+        _controller!.play();
       }
       _isPlaying = !_isPlaying;
       _isCountrollesVisible = true;
@@ -523,24 +644,24 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
 
   void _handleProgressChanged(double value) {
-    if (!_controller.value.isInitialized) return;
+    if (!_controller!.value.isInitialized) return;
 
     setState(() {
       _isDraggingSlider = true;
       _dragProgress = value;
       _progress = value; // Update visual progress
-      final duration = _controller.value.duration;
+      final duration = _controller!.value.duration;
       _position = Duration(milliseconds: (duration.inMilliseconds * value).round());
     });
   }
 
   void _handleProgressChangeEnd(double value) {
-    if (!_controller.value.isInitialized) return;
+    if (!_controller!.value.isInitialized) return;
     
-    final duration = _controller.value.duration;
+    final duration = _controller!.value.duration;
     final position = Duration(milliseconds: (duration.inMilliseconds * value).round());
     
-    _controller.seekTo(position).then((_) {
+    _controller!.seekTo(position).then((_) {
       setState(() {
         _isDraggingSlider = false;
         _progress = value;
@@ -866,6 +987,16 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   Widget _buildTopBar() {
+    // Get current episode title if available
+    String currentTitle = widget.title;
+    if (widget.contentType == 'tv' && widget.episodes != null && widget.currentEpisode != null) {
+      final currentEpisodeData = widget.episodes!.firstWhere(
+        (ep) => ep.episode == widget.currentEpisode,
+        orElse: () => widget.episodes!.first,
+      );
+      currentTitle = '${widget.title} - ${currentEpisodeData.name}';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -887,17 +1018,35 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             iconSize: 24,
           ),
           Expanded(
-            child: Text(
-              widget.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (widget.contentType == 'tv' && widget.currentEpisode != null)
+                  Text(
+                    'Episode ${widget.currentEpisode}${widget.episodes != null ? " - ${widget.episodes!.firstWhere((ep) => ep.episode == widget.currentEpisode, orElse: () => widget.episodes!.first).name}" : ""}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
             ),
           ),
+          // ...rest of existing action buttons
           if (_isZoomed)
             _buildZoomIndicator(),
           if (widget.contentType == 'tv')
@@ -1007,8 +1156,47 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
+  Future<void> _handleEpisodeSelected(int episodeNumber) async {
+    if (episodeNumber == -1) {
+      setState(() => _isEpisodesVisible = false);
+      return;
+    }
+
+    if (widget.onEpisodeSelected != null && widget.episodes != null) {
+      try {
+        if (storage?.isOpen ?? false) {
+          await storage?.put("episode", "E$episodeNumber");
+        }
+        widget.onEpisodeSelected!(episodeNumber);
+      } catch (e) {
+        debugPrint('Error updating episode: $e');
+      }
+    }
+  }
+
+  Future<void> _handleNextEpisode() async {
+    if (widget.onEpisodeSelected != null && 
+        widget.currentEpisode != null && 
+        widget.episodes != null &&
+        widget.currentEpisode! < widget.episodes!.length) {
+      final nextEpisode = widget.currentEpisode! + 1;
+      try {
+        if (storage?.isOpen ?? false) {
+          await storage?.put("episode", "E$nextEpisode");
+        }
+        widget.onEpisodeSelected!(nextEpisode);
+      } catch (e) {
+        debugPrint('Error updating to next episode: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasNextEpisode = widget.episodes != null && 
+                          widget.currentEpisode != null && 
+                          widget.currentEpisode! < widget.episodes!.length;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -1025,7 +1213,11 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               scaleEnabled: true,
               child: AspectRatio(
                 aspectRatio: MediaQuery.of(context).size.width / MediaQuery.of(context).size.height,
-                child: VideoPlayer(_controller),
+                child: _controller != null 
+                    ? VideoPlayer(_controller!)
+                    : const Center(
+                        child: CircularProgressIndicator(),
+                      ),
               ),
             ),
           ),
@@ -1058,22 +1250,34 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               // Settings menu (separate opacity animation)
               _buildSettingsMenu(),
 
-              // Episodes menu (separate opacity animation)
-              _isEpisodesVisible
-                  ? Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: EpisodeListForPlayer(
-                        currentEpisode: widget.currentEpisode,
-                        onEpisodeSelected: (episode) {
-                          setState(() => _isEpisodesVisible = false);
-                        },
-                      ),
-                    )
-                  : const SizedBox(),
+              // Episodes menu with modified visibility handling
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 200),
+                right: _isEpisodesVisible ? 0 : -400,
+                top: 0,
+                bottom: 0,
+                child: EpisodeListForPlayer(
+                  episodes: widget.episodes ?? [], // Provide empty list as fallback
+                  currentEpisode: widget.currentEpisode,
+                  onEpisodeSelected: _handleEpisodeSelected,
+                  hasNextEpisode: hasNextEpisode,
+                ),
+              ),
             ],
           ),
+
+          // Next episode button
+          if (widget.contentType == 'tv' && 
+              _isInitialized && 
+              hasNextEpisode)
+            Positioned(
+              right: 24,
+              bottom: 100,
+              child: NextEpisodeButton(
+                progress: _progress,
+                onTap: _handleNextEpisode,
+              ),
+            ),
         ],
       ),
     );

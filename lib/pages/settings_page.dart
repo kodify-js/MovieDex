@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:moviedex/api/services/cache_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -29,25 +30,39 @@ class _SettingsPageState extends State<SettingsPage> {
   final String _repoName = 'MovieDex-Flutter';
   Map<String, dynamic>? _repoInfo;
   Map<String, dynamic>? _maintainerInfo;
+  final List<Map<String, String>> _fonts = [
+    {'name': 'Inter', 'displayName': 'Inter (Default)'},
+    {'name': 'Roboto', 'displayName': 'Roboto'},
+    {'name': 'Poppins', 'displayName': 'Poppins'},
+    {'name': 'Open Sans', 'displayName': 'Open Sans'},
+    {'name': 'Lato', 'displayName': 'Lato'},
+    {'name': 'Montserrat', 'displayName': 'Montserrat'},
+  ];
+  final CacheService _cacheService = CacheService();
+  Duration _cacheValidity = const Duration(days: 1);
+  int _cacheSize = 0;
 
   @override
   void initState() {
     super.initState();
     _initSettings();
-    PackageInfo.fromPlatform().then((info) => _version = info.version);
+    PackageInfo.fromPlatform().then((info) => setState(() {
+      _version = info.version;
+    }));
     _fetchGitHubInfo();
+    _loadCacheInfo();
   }
 
   Future<void> _initSettings() async {
     _settingsBox = await Hive.openBox('settings');
     setState(() {
+      _defaultQuality = _settingsBox.get('defaultQuality', defaultValue: 'Auto');
       _useCustomProxy = _settingsBox.get('useCustomProxy', defaultValue: false);
       _proxyController.text = _settingsBox.get('proxyUrl', defaultValue: '');
       _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
       _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
       _selectedTheme = _settingsBox.get('theme', defaultValue: 'system');
       _selectedAccentColor = _settingsBox.get('accentColor', defaultValue: 'blue');
-      _defaultQuality = _settingsBox.get('defaultQuality', defaultValue: 'Auto');
     });
   }
 
@@ -76,8 +91,19 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     } catch (e) {
-      print('Failed to fetch GitHub info: $e');
+      return;
     }
+  }
+
+  Future<void> _loadCacheInfo() async {
+    final size = await _cacheService.getCacheSize();
+    setState(() {
+      _cacheSize = size;
+      _cacheValidity = _settingsBox.get(
+        'cacheValidity', 
+        defaultValue: const Duration(days: 1).inMinutes
+      ).toInt().minutes;
+    });
   }
 
   @override
@@ -432,6 +458,7 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         children: [
           _buildAppearanceSection(),
+          _buildCacheSection(),
           _buildSettingSection(
             'Video Player',
             [
@@ -532,6 +559,17 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           onTap: _showColorPicker,
         ),
+        ListTile(
+          title: Text('Font', style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            _fonts.firstWhere(
+              (f) => f['name'] == themeProvider.fontFamily, 
+              orElse: () => _fonts.first
+            )['displayName']!,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          onTap: _showFontSelector,
+        ),
       ],
     );
   }
@@ -627,6 +665,157 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.pop(context);
             },
           )).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showFontSelector() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        color: Theme.of(context).colorScheme.surface,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select Font',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _fonts.length,
+                itemBuilder: (context, index) {
+                  final font = _fonts[index];
+                  final isSelected = themeProvider.fontFamily == font['name'];
+                  
+                  return ListTile(
+                    title: Text(
+                      font['displayName']!,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: font['name'],
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'The quick brown fox jumps over the lazy dog',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontFamily: font['name'],
+                      ),
+                    ),
+                    selected: isSelected,
+                    selectedTileColor: Colors.white.withOpacity(0.1),
+                    trailing: isSelected 
+                      ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
+                      : null,
+                    onTap: () {
+                      themeProvider.setFontFamily(font['name']!);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCacheSection() {
+    return _buildSettingSection(
+      'Cache',
+      [
+        ListTile(
+          title: Text(
+            'Cache Duration',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          subtitle: Text(
+            '${_cacheValidity.inHours} hours',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          onTap: _showCacheDurationSelector,
+        ),
+        ListTile(
+          title: Text(
+            'Cache Size',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          subtitle: Text(
+            '${(_cacheSize / 1024 / 1024).toStringAsFixed(2)} MB',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          trailing: TextButton(
+            onPressed: () async {
+              await _cacheService.clear();
+              await _loadCacheInfo();
+              setState(() {
+                _cacheSize = 0;
+              });
+            },
+            child: const Text('Clear Cache'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCacheDurationSelector() {
+    final durations = [
+      {'label': '1 hour', 'duration': const Duration(hours: 1)},
+      {'label': '6 hours', 'duration': const Duration(hours: 6)},
+      {'label': '12 hours', 'duration': const Duration(hours: 12)},
+      {'label': '1 day', 'duration': const Duration(days: 1)},
+      {'label': '3 days', 'duration': const Duration(days: 3)},
+      {'label': '1 week', 'duration': const Duration(days: 7)},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        color: Theme.of(context).colorScheme.surface,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Cache Duration',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            ...durations.map((option) => ListTile(
+              title: Text(
+                option['label'] as String,
+                style: const TextStyle(color: Colors.white),
+              ),
+              selected: _cacheValidity == option['duration'],
+              selectedTileColor: Colors.white.withOpacity(0.1),
+              onTap: () {
+                setState(() => _cacheValidity = option['duration'] as Duration);
+                _settingsBox.put('cacheValidity', _cacheValidity.inMinutes);
+                Navigator.pop(context);
+              },
+            )).toList(),
+          ],
         ),
       ),
     );

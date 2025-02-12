@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 
 import 'package:moviedex/pages/settings_page.dart';
+import 'package:moviedex/pages/auth/login_page.dart';  // Add this import
+import 'package:moviedex/pages/auth/signup_page.dart'; // Add this import
+import 'package:moviedex/api/services/watch_history_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -137,7 +140,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         ElevatedButton(
                           onPressed: () {
-                            // Handle login
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                            );
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white.withOpacity(0.2),
@@ -172,7 +178,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         const SizedBox(width: 16),
                         TextButton(
                           onPressed: () {
-                            // Handle sign up
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const SignupPage()),
+                            );
                           },
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.white,
@@ -350,6 +359,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildContinueWatching() {
+    final continueWatchingList = WatchHistoryService.instance.getContinueWatching();
+
     return Container(
       margin: const EdgeInsets.all(16),
       child: ClipRRect(
@@ -374,60 +385,71 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Container(
               height: 200,
               margin: const EdgeInsets.symmetric(vertical: 8),
-              child: isLoggedIn
-                  ? ListView.builder(
+              child: continueWatchingList.isEmpty
+                  ? Center(
+                      child: Text(
+                        "No items in continue watching",
+                        style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                      ),
+                    )
+                  : ListView.builder(
                       scrollDirection: Axis.horizontal,
-                      itemCount: 5,
+                      itemCount: continueWatchingList.length,
                       itemBuilder: (context, index) {
+                        final item = continueWatchingList[index];
                         return Card(
                           margin: const EdgeInsets.all(8),
                           child: Container(
                             width: 300,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
+                              image: DecorationImage(
+                                image: NetworkImage(item.poster),
+                                fit: BoxFit.cover,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                const Center(child: Icon(Icons.movie, size: 48, color: Colors.white24)),
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.bottomCenter,
-                                        end: Alignment.topCenter,
-                                        colors: [
-                                          Colors.black.withOpacity(0.8),
-                                          Colors.transparent,
-                                        ],
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          "Movie Title",
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        LinearProgressIndicator(
-                                          value: 0.3,
-                                          backgroundColor: Colors.white24,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            Theme.of(context).colorScheme.primary,
-                                          ),
-                                        ),
+                                // Gradient overlay
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Colors.black.withOpacity(0.8),
                                       ],
                                     ),
+                                  ),
+                                ),
+                                // Content details
+                                Positioned(
+                                  bottom: 8,
+                                  left: 8,
+                                  right: 8,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      LinearProgressIndicator(
+                                        value: item.progress!.inSeconds / 
+                                               item.totalDuration!.inSeconds,
+                                        backgroundColor: Colors.white24,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Theme.of(context).colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -435,17 +457,26 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         );
                       },
-                    )
-                  : Center(
-                      child: Text(
-                        "Login to see your continue watching list",
-                        style: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      ),
                     ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildWatchHistory() {
+    final watchHistory = WatchHistoryService.instance.getWatchHistory();
+    return _buildSection(
+      "Watch History",
+      Icons.history_rounded,
+      () {},
+      items: watchHistory.map((item) => {
+        'title': item.title,
+        'image': item.poster,
+        'id': item.contentId,
+        'type': item.type,
+      }).toList(),
     );
   }
 
@@ -503,14 +534,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     items: [
                     ],
                   ),
-                  _buildSection(
-                    "Watch History",
-                    Icons.history_rounded,
-                    () {/* Handle history */},
-                    items: [
-                      
-                    ],
-                  ),
+                  _buildWatchHistory(),
                   if (isLoggedIn) ...[
                     const SizedBox(height: 8),
                     _buildSection(

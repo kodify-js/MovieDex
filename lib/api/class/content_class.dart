@@ -1,18 +1,42 @@
+import 'package:hive/hive.dart';
 
-class Season {
-  final int id;
-  final int season;
-  const Season({required this.id,required this.season});
-}
+part 'content_class.g.dart';
 
+@HiveType(typeId: 2)
 class Contentclass {
-  int id;
-  String backdrop,title,language,description,poster;
-  String type;
+  @HiveField(0)
+  final int id;
+  
+  @HiveField(1)
+  final String backdrop;
+  
+  @HiveField(2)
+  final String title;
+  
+  @HiveField(3)
+  final String language;
+  
+  @HiveField(4)
+  final List<dynamic> genres;
+  
+  @HiveField(5)
+  final String type;
+  
+  @HiveField(6)
+  final String description;
+  
+  @HiveField(7)
+  final String poster;
+  
+  @HiveField(8)
   String? logoPath;
+  
+  @HiveField(9)
   double? rating;
-  List genres;
+  
+  @HiveField(10)
   List<Season>? seasons;
+
   Contentclass({
     required this.id,
     required this.backdrop,
@@ -26,4 +50,41 @@ class Contentclass {
     this.rating,
     this.seasons,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'backdrop': backdrop,
+      'title': title,
+      'language': language,
+      'genres': genres,
+      'type': type,
+      'description': description,
+      'poster': poster,
+      'logoPath': logoPath,
+      'rating': rating,
+      'seasons': seasons?.map((s) => s.toJson()).toList(),
+    };
+  }
+}
+
+@HiveType(typeId: 3)
+class Season {
+  @HiveField(0)
+  final int id;
+  
+  @HiveField(1)
+  final int season;
+
+  Season({
+    required this.id,
+    required this.season,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'season': season,
+    };
+  }
 }

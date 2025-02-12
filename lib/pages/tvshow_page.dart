@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:moviedex/api/Api.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/utils.dart';
 import 'package:moviedex/components/carousel.dart';
-import 'package:moviedex/components/category_list.dart';
+import 'package:moviedex/components/horizontal_movie_list.dart';
 import 'package:moviedex/pages/search_page.dart';
-class Home extends StatefulWidget {
-  const Home({super.key});
+class Tvshows extends StatefulWidget {
+  const Tvshows({super.key});
   @override
-  State<Home> createState() => _HomeState();
+  State<Tvshows> createState() => _TvshowsState();
 }
 
-class _HomeState extends State<Home>{
+class _TvshowsState extends State<Tvshows>{
   Api api = Api();
   @override
   Widget build(BuildContext context){
@@ -28,7 +28,7 @@ class _HomeState extends State<Home>{
       ),
       body: SafeArea(
         child: FutureBuilder(
-          future: api.fetchPopular(type: ContentType.movie.value ,language: "en"),
+          future: api.getPopular(type: ContentType.tv.value ,language: "en"),
           builder: (context,snapshot) {
             if(snapshot.connectionState == ConnectionState.waiting){
               return const Center(
@@ -50,16 +50,22 @@ class _HomeState extends State<Home>{
                   Carousel(data: data),
                   Padding(
                     padding: EdgeInsets.all(8),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      physics: NeverScrollableScrollPhysics(), // Disable ListView scrolling
-                      itemCount: movieGenres.length,
-                      itemBuilder: (context, index) {
-                        return Categorylist(
-                          lable: movieGenres[index]['name'],
-                          index: index,
-                        );
-                      }
+                    child: Column(
+                      children: [
+                        HorizontalMovieList(
+                          title: "Trending Tv Shows",
+                          fetchMovies: () => api.getTrending(type: ContentType.tv.value, language: "en"),
+                          showNumber: true,
+                        ),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(), // Disable ListView scrolling
+                          itemCount: tvGenres.length,
+                          itemBuilder: (context, index) {
+                            return HorizontalMovieList(title: movieGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.tv.value, id: movieGenres[index]['id']));
+                          }
+                        ),
+                      ],
                     ),
                   )
                 ],

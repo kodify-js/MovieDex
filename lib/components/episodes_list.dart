@@ -36,7 +36,7 @@ class _EpisodesListState extends State<EpisodesList> {
       onTap: (){
         hivePut(storage:storage,key: "episode",value: 'E${episode.episode}');
         hivePut(storage: storage,key: "season",value: 'S${episode.season}');
-        Navigator.of(context).push(MaterialPageRoute(builder: (context) => Watch(data: widget.data,episodeNumber: episode.episode,seasonNumber: episode.season,title: episode.name,)));
+        Navigator.of(context).push(MaterialPageRoute(builder: (context) => WatchPage(data: widget.data,episodeNumber: episode.episode,seasonNumber: episode.season,title: episode.name,)));
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
