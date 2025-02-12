@@ -398,6 +398,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _controller = VideoPlayerController.networkUrl(Uri.parse(url))
           ..initialize().then((_) {
             setState(() {
+              _isInitialized = true;
               _controller.addListener(_onControllerUpdate);
               _controller.play();
             });
@@ -415,6 +416,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _controller = VideoPlayerController.networkUrl(Uri.parse(_currentQuality == 'Auto' ? data.url : getSourceOfQuality(data)))
           ..initialize().then((_) {
             setState(() {
+              _isInitialized = true;
               _controller.addListener(_onControllerUpdate);
               _controller.play();
             });
@@ -558,14 +560,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       child: Container(
         width: 250,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft, // Changed direction
-            end: Alignment.centerRight,
-            colors: [
-              Colors.black.withOpacity(0.95),
-              Colors.black.withOpacity(0.8),
-              Colors.black.withOpacity(0.6),
-            ],
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            bottomLeft: Radius.circular(16),
           ),
         ),
         child: Column(
@@ -634,7 +632,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     : Column(
                         children: _settingsPage == 'quality'
                             ? [
-                                _buildOptionTile('Auto', _currentQuality == 'Auto'),
+                                _buildOptionTile('Auto', _currentQuality == 'Auto',() => _selectQuality('Auto', widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].url)),
                                 ...widget.streams[0].sources
                                     .where((source) => source.quality != 'Auto')
                                     .map((source) => _buildOptionTile(
@@ -750,10 +748,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black.withOpacity(0.7),
+              Theme.of(context).colorScheme.background.withOpacity(0.8),
               Colors.transparent,
               Colors.transparent,
-              Colors.black.withOpacity(0.7),
+              Theme.of(context).colorScheme.background.withOpacity(0.8),
             ],
             stops: const [0.0, 0.2, 0.8, 1.0],
           ),
@@ -1031,7 +1029,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               ),
             ),
           ),
-
+          if (_showRewindIndicator || _showForwardIndicator)
+            _buildSeekIndicators(),
           _buildTapOverlay(),
 
           Stack(
@@ -1045,7 +1044,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     // Background when controls are visible
                     if (_isCountrollesVisible)
                       Container(color: Colors.black.withOpacity(0.3)),
-
                     // Controls
                     if (_isCountrollesVisible)
                       GestureDetector(
@@ -1076,10 +1074,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                   : const SizedBox(),
             ],
           ),
-
-          // Seek Indicators (always on top)
-          if (_showRewindIndicator || _showForwardIndicator)
-            _buildSeekIndicators(),
         ],
       ),
     );
@@ -1092,7 +1086,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           child: AnimatedOpacity(
             opacity: _showRewindIndicator ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
-            child: _buildSeekIndicator(Icons.replay_10, "-10s", true),
+            child: _buildSeekIndicator(Icons.replay_10, "-10s", false),
           ),
         ),
         SizedBox(width: MediaQuery.of(context).size.width * 0.2),
@@ -1100,7 +1094,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           child: AnimatedOpacity(
             opacity: _showForwardIndicator ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
-            child: _buildSeekIndicator(Icons.forward_10, "+10s", false),
+            child: _buildSeekIndicator(Icons.forward_10, "+10s", true),
           ),
         ),
       ],
@@ -1111,10 +1105,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     return Center(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black45,
-          borderRadius: BorderRadius.circular(16),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

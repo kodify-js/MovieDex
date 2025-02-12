@@ -43,11 +43,10 @@ class _InfopageState extends State<Infopage> {
           fontWeight: FontWeight.bold,
         ),
         ),
-        backgroundColor: Colors.black,
         actions: [
           IconButton(onPressed: (){
             Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SearchPage()));
-          }, icon: Icon(Icons.search),color: Theme.of(context).colorScheme.onSecondary,),
+          }, icon: Icon(Icons.search)),
         ],
       ),
       body: SingleChildScrollView(
@@ -168,7 +167,7 @@ class _InfopageState extends State<Infopage> {
                                         
                                       },
                                       style: ButtonStyle(
-                                        backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(110, 29, 29, 29)),
+                                        backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(177, 34, 34, 34)),
                                         shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
                                       ),
                                       child: Row(
@@ -188,14 +187,13 @@ class _InfopageState extends State<Infopage> {
                                 margin: const EdgeInsets.only(top: 8),
                                 child: TextButton(onPressed: (){},
                                 style: ButtonStyle(
-                                  backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.secondary),
+                                  backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(177, 34, 34, 34)),
                                   shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.download_rounded,size: 24,color: Theme.of(context).colorScheme.onSecondary),
-                                    Text("Download",style: TextStyle(color: Theme.of(context).colorScheme.onSecondary,fontSize: 18,fontWeight: FontWeight.bold))
+                                    Text("Download",style: TextStyle(color: Colors.white,fontSize: 18,fontWeight: FontWeight.bold))
                                   ],
                                 )
                                 ),

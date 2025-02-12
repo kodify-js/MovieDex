@@ -38,10 +38,14 @@ dependencies:
   lottie: ^1.4.3
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  provider: ^6.0.5
+  flutter_colorpicker: ^1.0.3
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   webview_flutter: ^4.10.0
+  url_launcher: ^6.3.1
+  package_info_plus: ^8.2.1
 
 dev_dependencies:
   flutter_test:

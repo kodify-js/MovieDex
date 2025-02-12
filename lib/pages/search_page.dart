@@ -209,7 +209,6 @@ class _SearchPageState extends State<SearchPage> {
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold
                                     )),
-                                    Icon(Icons.play_circle),
                                   ],
                                 ), 
                               )

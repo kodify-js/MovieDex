@@ -20,11 +20,10 @@ class _HomeState extends State<Home>{
           fontWeight: FontWeight.bold,
         ),
         ),
-         backgroundColor: Colors.black,
         actions: [
           IconButton(onPressed: (){
             Navigator.of(context).push(MaterialPageRoute(builder: (context) => const SearchPage()));
-          }, icon: Icon(Icons.search),color: Theme.of(context).colorScheme.onSecondary,),
+          }, icon: Icon(Icons.search)),
         ],
       ),
       body: SafeArea(

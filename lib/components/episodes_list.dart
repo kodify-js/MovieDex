@@ -45,60 +45,54 @@ class _EpisodesListState extends State<EpisodesList> {
           isHovered = false;
           isPressed = false;
         }),
-        child: Container(
-          decoration: BoxDecoration(
-            color: (isHovered || isPressed) ? Colors.grey.withValues(alpha: 0.3) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                spacing: 8,
-                children: [
-                  Card(
-                    clipBehavior: Clip.antiAlias,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Image.network(episode.image,fit: BoxFit.cover,width: isMobile?width/2.5:200,height: 100,),
-                        Container(
-                          width: isMobile?width/2.5:200,
-                          height: 100,
-                          color: Colors.black.withValues(alpha: 0.3),
-                          child: const Center(
-                            child: Icon(
-                              Icons.play_circle_outline_rounded,
-                              size: 42,
-                              color: Colors.white,
-                            ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              spacing: 8,
+              children: [
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Image.network(episode.image,fit: BoxFit.cover,width: isMobile?width/2.5:200,height: 100,),
+                      Container(
+                        width: isMobile?width/2.5:200,
+                        height: 100,
+                        color: Colors.black.withValues(alpha: 0.3),
+                        child: const Center(
+                          child: Icon(
+                            Icons.play_circle_outline_rounded,
+                            size: 42,
+                            color: Colors.white,
                           ),
                         ),
-                      ],
-                    )
+                      ),
+                    ],
+                  )
+                ),
+                SizedBox(
+                  width: width/2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${episode.episode}. ${episode.name}',maxLines: 2,style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,overflow: TextOverflow.ellipsis),),
+                      Text("Season ${episode.season} Episode ${episode.episode}",style: TextStyle(fontSize: 16,color: Colors.grey)),
+                      Text(episode.airDate,style: TextStyle(fontSize: 14,color: Colors.grey),),
+                    ],
                   ),
-                  SizedBox(
-                    width: width/2,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${episode.episode}. ${episode.name}',maxLines: 2,style: TextStyle(fontSize: 20,fontWeight: FontWeight.bold,overflow: TextOverflow.ellipsis),),
-                        Text("Season ${episode.season} Episode ${episode.episode}",style: TextStyle(fontSize: 16,color: Colors.grey)),
-                        Text(episode.airDate,style: TextStyle(fontSize: 14,color: Colors.grey),),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(episode.description,maxLines: 3, style: TextStyle(fontSize: 14,color: Colors.grey,overflow: TextOverflow.ellipsis)),
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(episode.description,maxLines: 3, style: TextStyle(fontSize: 14,color: Colors.grey,overflow: TextOverflow.ellipsis)),
+            ),
+          ],
         ),
       ),
     );

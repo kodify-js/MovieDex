@@ -26,7 +26,7 @@ class _CategorylistState extends State<Categorylist> {
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 600;
     return Column(
-       crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: 16),
         Text(widget.lable,style: TextStyle(
