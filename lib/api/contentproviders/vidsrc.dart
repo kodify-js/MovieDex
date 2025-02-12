@@ -66,14 +66,14 @@ class Vidsrc {
             }
           }
         }
-        isError = false;
         if (sources.isEmpty) throw "No valid sources found";
+        isError = false;
         return sources;
       }
       return [SourceClass(quality: "Auto", url: url)];
     } catch (e) {
       isError = true;
-      throw Exception("Failed to load video: ${e.toString()}");
+      return [];
     }
   }
 }
