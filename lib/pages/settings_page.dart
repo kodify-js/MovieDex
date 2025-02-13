@@ -56,6 +56,13 @@ class _SettingsPageState extends State<SettingsPage> {
     _fetchGitHubInfo();
     _loadCacheInfo();
     SettingsService.instance.init();
+
+    // Listen to incognito mode changes
+    SettingsService.instance.incognitoStream.listen((value) {
+      if (mounted) {
+        setState(() => _incognitoMode = value);
+      }
+    });
   }
 
   Future<void> _initSettings() async {
@@ -863,14 +870,7 @@ class _SettingsPageState extends State<SettingsPage> {
           value: _incognitoMode,
           onChanged: (value) async {
             await settingsService.setIncognitoMode(value);
-            setState(() {
-              _incognitoMode = value;
-              if (value) {
-                _syncEnabled = false;
-              } else {
-                _syncEnabled = settingsService.lastSyncState ?? true;
-              }
-            });
+            // No need to setState here as we're listening to the stream
             if (value) {
               _showIncognitoWarning();
             }

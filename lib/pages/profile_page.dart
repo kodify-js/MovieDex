@@ -43,10 +43,16 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
     // Initialize services
     ListService.instance.init();
     WatchHistoryService.instance.init().then((_) {
-      // Initial sync when page loads
       WatchHistoryService.instance.syncWithFirebase();
     });
     _initSettings();
+
+    // Listen to incognito mode changes
+    SettingsService.instance.incognitoStream.listen((value) {
+      if (mounted) {
+        setState(() => _isIncognito = value);
+      }
+    });
   }
 
   Future<void> _initSettings() async {
@@ -64,12 +70,9 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   }
 
   Future<void> _exitIncognitoMode() async {
-    await SettingsService.instance.setIncognitoMode(false);
-    setState(() => _isIncognito = false);
-    
-    // Refresh lists after exiting incognito
-    _listUpdateController.add(null);
-    _watchHistoryController.add(null);
+    final settingsService = SettingsService.instance;
+    await settingsService.setIncognitoMode(false);
+    // No need to setState here as we're listening to the stream
   }
 
   Future<void> _handleRefresh() async {

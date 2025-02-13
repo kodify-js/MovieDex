@@ -1,9 +1,14 @@
 import 'package:hive_flutter/hive_flutter.dart';
+import 'dart:async';
 
 class SettingsService {
   static SettingsService? _instance;
   late Box _settingsBox;
   bool _isInitialized = false;
+
+  // Add stream controller for incognito mode changes
+  final _incognitoController = StreamController<bool>.broadcast();
+  Stream<bool> get incognitoStream => _incognitoController.stream;
 
   static SettingsService get instance {
     _instance ??= SettingsService._();
@@ -35,6 +40,7 @@ class SettingsService {
       await _settingsBox.put('syncEnabled', previousState);
     }
     await _settingsBox.put('incognitoMode', value);
+    _incognitoController.add(value); // Notify listeners
   }
 
   Future<void> setSyncEnabled(bool value) async {
@@ -42,5 +48,10 @@ class SettingsService {
       await _settingsBox.put('syncEnabled', value);
       await _settingsBox.put('lastSyncState', value);
     }
+  }
+
+  // Add this method to clean up resources
+  void dispose() {
+    _incognitoController.close();
   }
 }
