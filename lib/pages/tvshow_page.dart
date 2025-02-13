@@ -62,7 +62,7 @@ class _TvshowsState extends State<Tvshows>{
                           physics: NeverScrollableScrollPhysics(), // Disable ListView scrolling
                           itemCount: tvGenres.length,
                           itemBuilder: (context, index) {
-                            return HorizontalMovieList(title: movieGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.tv.value, id: movieGenres[index]['id']));
+                            return HorizontalMovieList(title: tvGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.tv.value, id: tvGenres[index]['id']));
                           }
                         ),
                       ],

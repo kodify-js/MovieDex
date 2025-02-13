@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:moviedex/services/firebase_service.dart';
+import 'package:moviedex/utils/error_handlers.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -14,9 +16,11 @@ class _SignupPageState extends State<SignupPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _firebaseService = FirebaseService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptTerms = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -25,6 +29,36 @@ class _SignupPageState extends State<SignupPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSignUp() async {
+    if (!_formKey.currentState!.validate() || !_acceptTerms) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _firebaseService.signUp(
+        email: _emailController.text,
+        password: _passwordController.text,
+        username: _usernameController.text,
+      );
+      
+      if (mounted) {
+        ErrorHandlers.showSuccessSnackbar(
+          context,
+          'Account created successfully! Please log in.',
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandlers.showErrorSnackbar(context, e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -200,12 +234,8 @@ class _SignupPageState extends State<SignupPage> {
                                 width: double.infinity,
                                 height: 50,
                                 child: ElevatedButton(
-                                  onPressed: _acceptTerms
-                                      ? () {
-                                          if (_formKey.currentState!.validate()) {
-                                            // Handle sign up
-                                          }
-                                        }
+                                  onPressed: _acceptTerms && !_isLoading
+                                      ? _handleSignUp
                                       : null,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Theme.of(context).colorScheme.primary,
@@ -213,13 +243,22 @@ class _SignupPageState extends State<SignupPage> {
                                       borderRadius: BorderRadius.circular(15),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Sign Up',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Sign Up',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ],

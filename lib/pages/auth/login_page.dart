@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:moviedex/pages/auth/signup_page.dart';
+import 'package:moviedex/services/firebase_service.dart';
+import 'package:moviedex/utils/error_handlers.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -13,7 +15,100 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firebaseService = FirebaseService();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _firebaseService.signIn(
+        email: _emailController.text,
+        password: _passwordController.text,
+      );
+      
+      if (mounted) {
+        ErrorHandlers.showSuccessSnackbar(
+          context,
+          'Welcome back!',
+        );
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandlers.showErrorSnackbar(context, e);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    
+    if (email.isEmpty) {
+      ErrorHandlers.showErrorSnackbar(
+        context, 
+        'Please enter your email address first',
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Send password reset link to:'),
+            const SizedBox(height: 8),
+            Text(
+              email,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              
+              try {
+                await _firebaseService.resetPassword(email);
+                if (mounted) {
+                  ErrorHandlers.showSuccessSnackbar(
+                    context,
+                    'Password reset link sent to your email',
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ErrorHandlers.showErrorSnackbar(context, e);
+                }
+              } finally {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                }
+              }
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -162,9 +257,7 @@ class _LoginPageState extends State<LoginPage> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: () {
-                                    // Handle forgot password
-                                  },
+                                  onPressed: _isLoading ? null : _handleForgotPassword,
                                   child: Text(
                                     'Forgot Password?',
                                     style: TextStyle(
@@ -180,25 +273,30 @@ class _LoginPageState extends State<LoginPage> {
                                 width: double.infinity,
                                 height: 50,
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    if (_formKey.currentState!.validate()) {
-                                      // Handle login
-                                    }
-                                  },
+                                  onPressed: _isLoading ? null : _handleLogin,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Theme.of(context).colorScheme.primary,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(15),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Login',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ],
@@ -239,33 +337,6 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-            ),
-          ),
-          child: IconButton(
-            icon: Icon(icon, color: Colors.white),
-            onPressed: onPressed,
-            iconSize: 32,
-            padding: const EdgeInsets.all(12),
           ),
         ),
       ),

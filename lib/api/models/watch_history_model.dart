@@ -25,6 +25,15 @@ class WatchHistoryItem extends HiveObject {
   @HiveField(6)
   final Duration? totalDuration;
 
+  @HiveField(7)
+  final int? episodeNumber;
+
+  @HiveField(8)
+  final String? episodeTitle;
+
+  @HiveField(9)
+  final Map<String, dynamic>? content;
+
   WatchHistoryItem({
     required this.contentId,
     required this.title,
@@ -33,5 +42,44 @@ class WatchHistoryItem extends HiveObject {
     required this.watchedAt,
     this.progress,
     this.totalDuration,
+    this.episodeNumber,
+    this.episodeTitle,
+    this.content,
   });
+
+  // Add toJson method for Firebase
+  Map<String, dynamic> toJson() {
+    return {
+      'contentId': contentId,
+      'title': title,
+      'poster': poster,
+      'type': type,
+      'watchedAt': watchedAt.toIso8601String(),
+      'progress': progress?.inSeconds,
+      'totalDuration': totalDuration?.inSeconds,
+      'episodeNumber': episodeNumber,
+      'episodeTitle': episodeTitle,
+      'content': content,
+    };
+  }
+
+  // Add fromJson factory for Firebase
+  factory WatchHistoryItem.fromJson(Map<String, dynamic> json) {
+    return WatchHistoryItem(
+      contentId: json['contentId'] as int,
+      title: json['title'] as String,
+      poster: json['poster'] as String,
+      type: json['type'] as String,
+      watchedAt: DateTime.parse(json['watchedAt'] as String),
+      progress: json['progress'] != null 
+          ? Duration(seconds: json['progress'] as int) 
+          : null,
+      totalDuration: json['totalDuration'] != null 
+          ? Duration(seconds: json['totalDuration'] as int) 
+          : null,
+      episodeNumber: json['episodeNumber'] as int?,
+      episodeTitle: json['episodeTitle'] as String?,
+      content: json['content'] as Map<String, dynamic>?,
+    );
+  }
 }

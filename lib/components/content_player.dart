@@ -9,7 +9,7 @@ import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/components/episode_list_player.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
-import 'package:moviedex/api/services/watch_history_service.dart';
+import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/components/next_episode_button.dart';
 
 class ContentPlayer extends StatefulWidget {
@@ -129,6 +129,11 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     final duration = _controller!.value.duration;
     final position = _controller!.value.position;
     
+    // Add to history when user starts watching (after 30 seconds)
+    if (position.inSeconds == 30) {
+      await WatchHistoryService.instance.addToHistory(widget.data);
+    }
+
     // Update values only if they have changed
     if (duration != _duration || position != _position) {
       setState(() {
@@ -321,8 +326,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           duration,
         );
       } else if (position.inSeconds / duration.inSeconds >= 0.95) {
-        // If watched more than 95%, add to watch history
-        WatchHistoryService.instance.addToHistory(widget.data);
         // Remove from continue watching if exists
         WatchHistoryService.instance.removeFromContinueWatching(widget.data.id);
       }

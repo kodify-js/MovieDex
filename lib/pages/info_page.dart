@@ -8,6 +8,7 @@ import 'package:moviedex/pages/watch_page.dart';
 import 'package:moviedex/components/description_text.dart';
 import 'package:moviedex/components/episodes_section.dart';
 import 'package:hive/hive.dart';
+import 'package:moviedex/services/list_service.dart';
 
 class Infopage extends StatefulWidget {
   final int id;
@@ -25,10 +26,14 @@ class _InfopageState extends State<Infopage> {
   bool isDescriptionExpanded = false;
   int selectedSeason = 1;
   Box? storage;
+  bool _isInList = false;
+  bool _isProcessing = false;
+
   @override
   void initState() {
     super.initState();
     Hive.openBox(widget.name).then((value) => storage = value);
+    _isInList = ListService.instance.isInList(widget.id);
   }
 
   void _navigateToPlayer(Contentclass data) async {
@@ -53,6 +58,128 @@ class _InfopageState extends State<Infopage> {
         storage = await Hive.openBox(widget.name);
       }
     });
+  }
+
+  Widget _buildAddToListButton(Contentclass data) {
+    return TextButton(
+      onPressed: _isProcessing ? null : () async {
+        setState(() => _isProcessing = true);
+        try {
+          if (_isInList) {
+            await ListService.instance.removeFromList(data.id);
+          } else {
+            await ListService.instance.addToList(data);
+          }
+          setState(() {
+            _isInList = !_isInList;
+            _isProcessing = false;
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _isInList ? 'Added to My List' : 'Removed from My List',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                duration: const Duration(seconds: 1),
+              ),
+            );
+          }
+        } catch (e) {
+          setState(() => _isProcessing = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: ${e.toString()}'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      },
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(
+          _isInList ? Theme.of(context).colorScheme.primary : const Color.fromARGB(177, 34, 34, 34),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (_isProcessing)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            )
+          else
+            Icon(
+              _isInList ? Icons.check : Icons.add,
+              size: 24,
+              color: Colors.white,
+            ),
+          const SizedBox(width: 8),
+          Text(
+            _isInList ? "In My List" : "Add to List",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileListButton() {
+    return Column(
+      children: [
+        IconButton(
+          onPressed: _isProcessing ? null : () async {
+            final data = await api.getDetails(id: widget.id, type: widget.type);
+            setState(() => _isProcessing = true);
+            try {
+              if (_isInList) {
+                await ListService.instance.removeFromList(data.id);
+              } else {
+                await ListService.instance.addToList(data);
+              }
+              setState(() {
+                _isInList = !_isInList;
+                _isProcessing = false;
+              });
+            } catch (e) {
+              setState(() => _isProcessing = false);
+            }
+          },
+          icon: _isProcessing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : Icon(
+                  _isInList ? Icons.check : Icons.add,
+                  color: Colors.white,
+                  size: 32,
+                ),
+        ),
+        Text(
+          _isInList ? "In My List" : "Add to List",
+          style: const TextStyle(color: Colors.white),
+        ),
+      ],
+    );
   }
 
   @override
@@ -196,21 +323,7 @@ class _InfopageState extends State<Infopage> {
                                     Container(
                                       width: isMobile?width:150,
                                       margin: isMobile?const EdgeInsets.only(top: 8):const EdgeInsets.only(left: 8,right: 8,top: 8),
-                                      child: TextButton(onPressed: (){
-                                        
-                                      },
-                                      style: ButtonStyle(
-                                        backgroundColor: WidgetStatePropertyAll(const Color.fromARGB(177, 34, 34, 34)),
-                                        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-                                      ),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.add,size: 24,color: Colors.white),
-                                          Text("Add to list",style: TextStyle(color: Colors.white,fontSize: 18,fontWeight: FontWeight.bold))
-                                        ],
-                                      )
-                                      ),
+                                      child: _buildAddToListButton(data),
                                     ):const SizedBox(),
                                   ],
                                 ),
@@ -262,14 +375,7 @@ class _InfopageState extends State<Infopage> {
                             child: Row(
                               spacing: 16,
                               children: [
-                                isMobile?Column(
-                                  children: [
-                                    IconButton(onPressed: (){}, icon: Icon(Icons.add),color: Colors.white, iconSize: 32,),
-                                    Text("Add to list",style: TextStyle(
-                                      color: Colors.white
-                                    ),)
-                                  ],
-                                ):Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android?
+                                isMobile ? _buildMobileListButton() : Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android?
                                 Column(
                                   children: [
                                     IconButton(onPressed: (){}, icon: Icon(Icons.download),color: Colors.white, iconSize: 32,),

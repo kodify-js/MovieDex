@@ -66,6 +66,24 @@ class Contentclass {
       'seasons': seasons?.map((s) => s.toJson()).toList(),
     };
   }
+
+  factory Contentclass.fromJson(Map<String, dynamic> json) {
+    return Contentclass(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      poster: json['poster'] as String,
+      type: json['type'] as String,
+      description: json['description'] as String,
+      language: json['language'] as String,
+      genres: List<dynamic>.from(json['genres']),
+      rating: json['rating'] as double?,
+      backdrop: json['backdrop'] as String,
+      logoPath: json['logoPath'] as String?,
+      seasons: (json['seasons'] as List<dynamic>?)
+          ?.map((e) => Season.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 @HiveType(typeId: 3)
@@ -86,5 +104,12 @@ class Season {
       'id': id,
       'season': season,
     };
+  }
+
+  factory Season.fromJson(Map<String, dynamic> json) {
+    return Season(
+      id: json['id'] as int,
+      season: json['season'] as int,
+    );
   }
 }

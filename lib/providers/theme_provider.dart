@@ -80,7 +80,7 @@ class ThemeProvider extends ChangeNotifier {
         foregroundColor: Colors.white,
       ),
       dialogTheme: DialogTheme(
-        backgroundColor: colorScheme.surfaceVariant,
+        backgroundColor: _amoledMode ? Colors.black : null,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),

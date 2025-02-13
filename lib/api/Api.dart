@@ -4,7 +4,7 @@ import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/secrets.dart.local';
 import 'package:moviedex/api/utils.dart';
-import 'package:moviedex/api/services/cache_service.dart';
+import 'package:moviedex/services/cache_service.dart';
 
 class Api {
     final String? baseUrl;

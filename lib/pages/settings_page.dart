@@ -7,7 +7,9 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:moviedex/api/services/cache_service.dart';
+import 'package:moviedex/services/cache_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:moviedex/services/settings_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -41,6 +43,8 @@ class _SettingsPageState extends State<SettingsPage> {
   final CacheService _cacheService = CacheService();
   Duration _cacheValidity = const Duration(days: 1);
   int _cacheSize = 0;
+  bool _syncEnabled = true;
+  bool _incognitoMode = false;
 
   @override
   void initState() {
@@ -51,6 +55,7 @@ class _SettingsPageState extends State<SettingsPage> {
     }));
     _fetchGitHubInfo();
     _loadCacheInfo();
+    SettingsService.instance.init();
   }
 
   Future<void> _initSettings() async {
@@ -63,6 +68,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
       _selectedTheme = _settingsBox.get('theme', defaultValue: 'system');
       _selectedAccentColor = _settingsBox.get('accentColor', defaultValue: 'blue');
+      _syncEnabled = _settingsBox.get('syncEnabled', defaultValue: true);
+      _incognitoMode = _settingsBox.get('incognitoMode', defaultValue: false);
     });
   }
 
@@ -457,6 +464,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
+          _buildPrivacySection(),
           _buildAppearanceSection(),
           _buildCacheSection(),
           _buildSettingSection(
@@ -817,6 +825,136 @@ class _SettingsPageState extends State<SettingsPage> {
             )).toList(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacySection() {
+    final user = FirebaseAuth.instance.currentUser;
+    final settingsService = SettingsService.instance;
+
+    return _buildSettingSection(
+      'Privacy & Data',
+      [
+        SwitchListTile(
+          title: Text('Sync Data', 
+            style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            _incognitoMode
+                ? 'Sync is disabled in incognito mode'
+                : user != null 
+                    ? 'Sync your watch history and preferences across devices'
+                    : 'Login required to enable sync',
+            style: Theme.of(context).textTheme.bodyMedium
+          ),
+          value: _syncEnabled && user != null && !_incognitoMode,
+          onChanged: (user != null && !_incognitoMode) ? (value) async {
+            await settingsService.setSyncEnabled(value);
+            setState(() => _syncEnabled = value);
+          } : null,
+        ),
+        SwitchListTile(
+          title: Text('Incognito Mode', 
+            style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            'Browse without saving history or preferences',
+            style: Theme.of(context).textTheme.bodyMedium
+          ),
+          value: _incognitoMode,
+          onChanged: (value) async {
+            await settingsService.setIncognitoMode(value);
+            setState(() {
+              _incognitoMode = value;
+              if (value) {
+                _syncEnabled = false;
+              } else {
+                _syncEnabled = settingsService.lastSyncState ?? true;
+              }
+            });
+            if (value) {
+              _showIncognitoWarning();
+            }
+          },
+        ),
+        if (_incognitoMode)
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: Text('Clear All Local Data',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.red,
+              )
+            ),
+            onTap: () => _showClearDataConfirmation(),
+          ),
+      ],
+    );
+  }
+
+  void _showIncognitoWarning() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.person_off_rounded, color: Colors.white),
+            const SizedBox(width: 8),
+            const Text('Incognito Mode'),
+          ],
+        ),
+        content: const Text(
+          'While in incognito mode:\n'
+          '• Watch history won\'t be saved\n'
+          '• Preferences won\'t be stored\n'
+          '• Data won\'t be synced\n'
+          '• My List will be temporarily disabled\n\n'
+          'This will apply until you disable incognito mode.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showClearDataConfirmation() async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All Local Data?'),
+        content: const Text(
+          'This will permanently delete all your:\n'
+          '• Watch history\n'
+          '• Preferences\n'
+          '• Saved settings\n\n'
+          'This action cannot be undone.'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            onPressed: () async {
+              await _settingsBox.clear();
+              await _cacheService.clear();
+              // Re-initialize settings with defaults
+              await _initSettings();
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('All local data cleared')),
+                );
+              }
+            },
+            child: const Text('Clear All'),
+          ),
+        ],
       ),
     );
   }
