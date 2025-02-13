@@ -50,4 +50,3 @@ app.*.map.json
 # Firebase configuration
 firebase.json
 lib/firebase_options.dart
-lib/api/secrets.dart
