@@ -1,3 +1,18 @@
+/**
+ * MovieDex - Open Source Movie & TV Show Streaming Application
+ * https://github.com/kodify-js/MovieDex-Flutter
+ * 
+ * Copyright (c) 2024 MovieDex Contributors
+ * Licensed under MIT License
+ * 
+ * Main application entry point that handles:
+ * - Core service initialization
+ * - Local database setup
+ * - Authentication configuration
+ * - Theme and UI management
+ * - Navigation structure
+ */
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/models/cache_model.dart';
@@ -13,13 +28,12 @@ import 'package:moviedex/services/cache_service.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/api/models/list_item_model.dart';
+import 'package:moviedex/pages/splash_screen.dart';
 import 'firebase_options.dart'; 
+import 'package:moviedex/components/responsive_navigation.dart';
 
-void main() async {
-  // This needs to be called first
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase
+/// Initialize core application services in required order
+Future<void> initializeServices() async {
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -28,10 +42,17 @@ void main() async {
     debugPrint('Firebase initialization error: $e');
   }
 
-  // Initialize Hive
   await Hive.initFlutter();
+  _registerHiveAdapters();
   
-  // Register Hive adapters
+  // Initialize services in dependency order
+  await ListService.instance.init();
+  await WatchHistoryService.instance.init();
+  await CacheService().init();
+  await Hive.openBox('settings');
+}
+
+void _registerHiveAdapters() {
   if (!Hive.isAdapterRegistered(1)) {
     Hive.registerAdapter(CacheModelAdapter());
   }
@@ -47,15 +68,11 @@ void main() async {
   if (!Hive.isAdapterRegistered(5)) {
     Hive.registerAdapter(ListItemAdapter());
   }
-  
-  // Initialize services in order
-  await ListService.instance.init();
-  await WatchHistoryService.instance.init();
-  final cacheService = CacheService();
-  await cacheService.init();
-  
-  // Open settings box
-  await Hive.openBox('settings');
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeServices();
   
   runApp(
     ChangeNotifierProvider(
@@ -73,42 +90,81 @@ class MovieDex extends StatefulWidget {
 }
 
 class _MovieDexState extends State<MovieDex> {
-  int currentIndex = 0;
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Movie Dex',
       debugShowCheckedModeBanner: false,
       theme: Provider.of<ThemeProvider>(context).getTheme(context),
-      home: Scaffold(
-        body: IndexedStack(
-          index: currentIndex,
-          children: const [
-            Movie(),
-            Tvshows(),
-            ProfilePage(), // ProfilePage will handle auth state
-          ],
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: currentIndex,
-          onTap: (value) => setState(() => currentIndex = value),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.movie),
-              label: 'Movie',
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/home': (context) => const HomePage(),
+      },
+    );
+  }
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  int currentIndex = 0;
+  final List<Widget> _pages = const [
+    Movie(),
+    Tvshows(),
+    ProfilePage(),
+  ];
+
+  final List<NavigationDestination> _navItems = const [
+    NavigationDestination(
+      icon: Icon(Icons.movie_outlined),
+      selectedIcon: Icon(Icons.movie_rounded),
+      label: 'Movies',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.tv_outlined),
+      selectedIcon: Icon(Icons.tv_rounded),
+      label: 'TV Shows',
+    ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outline_rounded),
+      selectedIcon: Icon(Icons.person_rounded),
+      label: 'Profile',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width > 600;
+
+    return Scaffold(
+      body: Row(
+        children: [
+          if (isDesktop)
+            ResponsiveNavigation(
+              currentIndex: currentIndex,
+              onTap: (index) => setState(() => currentIndex = index),
+              items: _navItems,
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.tv),
-              label: 'Tv Shows',
+          Expanded(
+            child: IndexedStack(
+              index: currentIndex,
+              children: _pages,
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Me',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+      bottomNavigationBar: !isDesktop ? ResponsiveNavigation(
+        currentIndex: currentIndex,
+        onTap: (index) => setState(() => currentIndex = index),
+        items: _navItems,
+      ) : null,
     );
   }
 }

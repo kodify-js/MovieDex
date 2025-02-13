@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
-import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/carousel.dart';
-import 'package:moviedex/components/horizontal_movie_list.dart';
+import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 
 class Movie extends StatefulWidget {
@@ -52,7 +52,7 @@ class _MovieState extends State<Movie>{
                   // main card
                   Carousel(data: data),
                   // Trending Movies
-                  HorizontalMovieList(
+                  HorizontalScrollList(
                     title: "Trending Movies",
                     fetchMovies: () => api.getTrending(type: ContentType.movie.value, language: "en"),
                     showNumber: true,
@@ -67,7 +67,7 @@ class _MovieState extends State<Movie>{
                       physics: NeverScrollableScrollPhysics(), // Disable ListView scrolling
                       itemCount: movieGenres.length,
                       itemBuilder: (context, index) {
-                        return HorizontalMovieList(title: movieGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.movie.value, id: movieGenres[index]['id']));
+                        return HorizontalScrollList(title: movieGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.movie.value, id: movieGenres[index]['id']));
                       }
                     ),
                       ],

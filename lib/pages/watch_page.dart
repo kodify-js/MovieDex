@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
-import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/content_player.dart';
 import 'package:lottie/lottie.dart';
 import 'package:hive/hive.dart';

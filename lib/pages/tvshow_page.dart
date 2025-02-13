@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
-import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/carousel.dart';
-import 'package:moviedex/components/horizontal_movie_list.dart';
+import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 class Tvshows extends StatefulWidget {
   const Tvshows({super.key});
@@ -52,7 +52,7 @@ class _TvshowsState extends State<Tvshows>{
                     padding: EdgeInsets.all(8),
                     child: Column(
                       children: [
-                        HorizontalMovieList(
+                        HorizontalScrollList(
                           title: "Trending Tv Shows",
                           fetchMovies: () => api.getTrending(type: ContentType.tv.value, language: "en"),
                           showNumber: true,
@@ -62,7 +62,7 @@ class _TvshowsState extends State<Tvshows>{
                           physics: NeverScrollableScrollPhysics(), // Disable ListView scrolling
                           itemCount: tvGenres.length,
                           itemBuilder: (context, index) {
-                            return HorizontalMovieList(title: tvGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.tv.value, id: tvGenres[index]['id']));
+                            return HorizontalScrollList(title: tvGenres[index]['name'], fetchMovies: () => api.getGenresContent(type: ContentType.tv.value, id: tvGenres[index]['id']));
                           }
                         ),
                       ],

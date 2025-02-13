@@ -40,17 +40,24 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   @override
   void initState() {
     super.initState();
-    // Initialize services
-    ListService.instance.init();
-    WatchHistoryService.instance.init().then((_) {
+    _initializeServices();
+  }
+
+  Future<void> _initializeServices() async {
+    await SettingsService.instance.init();
+    await ListService.instance.init();
+    await WatchHistoryService.instance.init().then((_) {
       WatchHistoryService.instance.syncWithFirebase();
     });
-    _initSettings();
+    await _initSettings();
 
     // Listen to incognito mode changes
     SettingsService.instance.incognitoStream.listen((value) {
       if (mounted) {
         setState(() => _isIncognito = value);
+        // Refresh lists when incognito mode changes
+        _listUpdateController.add(null);
+        _watchHistoryController.add(null);
       }
     });
   }
@@ -72,7 +79,12 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   Future<void> _exitIncognitoMode() async {
     final settingsService = SettingsService.instance;
     await settingsService.setIncognitoMode(false);
-    // No need to setState here as we're listening to the stream
+    
+    // Update local state
+    setState(() => _isIncognito = false);
+    
+    // Refresh lists
+    await _handleRefresh();
   }
 
   Future<void> _handleRefresh() async {
@@ -174,16 +186,9 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
       child: Material(
         color: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.only(top: 0, bottom: 0),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.8),
-                Colors.black.withOpacity(0),
-              ],
-            ),
+            color: Theme.of(context).colorScheme.surface,
           ),
           child: SafeArea(
             child: Row(

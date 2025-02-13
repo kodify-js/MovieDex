@@ -1,8 +1,23 @@
+/**
+ * Firebase Authentication Service
+ * 
+ * Handles all Firebase authentication operations including:
+ * - User registration
+ * - Login/logout
+ * - Password reset
+ * - Error handling
+ * - Session management
+ * 
+ * Part of MovieDex - MIT Licensed
+ */
+
 import 'package:firebase_auth/firebase_auth.dart';
 
+/// Manages Firebase authentication operations
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  /// Creates new user account with email and password
   Future<UserCredential> signUp({
     required String email,
     required String password,
@@ -23,6 +38,7 @@ class FirebaseService {
     }
   }
 
+  /// Authenticates existing user with email and password
   Future<UserCredential> signIn({
     required String email,
     required String password,

@@ -1,3 +1,17 @@
+/**
+ * MovieDex Watch History Service
+ * 
+ * Manages user watch history with features:
+ * - Local history storage
+ * - Cloud sync support
+ * - Continue watching tracking
+ * - Watch progress management
+ * - Incognito mode support
+ * 
+ * Data is stored locally using Hive and optionally synced to Firebase
+ * when user is authenticated and sync is enabled.
+ */
+
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -5,7 +19,9 @@ import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
 import 'package:hive/hive.dart';
 
+/// Service for managing user watch history and progress
 class WatchHistoryService {
+  // Storage box names
   static const String _historyBoxName = 'watch_history';
   static const String _continueBoxName = 'continue_watching';
   static const String _settingsBoxName = 'settings';
@@ -48,6 +64,8 @@ class WatchHistoryService {
     }
   }
 
+  /// Adds content to watch history
+  /// @param content The content to add to history
   Future<void> addToHistory(Contentclass content) async {
     await _ensureInitialized();
     

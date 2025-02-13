@@ -1,4 +1,25 @@
+/**
+ * MovieDex Video Player Component
+ * 
+ * Advanced video player with features:
+ * - Multi-source video playback
+ * - Quality selection (Auto, 1080p, 720p, etc.)
+ * - Multiple audio tracks support
+ * - Playback speed control
+ * - Picture-in-picture mode
+ * - Double-tap seeking
+ * - Pinch-to-zoom
+ * - Auto-play next episode
+ * - Watch history tracking
+ * - Proxy support for region-locked content
+ * - Custom controls overlay
+ * 
+ * Part of MovieDex - MIT Licensed
+ * Copyright (c) 2024 MovieDex Contributors
+ */
+
 import 'dart:async';
+import 'dart:convert'; // Add this import for base64Encode
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
@@ -11,15 +32,34 @@ import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/components/next_episode_button.dart';
+import 'package:moviedex/services/proxy_service.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:screen_brightness/screen_brightness.dart';
+import 'package:volume_controller/volume_controller.dart';
 
+/// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
+  /// Content metadata
   final Contentclass data;
+  
+  /// Available video streams
   final List<StreamClass> streams;
+  
+  /// Content type (movie/tv)
   final String contentType;
+  
+  /// Current episode number for TV shows
   final int? currentEpisode;
+  
+  /// Content title
   final String title;
+  
+  /// Episode list for TV shows
   final List<Episode>? episodes;
-  final Function(int)? onEpisodeSelected;  // Add this callback
+  
+  /// Callback when episode is selected
+  final Function(int)? onEpisodeSelected;
+
   const ContentPlayer({
     super.key, 
     required this.data,
@@ -36,6 +76,7 @@ class ContentPlayer extends StatefulWidget {
 }
 
 class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateMixin {
+  // Controller and state variables
   VideoPlayerController? _controller;
   Timer? _hideTimer;
   bool _isPlaying = false;
@@ -113,6 +154,14 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   
   late Box? storage;
 
+  // Add new state variables
+  bool _isLocked = false;
+  double _brightness = 0.0;
+  double _volume = 0.0;
+  bool _isAdjustingBrightness = false;
+  bool _isAdjustingVolume = false;
+  Timer? _adjustmentTimer;
+
   String getSourceOfQuality(StreamClass data){
     final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
     if(source.isEmpty){
@@ -184,9 +233,75 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
   }
 
+  Future<void> _initializeVideoPlayer(String url) async {
+    final proxyService = ProxyService.instance;
+    final proxyUrl = proxyService.activeProxy;
+
+    try {
+      if (proxyUrl != null && proxyUrl.isNotEmpty) {
+        // Configure video player with proxy
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          httpHeaders: {
+            'User-Agent': 'Mozilla/5.0',
+            'Proxy-Authorization': 'Basic ${base64.encode(utf8.encode(proxyUrl))}', // Fixed base64Encode
+          },
+        );
+      } else {
+        // Normal initialization without proxy
+        _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      }
+
+      await _controller?.initialize();
+      
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _duration = _controller!.value.duration;
+          _position = _controller!.value.position;
+          _controller!.addListener(_onControllerUpdate);
+          _controller!.play();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error initializing video player: $e');
+      // Show error dialog
+      if (mounted) {
+        print(_currentQuality);
+          if(_currentQuality=='Auto'){
+        setState(() {
+          _controller?.dispose();
+          _currentQuality = '360';        
+          // Initialize with new quality url using proxy if configured
+          final sources = widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].sources;
+          _initializeVideoPlayer(sources.where((e)=>e.quality==_currentQuality).toList()[0].url).then((_) {
+            _controller!.play();
+          });
+        _isSettingsVisible = false;
+        });
+          }else{
+          showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Playback Error'),
+            content: Text('Failed to load video${proxyUrl != null ? ' using proxy' : ''}: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+          }
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable();
     _initStorage();
     _initSettings().then((_) {
       List<SourceClass> source = widget.streams[0].sources.where((e)=>e.quality==_defaultQuality.replaceAll("p", "")).toList();
@@ -197,18 +312,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       }
       String videoUrl = _defaultQuality=='Auto'?widget.streams[0].url:source.isNotEmpty?source[0].url:widget.streams[0].url;
       _currentLanguage = widget.streams[0].language;
-      _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl))
-        ..initialize().then((_) {
-          if (mounted) {
-            setState(() {
-              _isInitialized = true;
-              _duration = _controller!.value.duration;
-              _position = _controller!.value.position;
-              _controller!.addListener(_onControllerUpdate);
-              _controller!.play();
-            });
-          }
-        });
+      
+      // Initialize video player with proxy support
+      _initializeVideoPlayer(videoUrl);
     });
     _transformationController = TransformationController();
     _zoomAnimationController = AnimationController(
@@ -291,6 +397,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         curve: Curves.easeInOut,
       ),
     );
+
+    _initBrightnessAndVolume();
   }
 
   Future<void> _initStorage() async {
@@ -310,8 +418,21 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     }
   }
 
+  Future<void> _initBrightnessAndVolume() async {
+    try {
+      _brightness = await ScreenBrightness().current;
+      _volume = await VolumeController().getVolume();
+      VolumeController().listener((volume) {
+        setState(() => _volume = volume);
+      });
+    } catch (e) {
+      debugPrint('Error initializing brightness/volume: $e');
+    }
+  }
+
   @override
   void dispose() {
+    WakelockPlus.disable();
     // Update continue watching when exiting player
     if (_controller != null && _controller!.value.isInitialized) {
       final position = _controller!.value.position;
@@ -346,6 +467,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     _rewindAnimationController.dispose();
     _seekForwardAnimationController.dispose();
     _seekRewindAnimationController.dispose();
+    VolumeController().removeListener();
+    _adjustmentTimer?.cancel();
     super.dispose();
   }
 
@@ -502,20 +625,18 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _controller?.dispose();
         _currentQuality = quality;
         _saveSetting('defaultQuality', '${quality}p');
-        _controller = VideoPlayerController.networkUrl(Uri.parse(url))
-          ..initialize().then((_) {
-            setState(() {
-              _isInitialized = true;
-              _controller!.addListener(_onControllerUpdate);
-              // Seek to previous position
-              _controller!.seekTo(currentPosition).then((_) {
-                // Resume playback if it was playing
-                if (wasPlaying) {
-                  _controller!.play();
-                }
-              });
+        
+        // Initialize with new quality url using proxy if configured
+        _initializeVideoPlayer(url).then((_) {
+          if (_controller != null && _controller!.value.isInitialized) {
+            _controller!.seekTo(currentPosition).then((_) {
+              if (wasPlaying) {
+                _controller!.play();
+              }
             });
-          });
+          }
+        });
+        
         _isSettingsVisible = false;
       });
     }
@@ -523,28 +644,27 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
   void _selectLanguage(StreamClass data) async {
     if (_currentLanguage != data.language) {
-      // Store current position before disposing
+      // Store current position
       final currentPosition = _controller?.value.position ?? Duration.zero;
       final wasPlaying = _controller?.value.isPlaying ?? false;
       
       setState(() {
         _controller?.dispose();
         _currentLanguage = data.language;
-        _controller = VideoPlayerController.networkUrl(
-          Uri.parse(_currentQuality == 'Auto' ? data.url : getSourceOfQuality(data))
-        )..initialize().then((_) {
-            setState(() {
-              _isInitialized = true;
-              _controller!.addListener(_onControllerUpdate);
-              // Seek to previous position
-              _controller!.seekTo(currentPosition).then((_) {
-                // Resume playback if it was playing
-                if (wasPlaying) {
-                  _controller!.play();
-                }
-              });
+        
+        // Initialize with new language url using proxy if configured
+        _initializeVideoPlayer(
+          _currentQuality == 'Auto' ? data.url : getSourceOfQuality(data)
+        ).then((_) {
+          if (_controller != null && _controller!.value.isInitialized) {
+            _controller!.seekTo(currentPosition).then((_) {
+              if (wasPlaying) {
+                _controller!.play();
+              }
             });
-          });
+          }
+        });
+        
         _isSettingsVisible = false;
       });
     }
@@ -559,6 +679,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _handleTap() {
+    if (_isLocked) return;
     setState(() {
         _isCountrollesVisible = !_isCountrollesVisible;
         if (_isCountrollesVisible) {
@@ -636,8 +757,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     setState(() {
       if (_isPlaying) {
         _controller!.pause();
+        WakelockPlus.disable();
       } else {
         _controller!.play();
+        WakelockPlus.enable();
       }
       _isPlaying = !_isPlaying;
       _isCountrollesVisible = true;
@@ -1091,12 +1214,13 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onDoubleTapDown: (details) {
-                if (!_isSettingsVisible && !_isEpisodesVisible) {
+                if (!_isSettingsVisible && !_isEpisodesVisible && !_isLocked) {
                   _handleDoubleTapSeek(context, details);
                 }
               },
+              onVerticalDragUpdate: (details) => _handleVerticalDragUpdate(details, false),
               onDoubleTap: () {},
-              onTap: _handleTap,
+              onTap: _isLocked ? null : _handleTap,
             ),
           ),
           // Right tap area
@@ -1108,12 +1232,53 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onDoubleTapDown: (details) {
-                if (!_isSettingsVisible && !_isEpisodesVisible) {
+                if (!_isSettingsVisible && !_isEpisodesVisible && !_isLocked) {
                   _handleDoubleTapSeek(context, details);
                 }
               },
+              onVerticalDragUpdate: (details) => _handleVerticalDragUpdate(details, true),
               onDoubleTap: () {},
-              onTap: _handleTap,
+              onTap: _isLocked ? null : _handleTap,
+            ),
+          ),
+          // Brightness indicator
+          if (_isAdjustingBrightness)
+            _buildAdjustmentIndicator(
+              Icons.brightness_6,
+              _brightness,
+              'Brightness',
+              false,
+            ),
+          // Volume indicator
+          if (_isAdjustingVolume)
+            _buildAdjustmentIndicator(
+              _volume == 0 ? Icons.volume_off : Icons.volume_up,
+              _volume,
+              'Volume',
+              true,
+            ),
+          // Lock button
+          Positioned(
+            left: 16,
+            top: MediaQuery.of(context).size.height * 0.5 - 24,
+            child: AnimatedOpacity(
+              opacity: _isCountrollesVisible || _isLocked ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: GestureDetector(
+                onTap: () => setState(() => _isLocked = !_isLocked),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(
+                    _isLocked ? Icons.lock : Icons.lock_open,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -1121,39 +1286,46 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
-  Widget _buildPlayPauseButton() {
-    if (_isBuffering) {
-      return Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
-          shape: BoxShape.circle,
-        ),
-        child: const CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          strokeWidth: 2,
-        ),
-      );
-    }
-
-    return Material(
-      color: Colors.transparent,
+  Widget _buildAdjustmentIndicator(IconData icon, double value, String label, bool right) {
+    return Positioned(
+      top: MediaQuery.of(context).size.height * 0.5 - 50,
+      left: right ? null : 32,
+      right: right ? 32 : null,
       child: Container(
-        width: 56,
-        height: 56,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
-          shape: BoxShape.circle,
+          color: Colors.black87,
+          borderRadius: BorderRadius.circular(16),
         ),
-        child: InkWell(
-          onTap: _togglePlayPause,
-          borderRadius: BorderRadius.circular(28),
-          child: Icon(
-            _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 32,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            const SizedBox(height: 8),
+            Container(
+              width: 4,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: FractionallySizedBox(
+                heightFactor: value,
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(value * 100).round()}%',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
         ),
       ),
     );
@@ -1190,6 +1362,26 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         widget.onEpisodeSelected!(nextEpisode);
       } catch (e) {
         debugPrint('Error updating to next episode: $e');
+      }
+    }
+  }
+
+  void _onVideoProgress() {
+    if (!mounted || _controller == null || !_controller!.value.isInitialized) return;
+
+    // Check if video is near the end (95% or more)
+    final position = _controller!.value.position;
+    final duration = _controller!.value.duration;
+    final progress = position.inMilliseconds / duration.inMilliseconds;
+
+    if (progress >= 0.95) {
+      // Check conditions for auto-play next
+      if (widget.contentType == 'tv' && 
+          widget.currentEpisode != null && 
+          widget.episodes != null &&
+          widget.currentEpisode! < widget.episodes!.length &&
+          _autoPlayNext) {
+        _handleNextEpisode();
       }
     }
   }
@@ -1272,7 +1464,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           // Next episode button
           if (widget.contentType == 'tv' && 
               _isInitialized && 
-              hasNextEpisode)
+              hasNextEpisode &&
+              !_autoPlayNext)
             Positioned(
               right: 24,
               bottom: 100,
@@ -1366,4 +1559,79 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       ),
     );
   }
+
+  void _handleVerticalDragUpdate(DragUpdateDetails details, bool isRightSide) {
+    if (_isLocked) return;
+    
+    // Calculate delta - negative for up, positive for down
+    final delta = -(details.primaryDelta ?? 0) / 200;
+    
+    if (isRightSide) {
+      // Right side - Volume
+      setState(() {
+        _volume = (_volume + delta).clamp(0.0, 1.0);
+        _isAdjustingVolume = true;
+        VolumeController().setVolume(_volume);
+      });
+    } else {
+      // Left side - Brightness
+      setState(() {
+        _brightness = (_brightness + delta).clamp(0.0, 1.0);
+        _isAdjustingBrightness = true;
+        ScreenBrightness().setScreenBrightness(_brightness);
+      });
+    }
+
+    // Reset adjustment indicators after delay
+    _adjustmentTimer?.cancel();
+    _adjustmentTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _isAdjustingBrightness = false;
+          _isAdjustingVolume = false;
+        });
+      }
+    });
+  }
+
+  Widget _buildPlayPauseButton() {
+    if (_isBuffering) {
+      return Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.6),
+          shape: BoxShape.circle,
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _togglePlayPause,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.6),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
+        ),
+      ),
+    );
+  }
+
 }

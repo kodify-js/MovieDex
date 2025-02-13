@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_debouncer/flutter_debouncer.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
-import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
 

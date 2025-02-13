@@ -6,7 +6,7 @@ class ErrorHandlers {
     String message = _getErrorMessage(error);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.red.shade800,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),
@@ -20,7 +20,7 @@ class ErrorHandlers {
   static void showSuccessSnackbar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(message, style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.green.shade800,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(16),

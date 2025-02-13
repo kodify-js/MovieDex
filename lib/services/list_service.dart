@@ -1,9 +1,23 @@
+/**
+ * List Management Service
+ * 
+ * Handles user's personal content lists with features:
+ * - Local storage with Hive
+ * - Firebase sync support
+ * - Cached list operations
+ * - Offline support
+ * - Sort and filter capabilities
+ * 
+ * Part of MovieDex - MIT Licensed
+ */
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/models/list_item_model.dart';
 
+/// Manages user's content lists with sync capabilities
 class ListService {
   static const String _listBoxName = 'my_list';
   Box<ListItem>? _listBox; // Change to nullable
@@ -43,6 +57,7 @@ class ListService {
     }
   }
 
+  /// Adds content to user's list and syncs if enabled
   Future<void> addToList(Contentclass content) async {
     await _ensureInitialized();
     if (_listBox == null) return;
@@ -77,6 +92,7 @@ class ListService {
     _cachedList = _listBox?.values.toList();
   }
 
+  /// Removes content from user's list and syncs if enabled
   Future<void> removeFromList(int contentId) async {
     await _ensureInitialized();
     if (_listBox == null) return;

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
-import 'package:moviedex/api/utils.dart';
-import 'package:moviedex/components/horizontal_movie_list.dart';
+import 'package:moviedex/utils/utils.dart';
+import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
 import 'package:moviedex/components/description_text.dart';
@@ -399,7 +399,7 @@ class _InfopageState extends State<Infopage> {
                       ),
                     ),
                     data.type==ContentType.movie.value?
-                    HorizontalMovieList(title: "Recommendations", fetchMovies: () => api.getRecommendations(id: widget.id, type: widget.type), showNumber: false):
+                    HorizontalScrollList(title: "Recommendations", fetchMovies: () => api.getRecommendations(id: widget.id, type: widget.type), showNumber: false):
                     EpisodesSection(data: data,initialSeason: selectedSeason), 
                   ],
                 );

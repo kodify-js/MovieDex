@@ -1,21 +1,17 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:moviedex/api/models/cache_model.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class CacheService {
+  static final CacheService _instance = CacheService._internal();
+  factory CacheService() => _instance;
+  CacheService._internal();
+
   static const String _boxName = 'api_cache';
-  static CacheService? _instance;
   Box<CacheModel>? _cacheBox;
   Box? _settingsBox;
   bool _isInitialized = false;
-
-  // Private constructor
-  CacheService._();
-
-  // Factory constructor for singleton
-  factory CacheService() {
-    _instance ??= CacheService._();
-    return _instance!;
-  }
 
   bool get isInitialized => _isInitialized;
 
@@ -32,14 +28,28 @@ class CacheService {
   }
 
   Future<int> getCacheSize() async {
-    await _ensureInitialized();
-    int totalSize = 0;
-    if (_cacheBox != null) {
-      for (var item in _cacheBox!.values) {
-        totalSize += item.data.toString().length;
+    try {
+      final dir = await getTemporaryDirectory();
+      final cacheDir = Directory('${dir.path}/hive');
+      
+      if (!await cacheDir.exists()) {
+        return 0;
       }
+
+      int totalSize = 0;
+      
+      // Recursively get all files in cache directory
+      await for (var entity in cacheDir.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          totalSize += await entity.length();
+        }
+      }
+
+      return totalSize;
+    } catch (e) {
+      print('Error calculating cache size: $e');
+      return 0;
     }
-    return totalSize;
   }
 
   Duration get cacheValidity => Duration(
@@ -80,6 +90,19 @@ class CacheService {
   Future<void> clear() async {
     await _ensureInitialized();
     await _cacheBox?.clear();
+  }
+
+  Future<void> clearCache() async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final cacheDir = Directory('${dir.path}/hive');
+      
+      if (await cacheDir.exists()) {
+        await cacheDir.delete(recursive: true);
+      }
+    } catch (e) {
+      print('Error clearing cache: $e');
+    }
   }
 
   Future<void> _ensureInitialized() async {

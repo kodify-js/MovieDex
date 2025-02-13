@@ -10,6 +10,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:moviedex/services/cache_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:moviedex/services/settings_service.dart';
+import 'package:moviedex/services/proxy_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -23,7 +24,6 @@ class _SettingsPageState extends State<SettingsPage> {
   late Box _settingsBox;
   bool _useCustomProxy = false;
   bool _autoPlayNext = true;
-  bool _useHardwareDecoding = true;
   String _selectedTheme = 'system';
   String _selectedAccentColor = 'blue';
   String _defaultQuality = 'Auto';
@@ -45,22 +45,36 @@ class _SettingsPageState extends State<SettingsPage> {
   int _cacheSize = 0;
   bool _syncEnabled = true;
   bool _incognitoMode = false;
+  bool _isValidatingProxy = false;
+  bool _isProxyValid = false;
 
   @override
   void initState() {
     super.initState();
-    _initSettings();
-    PackageInfo.fromPlatform().then((info) => setState(() {
-      _version = info.version;
-    }));
+    PackageInfo.fromPlatform().then((info) {
+      setState(() => _version = info.version);
+    });
+    _initializeSettings();
     _fetchGitHubInfo();
-    _loadCacheInfo();
-    SettingsService.instance.init();
+  }
+
+  Future<void> _initializeSettings() async {
+    final settingsService = SettingsService.instance;
+    await settingsService.init();
+    
+    // Get initial state from SettingsService
+    setState(() {
+      _incognitoMode = settingsService.isIncognito;
+      _syncEnabled = settingsService.isSyncEnabled;
+    });
 
     // Listen to incognito mode changes
-    SettingsService.instance.incognitoStream.listen((value) {
+    settingsService.incognitoStream.listen((value) {
       if (mounted) {
-        setState(() => _incognitoMode = value);
+        setState(() {
+          _incognitoMode = value;
+          _syncEnabled = value ? false : settingsService.isSyncEnabled;
+        });
       }
     });
   }
@@ -72,7 +86,6 @@ class _SettingsPageState extends State<SettingsPage> {
       _useCustomProxy = _settingsBox.get('useCustomProxy', defaultValue: false);
       _proxyController.text = _settingsBox.get('proxyUrl', defaultValue: '');
       _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
-      _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
       _selectedTheme = _settingsBox.get('theme', defaultValue: 'system');
       _selectedAccentColor = _settingsBox.get('accentColor', defaultValue: 'blue');
       _syncEnabled = _settingsBox.get('syncEnabled', defaultValue: true);
@@ -124,6 +137,44 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _proxyController.dispose();
     super.dispose();
+  }
+
+  Future<void> _validateAndSaveProxy(String value) async {
+    if (value.isEmpty) {
+      await _saveSetting('proxyUrl', '');
+      return;
+    }
+
+    setState(() {
+      _isValidatingProxy = true;
+    });
+
+    final isValid = await ProxyService.instance.validateProxy(value);
+
+    if (mounted) {
+      setState(() {
+        _isValidatingProxy = false;
+        _isProxyValid = isValid;
+      });
+
+      if (isValid) {
+        await _saveSetting('proxyUrl', value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Proxy configured successfully')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid proxy. Please check the URL and try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        await _saveSetting('useCustomProxy', false);
+        setState(() {
+          _useCustomProxy = false;
+        });
+      }
+    }
   }
 
   Widget _buildSettingSection(String title, List<Widget> children) {
@@ -223,7 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-
+        
           if (_maintainerInfo != null) ...[
             const SizedBox(height: 8),
             _buildMaintainerInfo(),
@@ -480,21 +531,14 @@ class _SettingsPageState extends State<SettingsPage> {
               SwitchListTile(
                 title: Text('Auto Play Next Episode', 
                   style: Theme.of(context).textTheme.bodyLarge),
+                subtitle: Text(
+                  'Automatically play next episode in series',
+                  style: Theme.of(context).textTheme.bodyMedium
+                ),
                 value: _autoPlayNext,
                 onChanged: (value) {
                   setState(() => _autoPlayNext = value);
                   _saveSetting('autoPlayNext', value);
-                },
-              ),
-              SwitchListTile(
-                title: Text('Hardware Decoding', 
-                  style: Theme.of(context).textTheme.bodyLarge),
-                subtitle: Text('Better performance but may cause issues on some devices',
-                  style: Theme.of(context).textTheme.bodyMedium),
-                value: _useHardwareDecoding,
-                onChanged: (value) {
-                  setState(() => _useHardwareDecoding = value);
-                  _saveSetting('useHardwareDecoding', value);
                 },
               ),
               ListTile(
@@ -506,37 +550,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          _buildSettingSection(
-            'Advanced',
-            [
-              SwitchListTile(
-                title: Text('Use Custom Proxy', 
-                  style: Theme.of(context).textTheme.bodyLarge),
-                value: _useCustomProxy,
-                onChanged: (value) {
-                  setState(() => _useCustomProxy = value);
-                  _saveSetting('useCustomProxy', value);
-                },
-              ),
-              if (_useCustomProxy)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    controller: _proxyController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Proxy URL',
-                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
-                      border: const OutlineInputBorder(),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
-                      ),
-                    ),
-                    onChanged: (_) => _saveSetting('proxyUrl', _proxyController.text),
-                  ),
-                ),
-            ],
-          ),
+          _buildAdvancedSection(),
           _buildAboutSection(),
         ],
       ),
@@ -754,6 +768,20 @@ class _SettingsPageState extends State<SettingsPage> {
       'Cache',
       [
         ListTile(
+          title: Text('Cache Size', style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            '${(_cacheSize / (1024 * 1024)).toStringAsFixed(2)} MB',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          trailing: TextButton(
+            onPressed: () async {
+              await _cacheService.clearCache();
+              setState(() => _cacheSize = 0);
+            },
+            child: const Text('Clear Cache'),
+          ),
+        ),
+        ListTile(
           title: Text(
             'Cache Duration',
             style: Theme.of(context).textTheme.bodyLarge,
@@ -763,26 +791,6 @@ class _SettingsPageState extends State<SettingsPage> {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           onTap: _showCacheDurationSelector,
-        ),
-        ListTile(
-          title: Text(
-            'Cache Size',
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
-          subtitle: Text(
-            '${(_cacheSize / 1024 / 1024).toStringAsFixed(2)} MB',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          trailing: TextButton(
-            onPressed: () async {
-              await _cacheService.clear();
-              await _loadCacheInfo();
-              setState(() {
-                _cacheSize = 0;
-              });
-            },
-            child: const Text('Clear Cache'),
-          ),
         ),
       ],
     );
@@ -867,10 +875,9 @@ class _SettingsPageState extends State<SettingsPage> {
             'Browse without saving history or preferences',
             style: Theme.of(context).textTheme.bodyMedium
           ),
-          value: _incognitoMode,
+          value: settingsService.isIncognito, // Use direct value from service
           onChanged: (value) async {
             await settingsService.setIncognitoMode(value);
-            // No need to setState here as we're listening to the stream
             if (value) {
               _showIncognitoWarning();
             }
@@ -956,6 +963,68 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAdvancedSection() {
+    return _buildSettingSection(
+      'Advanced',
+      [
+        SwitchListTile(
+          title: Text('Use Custom Proxy', 
+            style: Theme.of(context).textTheme.bodyLarge),
+          value: _useCustomProxy,
+          onChanged: (value) async {
+            if (!value || _proxyController.text.isEmpty) {
+              setState(() => _useCustomProxy = value);
+              await _saveSetting('useCustomProxy', value);
+            } else {
+              // Validate proxy before enabling
+              await _validateAndSaveProxy(_proxyController.text);
+            }
+          },
+        ),
+        if (_useCustomProxy)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _proxyController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Proxy URL',
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    border: const OutlineInputBorder(),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    suffixIcon: _isValidatingProxy
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.check_circle),
+                            onPressed: () => _validateAndSaveProxy(_proxyController.text),
+                          ),
+                  ),
+                  onSubmitted: _validateAndSaveProxy,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Example: http://proxy.example.com:8080',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

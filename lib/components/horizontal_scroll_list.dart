@@ -3,13 +3,13 @@ import 'dart:ui';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/pages/info_page.dart'; // Add this import
 
-class HorizontalMovieList extends StatelessWidget {
+class HorizontalScrollList extends StatelessWidget {
   final String title;
   final Future<dynamic> Function() fetchMovies;
   final bool showNumber;
   final double itemWidth;
 
-  const HorizontalMovieList({
+  const HorizontalScrollList({
     super.key,
     required this.title,
     required this.fetchMovies,
@@ -36,7 +36,7 @@ class HorizontalMovieList extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: isMobile ? 200 : 250,
+          height: 200,
           child: FutureBuilder<dynamic>(
             future: fetchMovies(),
             builder: (context, snapshot) {

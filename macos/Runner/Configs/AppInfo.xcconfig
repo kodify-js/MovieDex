@@ -8,7 +8,7 @@
 PRODUCT_NAME = moviedex
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.moviedex
+PRODUCT_BUNDLE_IDENTIFIER = com.kodify.moviedex.macos
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2025 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2025 com.kodify.moviedex. All rights reserved.

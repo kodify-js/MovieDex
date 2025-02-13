@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
-import 'package:moviedex/api/utils.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/pages/watch_page.dart';
 
 class EpisodesList extends StatefulWidget {
