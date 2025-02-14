@@ -77,7 +77,6 @@ final List<Map<String, dynamic>> tvGenres = [
 
 /// Constructs optimized image URL with WebP conversion
 String imagePath({required ImageSize size, required String path}) {
-  print('https://wsrv.nl/?url=https://image.tmdb.org/t/p/${size.value}$path&output=webp');
   return 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/${size.value}$path&output=webp';
 }
 

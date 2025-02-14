@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive/hive.dart';
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/settings_page.dart';
@@ -16,6 +17,8 @@ import 'package:moviedex/pages/watch_history_page.dart';
 import 'package:moviedex/pages/downloads_page.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'dart:async';
+import 'package:moviedex/components/downloads_list.dart';
+import 'package:moviedex/utils/utils.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -94,6 +97,45 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
     _watchHistoryController.add(null);
   }
 
+  Future<void> _handleWatchHistoryItemTap(WatchHistoryItem item) async {
+    try {
+      final data = await Api().getDetails(id: item.contentId, type: item.type);
+      
+      if (mounted) {
+        // Open custom box for item
+        final storage = await Hive.openBox(data.title);
+        
+        // Set last watched episode if it's a TV show
+        if (item.type == ContentType.tv.value && item.episodeNumber != null) {
+          await storage.put('episode', 'E${item.episodeNumber}');
+          await storage.put('season', 'S${item.seasonNumber}');
+        }
+
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Infopage(
+                id: item.contentId,
+                type: item.type,
+                name: item.title,
+              ),
+            ),
+          );
+        }
+
+        // Close box after navigation
+        await storage.close();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -150,17 +192,11 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                             ),
                             const SizedBox(height: 16),
                             _buildSection(
-                              "Downloads",
+                              "Downloading",
                               Icons.download_done_rounded,
-                              () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const DownloadsPage(),
-                                  ),
-                                );
-                              },
+                              () {},
                               items: [], // Empty list to show empty state
+                              children: const [DownloadsList()], // Add DownloadsList as a child
                             ),
                           ],
                         ),
@@ -465,7 +501,9 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
     IconData icon, 
     VoidCallback onTap, {
     List<Map>? items,
+    List<Widget>? children, // Add children parameter
     Function(int)? onLongPressItem,
+    Function(int)? onItemTap, // Add this parameter
     VoidCallback? onHeaderLongPress,
   }) {
     return Container(
@@ -516,6 +554,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                       itemCount: items.length,
                       itemBuilder: (context, index) {
                         return GestureDetector(
+                          onTap: () => onItemTap?.call(index), // Add tap handler
                           onLongPress: () => onLongPressItem?.call(index),
                           child: Container(
                             width: 160, // Adjusted width
@@ -564,6 +603,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                       },
                     ),
                   )
+                else if (children != null)
+                  ...children  // Add children widgets if provided
                 else
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -621,6 +662,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
           }).toList(),
           onLongPressItem: (index) => _showHistoryItemOptions(watchHistory[index]),
           onHeaderLongPress: () => _showClearHistoryDialog(),
+          onItemTap: (index) => _handleWatchHistoryItemTap(watchHistory[index]),
         ),
       ),
     );
@@ -643,6 +685,14 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                   item.contentId.toString()
                 );
                 _watchHistoryController.add(null); // Refresh list
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.play_arrow),
+              title: const Text('Play'),
+              onTap: () {
+                Navigator.pop(context);
+                _handleWatchHistoryItemTap(item);
               },
             ),
             ListTile(

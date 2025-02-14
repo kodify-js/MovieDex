@@ -15,18 +15,26 @@
 
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
+import 'package:hive/hive.dart';
 
 /// Manages application-wide settings and preferences
 class SettingsService {
   static SettingsService? _instance;
   late Box _settingsBox;
   bool _isInitialized = false;
+  static const String _downloadPathKey = 'downloadPath';
 
   /// Broadcasts incognito mode state changes
   final _incognitoController = StreamController<bool>.broadcast();
   
   /// Stream of incognito mode state changes
   Stream<bool> get incognitoStream => _incognitoController.stream;
+
+  /// Broadcasts settings changes
+  final _settingsController = StreamController<void>.broadcast();
+  
+  /// Stream of settings changes
+  Stream<void> get settingsStream => _settingsController.stream;
 
   /// Singleton instance accessor
   static SettingsService get instance {
@@ -94,5 +102,24 @@ class SettingsService {
   /// Clean up resources
   void dispose() {
     _incognitoController.close();
+    _settingsController.close();
+  }
+
+  /// Current download path
+  String get downloadPath => _settingsBox.get(
+    _downloadPathKey,
+    defaultValue: '/storage/emulated/0/Download/MovieDex',
+  );
+
+  /// Set download path
+  Future<void> setDownloadPath(String path) async {
+    await _settingsBox.put(_downloadPathKey, path);
+  }
+
+  bool get isAutoPlayEnabled => _settingsBox.get('autoPlayNext', defaultValue: true);
+  
+  Future<void> setAutoPlayEnabled(bool value) async {
+    await _settingsBox.put('autoPlayNext', value);
+    _settingsController.add(null);
   }
 }

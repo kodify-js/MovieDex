@@ -34,8 +34,7 @@ import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/components/next_episode_button.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:screen_brightness/screen_brightness.dart';
-import 'package:volume_controller/volume_controller.dart';
+import 'package:moviedex/services/settings_service.dart';
 
 /// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
@@ -60,6 +59,11 @@ class ContentPlayer extends StatefulWidget {
   /// Callback when episode is selected
   final Function(int)? onEpisodeSelected;
 
+  final Function(int)? onNextEpisode;
+  final Function(int)? onPreviousEpisode;
+  final bool hasNextEpisode;
+  final bool hasPreviousEpisode;
+
   const ContentPlayer({
     super.key, 
     required this.data,
@@ -69,6 +73,10 @@ class ContentPlayer extends StatefulWidget {
     required this.title,  
     this.episodes,
     this.onEpisodeSelected,  // Add this to constructor
+    this.onNextEpisode,
+    this.onPreviousEpisode,
+    this.hasNextEpisode = false,
+    this.hasPreviousEpisode = false,
   });
 
   @override
@@ -153,14 +161,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   String _defaultQuality = 'Auto';
   
   late Box? storage;
-
-  // Add new state variables
-  bool _isLocked = false;
-  double _brightness = 0.0;
-  double _volume = 0.0;
-  bool _isAdjustingBrightness = false;
-  bool _isAdjustingVolume = false;
-  Timer? _adjustmentTimer;
 
   String getSourceOfQuality(StreamClass data){
     final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
@@ -267,20 +267,20 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       debugPrint('Error initializing video player: $e');
       // Show error dialog
       if (mounted) {
-        print(_currentQuality);
+                print(_currentQuality);
           if(_currentQuality=='Auto'){
         setState(() {
-          _controller?.dispose();
-          _currentQuality = '360';        
+          _controller?.dispose();        
           // Initialize with new quality url using proxy if configured
           final sources = widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].sources;
+          _currentQuality = sources[0].quality;
           _initializeVideoPlayer(sources.where((e)=>e.quality==_currentQuality).toList()[0].url).then((_) {
             _controller!.play();
           });
         _isSettingsVisible = false;
         });
-          }else{
-          showDialog(
+        }else{
+        showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Playback Error'),
@@ -293,7 +293,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             ],
           ),
         );
-          }
+        }
       }
     }
   }
@@ -398,7 +398,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       ),
     );
 
-    _initBrightnessAndVolume();
+    _startControlsTimer();
+    _controller?.addListener(_onVideoProgress);
   }
 
   Future<void> _initStorage() async {
@@ -415,18 +416,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       }
     } catch (e) {
       debugPrint('Error initializing storage: $e');
-    }
-  }
-
-  Future<void> _initBrightnessAndVolume() async {
-    try {
-      _brightness = await ScreenBrightness().current;
-      _volume = await VolumeController().getVolume();
-      VolumeController().listener((volume) {
-        setState(() => _volume = volume);
-      });
-    } catch (e) {
-      debugPrint('Error initializing brightness/volume: $e');
     }
   }
 
@@ -467,8 +456,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     _rewindAnimationController.dispose();
     _seekForwardAnimationController.dispose();
     _seekRewindAnimationController.dispose();
-    VolumeController().removeListener();
-    _adjustmentTimer?.cancel();
+    _controlsTimer?.cancel();
+    _autoPlayTimer?.cancel();
     super.dispose();
   }
 
@@ -679,7 +668,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _handleTap() {
-    if (_isLocked) return;
     setState(() {
         _isCountrollesVisible = !_isCountrollesVisible;
         if (_isCountrollesVisible) {
@@ -1065,7 +1053,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     children: [
                       // Buffer progress
                       Padding(
-                        padding: const EdgeInsets.only(left: 12),
+                        padding: const EdgeInsets.only(left: 12, right: 12),
                         child: LinearProgressIndicator(
                           value: _bufferingProgress,
                           backgroundColor: Colors.transparent,
@@ -1214,13 +1202,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onDoubleTapDown: (details) {
-                if (!_isSettingsVisible && !_isEpisodesVisible && !_isLocked) {
+                if (!_isSettingsVisible && !_isEpisodesVisible) {
                   _handleDoubleTapSeek(context, details);
                 }
               },
-              onVerticalDragUpdate: (details) => _handleVerticalDragUpdate(details, false),
               onDoubleTap: () {},
-              onTap: _isLocked ? null : _handleTap,
+              onTap: _handleTap,
             ),
           ),
           // Right tap area
@@ -1232,53 +1219,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onDoubleTapDown: (details) {
-                if (!_isSettingsVisible && !_isEpisodesVisible && !_isLocked) {
+                if (!_isSettingsVisible && !_isEpisodesVisible) {
                   _handleDoubleTapSeek(context, details);
                 }
               },
-              onVerticalDragUpdate: (details) => _handleVerticalDragUpdate(details, true),
               onDoubleTap: () {},
-              onTap: _isLocked ? null : _handleTap,
-            ),
-          ),
-          // Brightness indicator
-          if (_isAdjustingBrightness)
-            _buildAdjustmentIndicator(
-              Icons.brightness_6,
-              _brightness,
-              'Brightness',
-              false,
-            ),
-          // Volume indicator
-          if (_isAdjustingVolume)
-            _buildAdjustmentIndicator(
-              _volume == 0 ? Icons.volume_off : Icons.volume_up,
-              _volume,
-              'Volume',
-              true,
-            ),
-          // Lock button
-          Positioned(
-            left: 16,
-            top: MediaQuery.of(context).size.height * 0.5 - 24,
-            child: AnimatedOpacity(
-              opacity: _isCountrollesVisible || _isLocked ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: GestureDetector(
-                onTap: () => setState(() => _isLocked = !_isLocked),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(
-                    _isLocked ? Icons.lock : Icons.lock_open,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
-              ),
+              onTap: _handleTap,
             ),
           ),
         ],
@@ -1286,46 +1232,39 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
-  Widget _buildAdjustmentIndicator(IconData icon, double value, String label, bool right) {
-    return Positioned(
-      top: MediaQuery.of(context).size.height * 0.5 - 50,
-      left: right ? null : 32,
-      right: right ? 32 : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
+  Widget _buildPlayPauseButton() {
+    if (_isBuffering) {
+      return Container(
+        width: 56,
+        height: 56,
         decoration: BoxDecoration(
-          color: Colors.black87,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.black.withOpacity(0.6),
+          shape: BoxShape.circle,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 24),
-            const SizedBox(height: 8),
-            Container(
-              width: 4,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: FractionallySizedBox(
-                heightFactor: value,
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${(value * 100).round()}%',
-              style: const TextStyle(color: Colors.white),
-            ),
-          ],
+        child: const CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
+      );
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.6),
+          shape: BoxShape.circle,
+        ),
+        child: InkWell(
+          onTap: _togglePlayPause,
+          borderRadius: BorderRadius.circular(28),
+          child: Icon(
+            _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 32,
+          ),
         ),
       ),
     );
@@ -1386,6 +1325,59 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     }
   }
 
+  bool _isLocked = false;
+  bool _showControls = true;
+  Timer? _controlsTimer;
+  Timer? _autoPlayTimer;
+  bool _isAutoPlayDialogShowing = false;
+
+  void _startControlsTimer() {
+    if (_isLocked) return;
+    _controlsTimer?.cancel();
+    _controlsTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && !_isLocked) {
+        setState(() => _showControls = false);
+      }
+    });
+  }
+
+  void _showAutoPlayDialog() {
+    setState(() => _isAutoPlayDialogShowing = true);
+    
+    _autoPlayTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && widget.onNextEpisode != null) {
+        widget.onNextEpisode!(widget.currentEpisode! + 1);
+      }
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Next Episode'),
+        content: const Text('Playing next episode in 5 seconds...'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _autoPlayTimer?.cancel();
+              setState(() => _isAutoPlayDialogShowing = false);
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              _autoPlayTimer?.cancel();
+              Navigator.pop(context);
+              widget.onNextEpisode?.call(widget.currentEpisode! + 1);
+            },
+            child: const Text('Play Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasNextEpisode = widget.episodes != null && 
@@ -1407,7 +1399,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               panEnabled: _isZoomed,
               scaleEnabled: true,
               child: AspectRatio(
-                aspectRatio: MediaQuery.of(context).size.width / MediaQuery.of(context).size.height,
+                aspectRatio: _controller!.value.isInitialized
+                    ? _controller!.value.aspectRatio
+                    : MediaQuery.of(context).size.width / MediaQuery.of(context).size.height,
                 child: _controller != null 
                     ? VideoPlayer(_controller!)
                     : const Center(
@@ -1472,6 +1466,74 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               child: NextEpisodeButton(
                 progress: _progress,
                 onTap: _handleNextEpisode,
+              ),
+            ),
+
+          // Custom controls overlay
+          if (_showControls)
+            AnimatedOpacity(
+              opacity: _showControls ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black54,
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black54,
+                    ],
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    // Lock button
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: IconButton(
+                        icon: Icon(
+                          _isLocked ? Icons.lock : Icons.lock_open,
+                          color: Colors.white,
+                        ),
+                        onPressed: () => setState(() => _isLocked = !_isLocked),
+                      ),
+                    ),
+
+                    // Episode navigation
+                    if (!_isLocked && widget.contentType == 'tv')
+                      Positioned(
+                        bottom: 80,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (widget.hasPreviousEpisode)
+                              _NavigationButton(
+                                icon: Icons.skip_previous,
+                                label: 'Previous',
+                                onPressed: () => widget.onPreviousEpisode?.call(
+                                  widget.currentEpisode! - 1,
+                                ),
+                              ),
+                            if (widget.hasNextEpisode) ...[
+                              const SizedBox(width: 16),
+                              _NavigationButton(
+                                icon: Icons.skip_next,
+                                label: 'Next',
+                                onPressed: () => widget.onNextEpisode?.call(
+                                  widget.currentEpisode! + 1,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -1559,79 +1621,44 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       ),
     );
   }
+}
 
-  void _handleVerticalDragUpdate(DragUpdateDetails details, bool isRightSide) {
-    if (_isLocked) return;
-    
-    // Calculate delta - negative for up, positive for down
-    final delta = -(details.primaryDelta ?? 0) / 200;
-    
-    if (isRightSide) {
-      // Right side - Volume
-      setState(() {
-        _volume = (_volume + delta).clamp(0.0, 1.0);
-        _isAdjustingVolume = true;
-        VolumeController().setVolume(_volume);
-      });
-    } else {
-      // Left side - Brightness
-      setState(() {
-        _brightness = (_brightness + delta).clamp(0.0, 1.0);
-        _isAdjustingBrightness = true;
-        ScreenBrightness().setScreenBrightness(_brightness);
-      });
-    }
+class _NavigationButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
 
-    // Reset adjustment indicators after delay
-    _adjustmentTimer?.cancel();
-    _adjustmentTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _isAdjustingBrightness = false;
-          _isAdjustingVolume = false;
-        });
-      }
-    });
-  }
+  const _NavigationButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
 
-  Widget _buildPlayPauseButton() {
-    if (_isBuffering) {
-      return Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.6),
-          shape: BoxShape.circle,
-        ),
-        child: const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            strokeWidth: 2,
-          ),
-        ),
-      );
-    }
-
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _togglePlayPause,
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 32,
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 32),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
 }

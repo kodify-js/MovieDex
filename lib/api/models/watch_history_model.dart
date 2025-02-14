@@ -34,6 +34,9 @@ class WatchHistoryItem extends HiveObject {
   @HiveField(9)
   final Map<String, dynamic>? content;
 
+  @HiveField(10)
+  final int? seasonNumber; // Add this field
+
   WatchHistoryItem({
     required this.contentId,
     required this.title,
@@ -45,6 +48,7 @@ class WatchHistoryItem extends HiveObject {
     this.episodeNumber,
     this.episodeTitle,
     this.content,
+    this.seasonNumber, // Add to constructor
   });
 
   // Add toJson method for Firebase
@@ -60,6 +64,7 @@ class WatchHistoryItem extends HiveObject {
       'episodeNumber': episodeNumber,
       'episodeTitle': episodeTitle,
       'content': content,
+      'seasonNumber': seasonNumber, // Add to JSON
     };
   }
 
@@ -80,6 +85,7 @@ class WatchHistoryItem extends HiveObject {
       episodeNumber: json['episodeNumber'] as int?,
       episodeTitle: json['episodeTitle'] as String?,
       content: json['content'] as Map<String, dynamic>?,
+      seasonNumber: json['seasonNumber'] as int?, // Add from JSON
     );
   }
 }

@@ -299,7 +299,7 @@ class Api {
 
     Future getEpisodes({required int id,required int season}) async {
         try {
-            final data = await _get('$baseUrl/3/tv/$id/season/$season?api_key=$apiKey&language=en-US');
+            final data = await _get('$baseUrl/3/tv/$id/season/$season?api_key=$apiKey');
             final response = jsonDecode(data.body);
             if (response['status_code'] != null) throw Exception("Failed to fetch data");
             
@@ -308,10 +308,10 @@ class Api {
                     id: episode['id'], 
                     name: episode['name'] ?? 'Unknown',
                     episode: episode['episode_number'],
-                    season: episode['season_number'],
+                    season: episode['season_number']??1,
                     description: episode['overview'] ?? '',
-                    airDate: episode['air_date'],
-                    image: imagePath(size: ImageSize.original, path: episode['still_path'])
+                    airDate: episode['air_date']??"",
+                    image: 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/${ImageSize.w342.value}${episode['still_path']}&output=webp'
                     ))
                 .toList();
             return episodes;

@@ -13,14 +13,20 @@
  * - Navigation structure
  */
 
+import 'dart:io';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/models/cache_model.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
+import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/movie_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:moviedex/pages/profile_page.dart';
 import 'package:moviedex/pages/tvshow_page.dart';
+import 'package:moviedex/providers/downloads_provider.dart';
+import 'package:moviedex/services/downloads_manager.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:provider/provider.dart';
 import 'package:moviedex/providers/theme_provider.dart';
@@ -31,6 +37,7 @@ import 'package:moviedex/api/models/list_item_model.dart';
 import 'package:moviedex/pages/splash_screen.dart';
 import 'firebase_options.dart'; 
 import 'package:moviedex/components/responsive_navigation.dart';
+import 'package:moviedex/services/background_download_service.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
@@ -49,7 +56,11 @@ Future<void> initializeServices() async {
   await ListService.instance.init();
   await WatchHistoryService.instance.init();
   await CacheService().init();
+  await DownloadsManager.instance.init();
   await Hive.openBox('settings');
+  
+  // Initialize background service
+  await BackgroundDownloadService.instance.init();
 }
 
 void _registerHiveAdapters() {
@@ -68,6 +79,9 @@ void _registerHiveAdapters() {
   if (!Hive.isAdapterRegistered(5)) {
     Hive.registerAdapter(ListItemAdapter());
   }
+  if (!Hive.isAdapterRegistered(6)) {
+    Hive.registerAdapter(DownloadItemAdapter());
+  }
 }
 
 void main() async {
@@ -75,8 +89,11 @@ void main() async {
   await initializeServices();
   
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: DownloadsProvider.instance),
+      ],
       child: const MovieDex(),
     ),
   );
@@ -91,6 +108,12 @@ class MovieDex extends StatefulWidget {
 
 class _MovieDexState extends State<MovieDex> {
   @override
+  void initState() {
+    super.initState();
+    // Remove deep linking initialization
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Movie Dex',
@@ -100,6 +123,31 @@ class _MovieDexState extends State<MovieDex> {
       routes: {
         '/': (context) => const SplashScreen(),
         '/home': (context) => const HomePage(),
+      },
+      onGenerateRoute: (settings) {
+        print(settings.name);
+        if (settings.name!.contains('/movie')) {
+          if(settings.name!.split('/')[2]!=""){
+            return MaterialPageRoute(
+              builder: (context) => Infopage(
+                id: int.parse(settings.name!.split('/')[2].toString()),
+                type: 'movie',
+                name: '',
+              ),
+            );
+          }
+        }
+        if (settings.name!.contains('/tv')) {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (context) => Infopage(
+                id: int.parse(settings.name!.split('/')[2].toString()),
+                type: 'tv',
+                name: '',
+            ),
+          );
+        }
+        return null;
       },
     );
   }

@@ -13,33 +13,33 @@ class Carousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen dimensions and padding
-    final width = MediaQuery.of(context).size.width;
-    final height = MediaQuery.of(context).size.height;
-    final padding = MediaQuery.of(context).padding;
-    final viewPadding = MediaQuery.of(context).viewPadding;
+    // Get screen dimensions and layout info
+    final mediaQuery = MediaQuery.of(context);
+    final width = mediaQuery.size.width;
+    final height = mediaQuery.size.height;
+    final padding = mediaQuery.padding;
+    final viewInsets = mediaQuery.viewInsets;
     
-    // Calculate responsive dimensions
-    final isDesktop = width > 600;
-    final isMobile = !isDesktop;
-    final isLandscape = width > height;
+    // Calculate navigation dimensions
+    final sidebarWidth = width > 800 ? 270.0 : 0.0;
+    final bottomNavHeight = width <= 600 ? 70.0 : 0.0;
     
-    // Calculate carousel height based on screen size and orientation
-    final carouselHeight = isDesktop 
-        ? height * 0.7 // Desktop height
-        : isLandscape 
-            ? height * 0.9 // Landscape mobile
-            : height * 0.4; // Portrait mobile
+    // Calculate effective dimensions
+    final effectiveWidth = width - sidebarWidth;
+    final effectiveHeight = height - bottomNavHeight - padding.top - padding.bottom;
+    
+    // Calculate optimal carousel height
+    final carouselHeight = width > 800  // Desktop
+        ? effectiveHeight * 0.75
+        : width > 600  // Tablet
+            ? effectiveHeight * (width > height ? 0.85 : 0.5)
+            : effectiveHeight * (width > height ? 0.9 : 0.45);
             
-    // Adjust for navigation bars and status bar
-    final bottomPadding = viewPadding.bottom + (isMobile ? 70 : 0); // Account for bottom nav
-    final topPadding = padding.top;
-    
-    return SizedBox(
-      width: width,
-      height: carouselHeight - bottomPadding - topPadding,
-      child: AspectRatio(
-        aspectRatio: isDesktop ? 21/9 : 16/9,
+    return Container(
+      width: effectiveWidth,
+      height: carouselHeight,
+      child: ClipRRect( // Add clipping to prevent overflow
+        borderRadius: BorderRadius.circular(0),
         child: ListView.builder(
           itemCount: data.length,
           controller: ScrollController(),
@@ -47,106 +47,165 @@ class Carousel extends StatelessWidget {
           physics: const PageScrollPhysics().applyTo(
             const ClampingScrollPhysics(),
           ),
-          itemBuilder: (context, index) {
-            return Container(
-              width: isMobile ? width : width * 0.68,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: NetworkImage(data[index].backdrop),
-                  fit: BoxFit.cover,
-                ),
+          itemBuilder: (context, index) => _buildCarouselItem(
+            context,
+            data[index],
+            effectiveWidth,
+            carouselHeight,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCarouselItem(
+    BuildContext context, 
+    Contentclass content,
+    double width,
+    double height,
+  ) {
+    final isDesktop = width > 800;
+    final isLandscape = width > height;
+
+    return Container(
+      width: width,
+      height: height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Image with proper sizing and alignment
+          Image.network(
+            content.backdrop,
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: Colors.black54,
+              child: const Icon(Icons.error_outline, color: Colors.white),
+            ),
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              return AnimatedOpacity(
+                opacity: frame != null ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: child,
+              );
+            },
+          ),
+
+          // Enhanced gradient overlay
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                stops: const [0.0, 0.3, 0.7, 1.0],
+                colors: [
+                  Theme.of(context).colorScheme.surface,
+                  Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                  Theme.of(context).colorScheme.surface.withOpacity(0.3),
+                  Colors.transparent,
+                ],
               ),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Theme.of(context).colorScheme.surface,
-                      Theme.of(context).colorScheme.surface.withOpacity(0.9),
-                      Colors.transparent,
+            ),
+          ),
+
+          // Content positioning
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                isDesktop ? 64 : 24,
+                16,
+                isDesktop ? 64 : 24,
+                isDesktop ? 48 : 32,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo or Title with responsive sizing
+                  if (content.logoPath != null)
+                    SizedBox(
+                      width: isDesktop 
+                          ? width * 0.25
+                          : width * (isLandscape ? 0.3 : 0.5),
+                      child: Image.network(
+                        content.logoPath!,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.centerLeft,
+                      ),
+                    )
+                  else
+                    Text(
+                      content.title,
+                      maxLines: 2,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isDesktop ? 42 : 24,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  SizedBox(height: isDesktop ? 32 : 24),
+
+                  // Action buttons
+                  Wrap(
+                    spacing: isDesktop ? 16 : 12,
+                    runSpacing: 12,
+                    children: [
+                      _ActionButton(
+                        onPressed: () => _navigateToWatch(context, content),
+                        icon: Icons.play_arrow_rounded,
+                        label: "Watch Now",
+                        isPrimary: true,
+                        isDesktop: isDesktop,
+                      ),
+                      _ActionButton(
+                        onPressed: () => _navigateToInfo(context, content),
+                        icon: Icons.info_outline_rounded,
+                        label: "More Info",
+                        isPrimary: false,
+                        isDesktop: isDesktop,
+                      ),
                     ],
                   ),
-                ),
-                padding: EdgeInsets.fromLTRB(
-                  24,
-                  16,
-                  24,
-                  isMobile ? 24 : 32,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // Title or Logo
-                    if (data[index].logoPath == null)
-                      Text(
-                        data[index].title,
-                        maxLines: 2,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isDesktop ? 32 : 24,
-                          fontWeight: FontWeight.bold,
-                          overflow: TextOverflow.ellipsis
-                        ),
-                      )
-                    else
-                      SizedBox(
-                        width: isDesktop ? width / 5 : width / 2,
-                        child: Image.network(
-                          data[index].logoPath!,
-                          alignment: Alignment.centerLeft,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    const SizedBox(height: 24),
-                    
-                    // Action Buttons
-                    Wrap(
-                      spacing: 16,
-                      children: [
-                        _ActionButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => WatchPage(
-                                  data: data[index],
-                                  title: data[index].title,
-                                ),
-                              ),
-                            );
-                          },
-                          icon: Icons.play_arrow_rounded,
-                          label: "Watch Now",
-                          isPrimary: true,
-                          isDesktop: isDesktop,
-                        ),
-                        _ActionButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => Infopage(
-                                  id: data[index].id,
-                                  name: data[index].title,
-                                  type: data[index].type,
-                                ),
-                              ),
-                            );
-                          },
-                          icon: Icons.info_outline_rounded,
-                          label: "More Info",
-                          isPrimary: false,
-                          isDesktop: isDesktop,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                ],
               ),
-            );
-          },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToWatch(BuildContext context, Contentclass data) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WatchPage(
+          data: data,
+          title: data.title,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToInfo(BuildContext context, Contentclass data) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Infopage(
+          id: data.id,
+          name: data.title,
+          type: data.type,
         ),
       ),
     );

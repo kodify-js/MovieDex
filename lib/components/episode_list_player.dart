@@ -21,6 +21,56 @@ class EpisodeListForPlayer extends StatefulWidget {
 }
 
 class _EpisodeListForPlayerState extends State<EpisodeListForPlayer> {
+  Widget _buildEpisodeThumbnail(Episode episode, bool isCurrentEpisode) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: episode.image != null && episode.image.isNotEmpty
+            ? Image.network(
+                episode.image,
+                width: 160,
+                height: 90,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+              )
+            : _buildPlaceholder(),
+        ),
+        if (isCurrentEpisode)
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: 40,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      width: 160,
+      height: 90,
+      color: Colors.grey[900],
+      child: Center(
+        child: Icon(
+          Icons.movie_outlined,
+          size: 40,
+          color: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -103,47 +153,7 @@ class _EpisodeListForPlayerState extends State<EpisodeListForPlayer> {
                         padding: const EdgeInsets.all(8),
                         child: Row(
                           children: [
-                            // Episode thumbnail with play indicator
-                            Stack(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.network(
-                                    episode.image,
-                                    width: 160,
-                                    height: 90,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Container(
-                                          width: 160,
-                                          height: 90,
-                                          color: Colors.grey[900],
-                                          child: const Icon(Icons.error_outline,
-                                              color: Colors.white),
-                                        ),
-                                  ),
-                                ),
-                                if (isCurrentEpisode)
-                                  Positioned.fill(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withOpacity(0.3),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.play_arrow,
-                                          color: Colors.white,
-                                          size: 40,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            _buildEpisodeThumbnail(episode, isCurrentEpisode),
                             const SizedBox(width: 12),
                             
                             // Episode info

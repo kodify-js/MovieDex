@@ -34,15 +34,6 @@ class _WatchPageState extends State<WatchPage> {
   TextEditingController textEditingController = TextEditingController();
   late ContentProvider contentProvider;
   int _providerIndex = 0;
-  final List<String> _loadingMessages = [
-    "Fetching the best quality streams...",
-    "Preparing your entertainment...",
-    "Almost there...",
-    "Setting up your video...",
-    "Loading awesome content..."
-  ];
-  int _currentMessageIndex = 0;
-  Timer? _messageTimer;
   List<StreamClass> _stream = [];
   bool isError = false;
   List<Episode>? episodes;
@@ -92,7 +83,6 @@ class _WatchPageState extends State<WatchPage> {
     ]);
     contentProvider = ContentProvider(id: widget.data!.id,type: widget.data!.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
     getStream();
-    _startMessageRotation();
   }
 
   Future<void> _initStorage() async {
@@ -132,16 +122,6 @@ class _WatchPageState extends State<WatchPage> {
     }
   }
 
-  void _startMessageRotation() {
-    _messageTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (mounted) {
-        setState(() {
-          _currentMessageIndex = (_currentMessageIndex + 1) % _loadingMessages.length;
-        });
-      }
-    });
-  }
-
   void _handleEpisodeSelected(int episodeNumber) async {
     setState(() {
       isLoading = true;
@@ -166,7 +146,6 @@ class _WatchPageState extends State<WatchPage> {
 
   @override
   void dispose() {
-    _messageTimer?.cancel();
     // Don't close the storage if it was passed from parent
     if (widget.storage == null && (storage?.isOpen ?? false)) {
       storage?.close();
@@ -187,35 +166,11 @@ class _WatchPageState extends State<WatchPage> {
   }
 
   Widget _buildLoadingState() {
-    return Center(
-      child: Container(
+    return Container(
       color: Theme.of(context).colorScheme.surface,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Lottie.asset(
-            'assets/animations/loading.json',
-            width: 200,
-            height: 200,
-            repeat: true,
-          ),
-          const SizedBox(height: 24),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
-            child: Text(
-              _loadingMessages[_currentMessageIndex],
-              key: ValueKey(_currentMessageIndex),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
+      child: const Center(
+        child: CircularProgressIndicator(),
       ),
-    )
     );
   }
 

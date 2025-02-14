@@ -41,6 +41,44 @@ class _EpisodesSectionState extends State<EpisodesSection> {
     }
   }
 
+  Widget _buildEpisodeCard(BuildContext context, Episode episode) {
+    return Card(
+      color: Colors.grey[900],
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 160,
+              height: 90,
+              child: episode.image != null && episode.image.isNotEmpty
+                ? Image.network(
+                    episode.image,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+                  )
+                : _buildPlaceholder(),
+            ),
+          ),
+          // ...rest of episode card...
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey[800],
+      child: Center(
+        child: Icon(
+          Icons.movie_outlined,
+          size: 40,
+          color: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(

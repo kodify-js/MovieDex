@@ -17,7 +17,7 @@ class ResponsiveNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isDesktop = width > 600;
+    final isDesktop = width > 800;
     final isIOS = Platform.isIOS;
     final theme = Theme.of(context);
 

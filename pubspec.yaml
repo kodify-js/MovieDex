@@ -1,5 +1,5 @@
 name: moviedex
-description: "A new Flutter project."
+description: "MovieDex-Flutter is an open-source Flutter application that allows users to explore and discover movies effortlessly. With a sleek UI and real-time movie data, this app provides an engaging experience for movie enthusiasts."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -42,11 +42,12 @@ dependencies:
   flutter_colorpicker: ^1.0.3
   build_runner: ^2.4.6
   hive_generator: ^2.0.1
+  share_plus: ^7.2.1
+  url_launcher: ^6.2.2
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   webview_flutter: ^4.10.0
-  url_launcher: ^6.3.1
   package_info_plus: ^8.2.1
   firebase_core: ^3.11.0
   firebase_auth: ^5.4.2
@@ -54,6 +55,19 @@ dependencies:
   wakelock_plus: ^1.2.10
   screen_brightness: ^0.2.2
   volume_controller: ^2.0.7
+
+  # Download Related
+  flutter_background_service: ^5.1.0
+  path_provider: ^2.0.11
+  permission_handler: ^10.0.0
+  device_info_plus: ^11.3.0
+  dio: ^5.0.0
+  cached_network_image: ^3.3.0
+  flutter_cache_manager: ^3.3.1
+  flutter_local_notifications: ^18.0.1  # Downgrade to a more stable version
+  file_picker: ^8.3.5
+  flutter_background_service_android: ^6.3.0
+  # uni_links: ^0.5.1
 
 dev_dependencies:
   flutter_test:
@@ -64,7 +78,7 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/images/icon.png"
-  min_sdk_android: 21 # android min sdk min:16, default 21
+  min_sdk_android: 23  # Update this to match new minSdkVersion
   web:
     generate: true
     image_path: "assets/images/icon.png"

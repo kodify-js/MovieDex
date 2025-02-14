@@ -11,6 +11,8 @@ import 'package:moviedex/services/cache_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'package:moviedex/services/proxy_service.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -512,6 +514,57 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildDownloadSection() {
+    return _buildSettingSection(
+      'Downloads',
+      [
+        ListTile(
+          title: Text('Download Location', style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            SettingsService.instance.downloadPath,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.folder_open),
+            onPressed: _selectDownloadPath,
+          ),
+        ),
+        // ...other download settings...
+      ],
+    );
+  }
+
+  Future<void> _selectDownloadPath() async {
+    try {
+      String? selectedDirectory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Download Directory',
+      );
+
+      if (selectedDirectory != null) {
+        final dir = Directory(selectedDirectory);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+
+        // Save the new path
+        await SettingsService.instance.setDownloadPath(selectedDirectory);
+
+        if (mounted) {
+          setState(() {}); // Refresh UI
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Download location updated')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error setting download path: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -551,6 +604,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
           _buildAdvancedSection(),
+          _buildDownloadSection(),
           _buildAboutSection(),
         ],
       ),
