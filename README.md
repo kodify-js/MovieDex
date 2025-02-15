@@ -176,3 +176,6 @@ lib/
 - `lib/services/cache_service.dart` - Local caching
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed project structure and contribution guidelines.
+
+### DMCA disclaimer
+The developers of this application do not have any affiliation with the content available in the app. It collects content from sources that are freely available through any web browser.
