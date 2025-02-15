@@ -27,13 +27,14 @@ class WatchHistoryItemAdapter extends TypeAdapter<WatchHistoryItem> {
       episodeNumber: fields[7] as int?,
       episodeTitle: fields[8] as String?,
       content: (fields[9] as Map?)?.cast<String, dynamic>(),
+      seasonNumber: fields[10] as int?,
     );
   }
 
   @override
   void write(BinaryWriter writer, WatchHistoryItem obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.contentId)
       ..writeByte(1)
@@ -53,7 +54,9 @@ class WatchHistoryItemAdapter extends TypeAdapter<WatchHistoryItem> {
       ..writeByte(8)
       ..write(obj.episodeTitle)
       ..writeByte(9)
-      ..write(obj.content);
+      ..write(obj.content)
+      ..writeByte(10)
+      ..write(obj.seasonNumber);
   }
 
   @override

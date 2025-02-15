@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/models/download_state_model.dart';
 
 part 'downloads_manager.g.dart';
 
@@ -78,12 +79,15 @@ class DownloadsManager {
 
   DownloadsManager._();
 
+  late Box<DownloadState> _downloadStatesBox;
+
   Future<void> init() async {
     if (_isInitialized) return;
 
     try {
       _downloadsBox = await Hive.openBox('downloads');
       _isInitialized = true;
+      _downloadStatesBox = await Hive.openBox<DownloadState>('download_states');
     } catch (e) {
       debugPrint('Error initializing downloads box: $e');
       // Try to delete and recreate the box if corrupted
@@ -224,5 +228,44 @@ class DownloadsManager {
       return 'S${download.seasonNumber.toString().padLeft(2, '0')}E${download.episodeNumber.toString().padLeft(2, '0')}';
     }
     return '';
+  }
+
+  Future<void> saveDownloadState({
+    required int contentId,
+    required String status,
+    required double progress,
+    required String url,
+    required String quality,
+    int? lastSegmentIndex,
+    int? episodeNumber,
+    int? seasonNumber,
+  }) async {
+    await _downloadStatesBox.put(
+      contentId.toString(),
+      DownloadState(
+        contentId: contentId,
+        status: status,
+        progress: progress,
+        url: url,
+        quality: quality,
+        lastSegmentIndex: lastSegmentIndex,
+        episodeNumber: episodeNumber,
+        seasonNumber: seasonNumber,
+      ),
+    );
+  }
+
+  DownloadState? getDownloadState(int contentId) {
+    return _downloadStatesBox.get(contentId.toString());
+  }
+
+  Future<void> clearDownloadState(int contentId) async {
+    await _downloadStatesBox.delete(contentId.toString());
+  }
+
+  List<DownloadState> getPendingDownloads() {
+    return _downloadStatesBox.values
+        .where((state) => state.status != 'completed')
+        .toList();
   }
 }

@@ -17,6 +17,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/models/cache_model.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
+import 'package:moviedex/models/download_state_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/movie_page.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -78,6 +79,9 @@ void _registerHiveAdapters() {
   }
   if (!Hive.isAdapterRegistered(6)) {
     Hive.registerAdapter(DownloadItemAdapter());
+  }
+  if(!Hive.isAdapterRegistered(7)){
+    Hive.registerAdapter(DownloadStateAdapter());
   }
 }
 

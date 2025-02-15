@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
@@ -600,6 +602,20 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
+  Widget _buildDownloadSection(Contentclass data) {
+    if (Platform.isAndroid || Platform.isIOS) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: DownloadButtonWidget(
+          data: data,
+          isLoadingStream: _isLoadingStream,
+          onDownloadStarted: () => _handleDownload(data),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
   @override
   void dispose() {
     // Only close if we own the box (not passed from parent)
@@ -815,6 +831,7 @@ class _InfopageState extends State<Infopage> {
                         ],
                       ),
                     ),
+                    _buildDownloadSection(data),
                     data.type==ContentType.movie.value?
                     HorizontalScrollList(title: "Recommendations", fetchMovies: () => api.getRecommendations(id: widget.id, type: widget.type), showNumber: false):
                     EpisodesSection(data: data,initialSeason: selectedSeason), 

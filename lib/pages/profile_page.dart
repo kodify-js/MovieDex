@@ -4,11 +4,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
+import 'package:moviedex/models/download_state_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/settings_page.dart';
 import 'package:moviedex/pages/auth/login_page.dart';  // Add this import
 import 'package:moviedex/pages/auth/signup_page.dart'; // Add this import
+import 'package:moviedex/services/downloads_manager.dart';
 import 'package:moviedex/services/firebase_service.dart';
+import 'package:moviedex/services/m3u8_downloader_service.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/utils/error_handlers.dart';
 import 'package:moviedex/services/list_service.dart';
@@ -43,6 +46,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   void initState() {
     super.initState();
     _initializeServices();
+    _checkPendingDownloads();
   }
 
   Future<void> _initializeServices() async {
@@ -130,6 +134,54 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _checkPendingDownloads() async {
+    final pendingDownloads = DownloadsManager.instance.getPendingDownloads();
+    
+    for (var state in pendingDownloads) {
+      if (state.status == 'error' || state.status == 'paused') {
+        _showResumeDialog(state);
+      }
+    }
+  }
+
+  void _showResumeDialog(DownloadState state) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(state.status == 'error' ? 'Download Failed' : 'Download Paused'),
+        content: Text('Would you like to resume the download?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              DownloadsManager.instance.clearDownloadState(state.contentId);
+            },
+            child: const Text('Cancel Download'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resumeDownload(state);
+            },
+            child: const Text('Resume'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _resumeDownload(DownloadState state) async {
+    try {
+      await M3U8DownloaderService().resumeDownload();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Resume error: $e')),
         );
       }
     }

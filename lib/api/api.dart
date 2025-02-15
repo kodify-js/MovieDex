@@ -166,7 +166,9 @@ class Api {
                     }).toList();
 
                 // Fetch logos for first 5 items
-
+                for(int i=0; i<5 && i<result.length; i++){
+                    result[i].logoPath = await getLogo(result[i].id, type);
+                }
                 return result;
             } catch (e) {
                 throw e.toString();

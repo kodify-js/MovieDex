@@ -56,7 +56,13 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       width: double.infinity,
       height: buttonHeight,
       child: TextButton(
-        onPressed: () => _showCancelDialog(),
+        onPressed: () {
+          if (progress.status == 'error' || progress.isPaused) {
+            _handleResume();
+          } else {
+            _showCancelDialog();
+          }
+        },
         style: ButtonStyle(
           backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
           padding: MaterialStateProperty.all(EdgeInsets.zero),
@@ -88,26 +94,31 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    value: progress.progress,
-                    strokeWidth: 2,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                if (progress.status == 'error')
+                  const Icon(Icons.error_outline, color: Colors.red)
+                else if (progress.isPaused)
+                  const Icon(Icons.play_arrow, color: Colors.white)
+                else
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      value: progress.progress,
+                      strokeWidth: 2,
+                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
-                ),
                 const SizedBox(width: 8),
                 Text(
-                  "Downloading ${(progress.progress * 100).toInt()}%",
+                  progress.status == 'error' ? 'Retry Download'
+                  : progress.isPaused ? 'Resume'
+                  : "Downloading ${(progress.progress * 100).toInt()}%",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.close, color: Colors.white, size: 16),
               ],
             ),
           ],
@@ -176,6 +187,18 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
         ],
       ),
     );
+  }
+
+  void _handleResume() async {
+    try {
+      await M3U8DownloaderService().resumeDownload();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Resume error: $e')),
+        );
+      }
+    }
   }
 
   @override

@@ -39,6 +39,8 @@ class M3U8DownloaderService {
   String? _currentQuality;
   int? _currentEpisode;
   int? _currentSeason;
+  Map<String, int> _lastDownloadedSegment = {};
+  Map<String, List<String>> _segmentsList = {};
 
   // Remove duplicate constructor
   // M3U8DownloaderService({
@@ -511,53 +513,48 @@ class M3U8DownloaderService {
 
       // Fetch M3U8 segments
       debugPrint('Fetching M3U8 playlist');
-      final segments = await _fetchM3U8(m3u8Url);
+      final downloadId = '${content.id}_${episodeNumber ?? 0}_${seasonNumber ?? 0}';
       
-      if (segments.isEmpty) {
-        debugPrint('No segments found in M3U8');
-        throw 'No segments found in M3U8';
+      // Get segments list if not already fetched
+      if (!_segmentsList.containsKey(downloadId)) {
+        _segmentsList[downloadId] = await _fetchM3U8(m3u8Url);
       }
+      final segments = _segmentsList[downloadId]!;
 
-      debugPrint('Found ${segments.length} segments');
-
-      // Download segments
+      // Get last downloaded segment index
+      final startIndex = _lastDownloadedSegment[downloadId] ?? 0;
       final totalSegments = segments.length;
-      for (var i = 0; i < totalSegments; i++) {
+
+      for (var i = startIndex; i < totalSegments; i++) {
         if (_isCancelled) {
-          debugPrint('Download cancelled');
-          throw 'Download cancelled';
+          // Save last downloaded segment index
+          _lastDownloadedSegment[downloadId] = i;
+          DownloadsProvider.instance.pauseDownload(content.id);
+          throw 'Download paused';
         }
 
         while (_isPaused) {
+          _lastDownloadedSegment[downloadId] = i;
           await Future.delayed(const Duration(milliseconds: 500));
           if (_isCancelled) throw 'Download cancelled';
         }
-        
+
         final segment = segments[i];
         final segmentPath = '${downloadDir.path}/segment_$i.ts';
         
-        debugPrint('Downloading segment $i of $totalSegments');
-        await _downloadSegment(segment, segmentPath);
-        
+        try {
+          await _downloadSegment(segment, segmentPath);
+          _lastDownloadedSegment[downloadId] = i + 1;
+        } catch (e) {
+          // On error, save progress and rethrow
+          _lastDownloadedSegment[downloadId] = i;
+          DownloadsProvider.instance.pauseDownload(content.id);
+          rethrow;
+        }
+
         // Update progress
         final progress = (i + 1) / totalSegments;
-        onProgressCallback?.call(progress);
-        
-        await _showProgressNotification(
-          _currentContent!.title, 
-          progress,
-          isPaused: _isPaused,
-        );
-        
-        DownloadsProvider.instance.updateProgress(
-          content.id,
-          progress,
-          'downloading',
-          content.title,
-          content.poster,
-          quality,
-          isPaused: _isPaused,
-        );
+        _updateProgress(content, progress);
       }
 
       // Combine segments
@@ -774,17 +771,70 @@ class M3U8DownloaderService {
     }
   }
 
-  void resumeDownload() {
-    if (!_isActive || _isCancelled) return;
+  Future<void> resumeDownload() async {
+    if (!_isActive || _isCancelled || _currentContent == null) return;
     
     _isPaused = false;
-    if (_currentContent != null && _activeDownloadId != null) {
+    if (_currentContent != null) {
       DownloadsProvider.instance.resumeDownload(_currentContent!.id);
-      _showProgressNotification(
-        _currentContent!.title,
-        DownloadsProvider.instance.getDownloadProgress(_currentContent!.id)?.progress ?? 0.0,
-        isPaused: false
-      );
+      
+      // Restart download from last segment
+      try {
+        await startDownload(
+          _lastContext!,
+          _lastUrl!,
+          _currentContent!.title,
+          _currentContent!,
+          _currentQuality ?? 'Auto',
+          episodeNumber: _currentEpisode,
+          seasonNumber: _currentSeason,
+        );
+      } catch (e) {
+        debugPrint('Resume error: $e');
+      }
     }
+  }
+
+  void _updateProgress(Contentclass content, double progress) {
+    onProgressCallback?.call(progress);
+    
+    DownloadsProvider.instance.updateProgress(
+      content.id,
+      progress,
+      'downloading',
+      content.title,
+      content.poster,
+      _currentQuality ?? '',
+      isPaused: _isPaused,
+    );
+
+    _showProgressNotification(
+      content.title,
+      progress,
+      isPaused: _isPaused,
+    );
+  }
+
+  // Add these properties to store last download state
+  BuildContext? _lastContext;
+  String? _lastUrl;
+
+  // Change return type to match startDownload
+  Future<String> initialDownload(
+    BuildContext context,
+    String url,
+    String title,
+    Contentclass content,
+    String quality, {
+    int? episodeNumber,
+    int? seasonNumber,
+  }) async {
+    _lastContext = context;
+    _lastUrl = url;
+    return startDownload(
+      context, url, title, content, quality,
+      episodeNumber: episodeNumber,
+      seasonNumber: seasonNumber,
+    );
   }
 }

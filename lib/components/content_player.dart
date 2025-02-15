@@ -1378,8 +1378,41 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
+  Widget _buildLockButton() {
+    return Positioned(
+      left: 18,
+      top: MediaQuery.of(context).size.height/2,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: IconButton(
+          icon: Icon(
+            _isLocked ? Icons.lock : Icons.lock_open,
+            color: Colors.white,
+          ),
+          onPressed: () => setState(() {
+            _isLocked = !_isLocked;
+            if (_isLocked) {
+              _isCountrollesVisible = false;
+              _hideTimer?.cancel();
+            }
+          }),
+          tooltip: _isLocked ? 'Unlock controls' : 'Lock controls',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_controller == null) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     final hasNextEpisode = widget.episodes != null && 
                           widget.currentEpisode != null && 
                           widget.currentEpisode! < widget.episodes!.length;
@@ -1401,12 +1434,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               child: AspectRatio(
                 aspectRatio: _controller!.value.isInitialized
                     ? _controller!.value.aspectRatio
-                    : MediaQuery.of(context).size.width / MediaQuery.of(context).size.height,
-                child: _controller != null 
-                    ? VideoPlayer(_controller!)
-                    : const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+                    : 16 / 9, // Default aspect ratio if not initialized
+                child: VideoPlayer(_controller!),
               ),
             ),
           ),
@@ -1452,6 +1481,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                   hasNextEpisode: hasNextEpisode,
                 ),
               ),
+              if (_isCountrollesVisible) _buildLockButton(),
             ],
           ),
 
@@ -1496,7 +1526,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                       child: IconButton(
                         icon: Icon(
                           _isLocked ? Icons.lock : Icons.lock_open,
-                          color: Colors.white,
+                          color: Colors.transparent,
                         ),
                         onPressed: () => setState(() => _isLocked = !_isLocked),
                       ),
@@ -1580,7 +1610,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             ),
             const SizedBox(height: 10),
             Text(
-              '${_consecutiveTaps * 10}s',
+              '${(_consecutiveTaps * 10).toString()}s',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
