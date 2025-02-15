@@ -183,10 +183,6 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
     return ValueListenableBuilder(
       valueListenable: _downloadProvider.getDownloadProgressNotifier(widget.data.id),
       builder: (context, downloadProgress, _) {
-        if (_isDownloaded()) {
-          return _buildCompleteButton();
-        }
-
         if (downloadProgress != null) {
           return _buildProgressButton(downloadProgress);
         }

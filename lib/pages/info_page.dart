@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
+import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
@@ -22,7 +23,9 @@ class Infopage extends StatefulWidget {
   final int id;
   final String name;
   final String type;
-  const Infopage({super.key, required this.id,required this.type,required this.name});
+  final Box? storage; // Add storage parameter
+
+  const Infopage({super.key, required this.id,required this.type,required this.name, this.storage}); // Add this parameter
 
   @override
   State<Infopage> createState() => _InfopageState();
@@ -43,18 +46,28 @@ class _InfopageState extends State<Infopage> {
   bool isError = false;
   bool _isLoadingStream = false;
   String _appname = "";
+  Contentclass? _contentData; // Add this variable to store content data
+  List<Episode>? _episodes; // Add this variable
+
+  Future<void> _initStorage() async {
+    try {
+      if (storage == null || !storage!.isOpen) {
+        storage = await Hive.openBox(widget.name);
+      }
+    } catch (e) {
+      debugPrint('Error initializing storage: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    Hive.openBox(widget.name).then((value) => storage = value);
+    _initStorage();
     _isInList = ListService.instance.isInList(widget.id);
   }
 
   void _navigateToPlayer(Contentclass data) async {
-    // Ensure the box is open before navigating
-    if (!storage!.isOpen) {
-      storage = await Hive.openBox(widget.name);
-    }
+    await _initStorage(); // Ensure storage is open
 
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -67,10 +80,8 @@ class _InfopageState extends State<Infopage> {
         ),
       ),
     ).then((value) async {
-      // Reopen the box if it was closed when returning
-      if (storage != null && !storage!.isOpen) {
-        storage = await Hive.openBox(widget.name);
-      }
+      // Re-initialize storage when returning
+      await _initStorage();
     });
   }
 
@@ -78,65 +89,12 @@ class _InfopageState extends State<Infopage> {
     try {
       setState(() => _isLoadingStream = true);
 
-      if (_stream.isEmpty) {
-        await getStream();
+      // Check content type and handle accordingly
+      if (data.type == ContentType.tv.value) {
+        await _handleTvShowDownload(data);
+      } else {
+        await _handleMovieDownload(data);
       }
-      
-      if (_stream.isEmpty || isError) {
-        throw 'No streams available';
-      }
-
-      // Show quality selection dialog
-      final quality = await _showQualityDialog(_stream.first);
-      if (quality == null) return;
-
-      final language = _stream.length > 1 
-          ? await _showLanguageDialog(_stream) 
-          : _stream.first.language;
-      if (language == null) return;
-
-      // Get selected stream
-      final stream = _stream.firstWhere((s) => s.language == language);
-      final url = quality == 'Auto' 
-          ? stream.url 
-          : stream.sources.firstWhere((s) => s.quality == quality).url;
-
-      final fileName = '${data.title}${data.type == ContentType.tv.value ? '_S${selectedSeason}E${storage?.get("episode")?.toString().replaceAll("E", "")}' : ''}_$quality';
-      
-      // Initialize downloader with callbacks that use DownloadsProvider
-      _downloader.setCallbacks(
-        onProgress: (progress) {
-          // Update progress through DownloadsProvider instead of setState
-          DownloadsProvider.instance.updateProgress(
-            data.id,
-            progress,
-            'downloading',
-            data.title,
-            data.poster,
-            quality,
-          );
-        },
-        onError: (error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error)),
-            );
-          }
-        },
-      );
-
-      await _downloader.startDownload(
-        context,
-        url,
-        fileName,
-        data,
-        quality,
-        episodeNumber: data.type == ContentType.tv.value 
-            ? int.parse((storage?.get("episode") ?? "E1").replaceAll("E", ""))
-            : null,
-        seasonNumber: data.type == ContentType.tv.value ? selectedSeason : null,
-      );
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -148,6 +106,78 @@ class _InfopageState extends State<Infopage> {
         setState(() => _isLoadingStream = false);
       }
     }
+  }
+
+  Future<void> _handleMovieDownload(Contentclass data) async {
+    if (_stream.isEmpty) {
+      await getStream();
+    }
+    
+    if (_stream.isEmpty || isError) {
+      throw 'No streams available';
+    }
+
+    final quality = await _showQualityDialog(_stream.first);
+    if (quality == null) return;
+
+    final language = _stream.length > 1 
+        ? await _showLanguageDialog(_stream) 
+        : _stream.first.language;
+    if (language == null) return;
+
+    await _startDownload(data, quality, language);
+  }
+
+  Future<void> _handleTvShowDownload(Contentclass data) async {
+    // Show episode selection dialog first
+    _showEpisodeDownloadDialog(data);
+  }
+
+  Future<void> _startDownload(
+    Contentclass data,
+    String quality,
+    String language, {
+    int? episodeNumber,
+    int? seasonNumber,
+  }) async {
+    // Get selected stream
+    final stream = _stream.firstWhere((s) => s.language == language);
+    final url = quality == 'Auto' 
+        ? stream.url 
+        : stream.sources.firstWhere((s) => s.quality == quality).url;
+
+    final fileName = '${data.title}${data.type == ContentType.tv.value ? '_S${seasonNumber}E$episodeNumber' : ''}_$quality';
+    
+    // Initialize downloader callbacks
+    _downloader.setCallbacks(
+      onProgress: (progress) {
+        DownloadsProvider.instance.updateProgress(
+          data.id,
+          progress,
+          'downloading',
+          data.title,
+          data.poster,
+          quality,
+        );
+      },
+      onError: (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error)),
+          );
+        }
+      },
+    );
+
+    await _downloader.startDownload(
+      context,
+      url,
+      fileName,
+      data,
+      quality,
+      episodeNumber: episodeNumber,
+      seasonNumber: seasonNumber,
+    );
   }
 
   Future<void> getStream() async {
@@ -209,22 +239,7 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
-  bool _isDownloaded(Contentclass data, {int? episodeNumber, int? seasonNumber}) {
-    final downloads = DownloadsManager.instance.getDownloads();
-    return downloads.any((download) {
-      bool isSameContent = download.contentId == data.id;
-      
-      if (data.type == ContentType.tv.value) {
-        // For TV shows, check episode and season
-        return isSameContent && 
-               download.episodeNumber == episodeNumber &&
-               download.seasonNumber == seasonNumber;
-      }
-      
-      // For movies, just check content ID
-      return isSameContent;
-    });
-  }
+
 
   void _showEpisodeDownloadDialog(Contentclass data) {
     if (data.seasons == null || data.seasons == 0) {
@@ -288,23 +303,37 @@ class _InfopageState extends State<Infopage> {
                       itemCount: episodes.length,
                       itemBuilder: (context, index) {
                         final episode = episodes[index];
-                        final isDownloaded = _isDownloaded(
-                          data,
-                          episodeNumber: episode.episode,
-                          seasonNumber: selectedSeason,
-                        );
-
                         return ListTile(
                           title: Text('Episode ${episode.episode}'),
                           subtitle: Text(episode.name),
-                          trailing: isDownloaded
-                              ? const Icon(Icons.check_circle, color: Colors.green)
-                              : const Icon(Icons.download),
-                          onTap: isDownloaded
-                              ? null  // Disable if already downloaded
-                              : () {
+                          trailing: const Icon(Icons.download),
+                          onTap: () async {
                                   Navigator.pop(context);
-                                  _handleDownload(data); // Changed from _startDownload to _handleDownload
+                                  await getStream(); // Get fresh stream for episode
+                                  if (_stream.isEmpty || isError) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('No streams available')),
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  
+                                  final quality = await _showQualityDialog(_stream.first);
+                                  if (quality == null) return;
+
+                                  final language = _stream.length > 1 
+                                      ? await _showLanguageDialog(_stream) 
+                                      : _stream.first.language;
+                                  if (language == null) return;
+
+                                  await _startDownload(
+                                    data,
+                                    quality,
+                                    language,
+                                    episodeNumber: episode.episode,
+                                    seasonNumber: selectedSeason,
+                                  );
                                 },
                         );
                       },
@@ -449,16 +478,140 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
+  void _playDownloadedEpisode(Episode episode) {
+    if (_contentData == null) return;
+      // code for playing Downloaded Episode
+  }
+
+
+  String _getEpisodeDisplayText(int seasonNumber, int episodeNumber) {
+    return 'S${seasonNumber.toString().padLeft(2, '0')}E${episodeNumber.toString().padLeft(2, '0')}';
+  }
+
+  bool _isEpisodeDownloaded(int episodeNumber, int seasonNumber) {
+    return DownloadsManager.instance.hasEpisodeDownload(
+      widget.id,
+      episodeNumber: episodeNumber,
+      seasonNumber: seasonNumber,
+    );
+  }
+
+  Future<void> _handleEpisodeDownload(Episode episode) async {
+    if (_isEpisodeDownloaded(episode.episode, selectedSeason)) {
+      // Episode already downloaded - show play option
+      final download = DownloadsManager.instance.getDownload(
+        widget.id,
+        episodeNumber: episode.episode,
+        seasonNumber: selectedSeason,
+      );
+      
+      if (download != null) {
+        _playDownloadedEpisode(episode);
+        return;
+      }
+    }
+
+    // Not downloaded - start new download
+    await storage?.put('episode', 'E${episode.episode}');
+    await storage?.put('season', 'S$selectedSeason');
+    
+    if (_contentData != null) {
+      await _handleDownload(_contentData!);
+    }
+  }
+
+  Widget _buildEpisodeListItem(Episode episode) {
+    final isDownloaded = _isEpisodeDownloaded(episode.episode, selectedSeason);
+    final episodeText = _getEpisodeDisplayText(selectedSeason, episode.episode);
+
+    return ListTile(
+      leading: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              episode.image,
+              width: 120,
+              height: 70,
+              fit: BoxFit.cover,
+            ),
+          ),
+          if (isDownloaded)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Downloaded',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      title: Row(
+        children: [
+          Text(
+            episodeText,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              episode.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      subtitle: Text(
+        episode.description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white70),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              isDownloaded ? Icons.play_arrow : Icons.download,
+              color: Colors.white,
+            ),
+            onPressed: () => _handleEpisodeDownload(episode),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
-    if (storage?.isOpen ?? false) {
-      storage?.close();
+    // Only close if we own the box (not passed from parent)
+    if (storage != null && storage!.isOpen && storage != widget.storage) {
+      storage!.close();
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    Future.microtask(() => _initStorage()); // Ensure storage is open when rebuilding
     storage?.get("season")??hivePut(storage: storage,key: "season",value: "S1");
     selectedSeason = int.parse((storage?.get("season")??"S1").replaceAll("S", ""));
     storage?.get("episode")??hivePut(storage: storage,key: "episode",value: "E1");
@@ -498,6 +651,7 @@ class _InfopageState extends State<Infopage> {
                 }
 
                 Contentclass data = snapshot.data!;
+                _contentData = data; // Store the content data
                 _appname = data.title;
                 return Column(
                   children: [

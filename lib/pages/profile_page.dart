@@ -14,7 +14,6 @@ import 'package:moviedex/utils/error_handlers.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:moviedex/pages/my_list_page.dart';
 import 'package:moviedex/pages/watch_history_page.dart';
-import 'package:moviedex/pages/downloads_page.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'dart:async';
 import 'package:moviedex/components/downloads_list.dart';

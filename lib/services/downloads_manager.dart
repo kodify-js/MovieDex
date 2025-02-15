@@ -115,18 +115,22 @@ class DownloadsManager {
     int? seasonNumber,
   }) async {
     await ensureInitialized();
+    
+    // Create the download item with proper typing
+    final downloadItem = {
+      'contentId': content.id,
+      'title': content.title,
+      'poster': content.poster,
+      'type': content.type,
+      'filePath': filePath,
+      'quality': quality,
+      'episodeNumber': episodeNumber,
+      'seasonNumber': seasonNumber,
+      'downloadDate': DateTime.now().toIso8601String(),
+    };
+
     try {
-      await _downloadsBox?.put(content.id.toString(), {
-        'id': content.id,
-        'title': content.title,
-        'poster': content.poster,
-        'type': content.type,
-        'filePath': filePath,
-        'quality': quality,
-        'episodeNumber': episodeNumber,
-        'seasonNumber': seasonNumber,
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      });
+      await _downloadsBox?.put(content.id.toString(), downloadItem);
     } catch (e) {
       debugPrint('Error adding download: $e');
       rethrow;
@@ -134,10 +138,43 @@ class DownloadsManager {
   }
 
   List<DownloadItem> getDownloads() {
-    return _downloadsBox!.values
-        .map((item) => DownloadItem.fromJson(Map<String, dynamic>.from(item)))
-        .toList()
+    if (_downloadsBox == null) return [];
+    
+    try {
+      return _downloadsBox!.values
+          .map((item) {
+            if (item == null) return null;
+            
+            final Map<String, dynamic> downloadData = Map<String, dynamic>.from(item);
+            
+            // Add null checks and safe type casting
+            final contentId = downloadData['contentId'];
+            if (contentId == null) return null;
+            
+            return DownloadItem(
+              contentId: contentId is String ? int.parse(contentId) : contentId as int,
+              title: downloadData['title'] as String? ?? '',
+              poster: downloadData['poster'] as String? ?? '',
+              type: downloadData['type'] as String? ?? '',
+              filePath: downloadData['filePath'] as String? ?? '',
+              quality: downloadData['quality'] as String? ?? '',
+              downloadDate: DateTime.parse(downloadData['downloadDate'] as String? ?? DateTime.now().toIso8601String()),
+              episodeNumber: downloadData['episodeNumber'] is String 
+                  ? int.tryParse(downloadData['episodeNumber'])
+                  : downloadData['episodeNumber'] as int?,
+              seasonNumber: downloadData['seasonNumber'] is String 
+                  ? int.tryParse(downloadData['seasonNumber'])
+                  : downloadData['seasonNumber'] as int?,
+            );
+          })
+          .where((item) => item != null) // Filter out null items
+          .cast<DownloadItem>() // Cast to List<DownloadItem>
+          .toList()
         ..sort((a, b) => b.downloadDate.compareTo(a.downloadDate));
+    } catch (e) {
+      debugPrint('Error getting downloads: $e');
+      return [];
+    }
   }
 
   Future<void> removeDownload(int contentId) async {
@@ -146,5 +183,46 @@ class DownloadsManager {
 
   bool hasDownload(int contentId) {
     return _downloadsBox?.containsKey(contentId.toString()) ?? false;
+  }
+
+  bool hasEpisodeDownload(int contentId, {required int episodeNumber, required int seasonNumber}) {
+    if (_downloadsBox == null) return false;
+    
+    try {
+      final downloads = getDownloads();
+      return downloads.any((download) => 
+        download.contentId == contentId &&
+        download.episodeNumber == episodeNumber &&
+        download.seasonNumber == seasonNumber
+      );
+    } catch (e) {
+      debugPrint('Error checking episode download: $e');
+      return false;
+    }
+  }
+
+  DownloadItem? getDownload(int contentId, {int? episodeNumber, int? seasonNumber}) {
+    if (_downloadsBox == null) return null;
+
+    try {
+      final downloads = getDownloads();
+      return downloads.firstWhere(
+        (download) => 
+          download.contentId == contentId &&
+          (episodeNumber == null || download.episodeNumber == episodeNumber) &&
+          (seasonNumber == null || download.seasonNumber == seasonNumber),
+        orElse: () => throw 'Download not found',
+      );
+    } catch (e) {
+      debugPrint('Error getting download: $e');
+      return null;
+    }
+  }
+
+  String getEpisodeText(DownloadItem download) {
+    if (download.seasonNumber != null && download.episodeNumber != null) {
+      return 'S${download.seasonNumber.toString().padLeft(2, '0')}E${download.episodeNumber.toString().padLeft(2, '0')}';
+    }
+    return '';
   }
 }
