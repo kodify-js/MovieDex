@@ -668,6 +668,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _handleTap() {
+    if (_isLocked) return; // Prevent showing controls when locked
     setState(() {
         _isCountrollesVisible = !_isCountrollesVisible;
         if (_isCountrollesVisible) {
@@ -1378,28 +1379,48 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
+  void _handleLockToggle() {
+    setState(() {
+      _isLocked = !_isLocked;
+      if (_isLocked) {
+        // When locking, hide all controls
+        _isCountrollesVisible = false;
+        _isSettingsVisible = false;
+        _isEpisodesVisible = false;
+        _hideTimer?.cancel();
+      } else {
+        // When unlocking, show controls briefly
+        _isCountrollesVisible = true;
+        _startHideTimer();
+      }
+    });
+  }
+
   Widget _buildLockButton() {
     return Positioned(
-      left: 18,
-      top: MediaQuery.of(context).size.height/2,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: IconButton(
-          icon: Icon(
-            _isLocked ? Icons.lock : Icons.lock_open,
-            color: Colors.white,
+      left: 12,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: AnimatedOpacity(
+          opacity: _isCountrollesVisible || _isLocked ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 300),
+          child: GestureDetector(
+            onTap: _handleLockToggle,
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Icon(
+                _isLocked ? Icons.lock : Icons.lock_open,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
           ),
-          onPressed: () => setState(() {
-            _isLocked = !_isLocked;
-            if (_isLocked) {
-              _isCountrollesVisible = false;
-              _hideTimer?.cancel();
-            }
-          }),
-          tooltip: _isLocked ? 'Unlock controls' : 'Lock controls',
         ),
       ),
     );
@@ -1418,154 +1439,111 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                           widget.currentEpisode! < widget.episodes!.length;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Video Layer
-          Center(
+          // Video Layer with InteractiveViewer
+          Positioned.fill(
             child: InteractiveViewer(
               transformationController: _transformationController,
               minScale: 1.0,
               maxScale: _maxScale,
-              onInteractionUpdate: _handleZoomUpdate,
-              onInteractionEnd: _handleZoomEnd,
+              onInteractionUpdate: _isLocked ? null : _handleZoomUpdate,
+              onInteractionEnd: _isLocked ? null : _handleZoomEnd,
               clipBehavior: Clip.none,
-              panEnabled: _isZoomed,
-              scaleEnabled: true,
-              child: AspectRatio(
-                aspectRatio: _controller!.value.isInitialized
-                    ? _controller!.value.aspectRatio
-                    : 16 / 9, // Default aspect ratio if not initialized
-                child: VideoPlayer(_controller!),
-              ),
-            ),
-          ),
-          if (_showRewindIndicator || _showForwardIndicator)
-            _buildSeekIndicators(),
-          _buildTapOverlay(),
-
-          Stack(
-            children: [
-              // Controls overlay with animation
-              AnimatedOpacity(
-                opacity: _isCountrollesVisible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                child: Stack(
-                  children: [
-                    // Background when controls are visible
-                    if (_isCountrollesVisible)
-                      Container(color: Colors.black.withOpacity(0.3)),
-                    // Controls
-                    if (_isCountrollesVisible)
-                      GestureDetector(
-                        onTap: _handleTap,
-                        onDoubleTapDown: (details) => _handleDoubleTapSeek(context, details),
-                        child: _buildControlsOverlay(),
+              panEnabled: _isZoomed && !_isLocked,
+              scaleEnabled: !_isLocked,
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: _controller!.value.isInitialized
+                      ? _controller!.value.aspectRatio
+                      : 16 / 9,
+                  child: Stack(
+                    children: [
+                      Container(
+                        color: Colors.black,
+                        child: VideoPlayer(_controller!),
                       ),
-                  ],
-                ),
-              ),
-
-              // Settings menu (separate opacity animation)
-              _buildSettingsMenu(),
-
-              // Episodes menu with modified visibility handling
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 200),
-                right: _isEpisodesVisible ? 0 : -400,
-                top: 0,
-                bottom: 0,
-                child: EpisodeListForPlayer(
-                  episodes: widget.episodes ?? [], // Provide empty list as fallback
-                  currentEpisode: widget.currentEpisode,
-                  onEpisodeSelected: _handleEpisodeSelected,
-                  hasNextEpisode: hasNextEpisode,
-                ),
-              ),
-              if (_isCountrollesVisible) _buildLockButton(),
-            ],
-          ),
-
-          // Next episode button
-          if (widget.contentType == 'tv' && 
-              _isInitialized && 
-              hasNextEpisode &&
-              !_autoPlayNext)
-            Positioned(
-              right: 24,
-              bottom: 100,
-              child: NextEpisodeButton(
-                progress: _progress,
-                onTap: _handleNextEpisode,
-              ),
-            ),
-
-          // Custom controls overlay
-          if (_showControls)
-            AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black54,
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors.black54,
                     ],
                   ),
                 ),
-                child: Stack(
+              ),
+            ),
+          ),
+
+          // Controls Layer - Always on top
+          Positioned.fill(
+            child: Stack(
+              children: [
+                if (!_isLocked && (_showRewindIndicator || _showForwardIndicator))
+                  _buildSeekIndicators(),
+                if (!_isLocked) 
+                  _buildTapOverlay(),
+                
+                // Controls overlay
+                Stack(
                   children: [
-                    // Lock button
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: IconButton(
-                        icon: Icon(
-                          _isLocked ? Icons.lock : Icons.lock_open,
-                          color: Colors.transparent,
-                        ),
-                        onPressed: () => setState(() => _isLocked = !_isLocked),
+                    // Controls overlay with animation
+                    AnimatedOpacity(
+                      opacity: _isCountrollesVisible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Stack(
+                        children: [
+                          if (_isCountrollesVisible)
+                            Container(
+                              color: Colors.black.withOpacity(0.3),
+                            ),
+                          if (_isCountrollesVisible)
+                            GestureDetector(
+                              onTap: _handleTap,
+                              onDoubleTapDown: (details) => _handleDoubleTapSeek(context, details),
+                              child: _buildControlsOverlay(),
+                            ),
+                        ],
                       ),
                     ),
 
-                    // Episode navigation
-                    if (!_isLocked && widget.contentType == 'tv')
+                    // Settings and episodes menus
+                    if (!_isLocked) ...[
+                      _buildSettingsMenu(),
+                      if (widget.contentType == 'tv')
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 200),
+                          right: _isEpisodesVisible ? 0 : -400,
+                          top: 0,
+                          bottom: 0,
+                          child: EpisodeListForPlayer(
+                            episodes: widget.episodes ?? [],
+                            currentEpisode: widget.currentEpisode,
+                            onEpisodeSelected: _handleEpisodeSelected,
+                            hasNextEpisode: hasNextEpisode,
+                          ),
+                        ),
+                    ],
+
+                    // Lock button - Always visible
+                    _buildLockButton(),
+
+                    // Next episode button
+                    if (!_isLocked && 
+                        widget.contentType == 'tv' && 
+                        _isInitialized && 
+                        hasNextEpisode &&
+                        !_autoPlayNext)
                       Positioned(
-                        bottom: 80,
-                        left: 0,
-                        right: 0,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            if (widget.hasPreviousEpisode)
-                              _NavigationButton(
-                                icon: Icons.skip_previous,
-                                label: 'Previous',
-                                onPressed: () => widget.onPreviousEpisode?.call(
-                                  widget.currentEpisode! - 1,
-                                ),
-                              ),
-                            if (widget.hasNextEpisode) ...[
-                              const SizedBox(width: 16),
-                              _NavigationButton(
-                                icon: Icons.skip_next,
-                                label: 'Next',
-                                onPressed: () => widget.onNextEpisode?.call(
-                                  widget.currentEpisode! + 1,
-                                ),
-                              ),
-                            ],
-                          ],
+                        right: 24,
+                        bottom: 100,
+                        child: NextEpisodeButton(
+                          progress: _progress,
+                          onTap: _handleNextEpisode,
                         ),
                       ),
+
                   ],
                 ),
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );

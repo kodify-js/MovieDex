@@ -42,7 +42,7 @@ class _SettingsPageState extends State<SettingsPage> {
     {'name': 'Lato', 'displayName': 'Lato'},
     {'name': 'Montserrat', 'displayName': 'Montserrat'},
   ];
-  final CacheService _cacheService = CacheService();
+  final CacheService _cacheService = CacheService.instance;
   Duration _cacheValidity = const Duration(days: 1);
   int _cacheSize = 0;
   bool _syncEnabled = true;
@@ -58,6 +58,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     _initializeSettings();
     _fetchGitHubInfo();
+    _loadCacheInfo();
   }
 
   Future<void> _initializeSettings() async {
@@ -818,19 +819,26 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildCacheSection() {
+    String formatSize(int bytes) {
+      if (bytes < 1024) return '$bytes B';
+      if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+      if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    }
+
     return _buildSettingSection(
       'Cache',
       [
         ListTile(
           title: Text('Cache Size', style: Theme.of(context).textTheme.bodyLarge),
           subtitle: Text(
-            '${(_cacheSize / (1024 * 1024)).toStringAsFixed(2)} MB',
+            formatSize(_cacheSize),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           trailing: TextButton(
             onPressed: () async {
               await _cacheService.clearCache();
-              setState(() => _cacheSize = 0);
+              _loadCacheInfo(); // Reload cache size after clearing
             },
             child: const Text('Clear Cache'),
           ),

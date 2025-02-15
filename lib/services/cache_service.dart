@@ -15,6 +15,8 @@ class CacheService {
 
   bool get isInitialized => _isInitialized;
 
+  static CacheService get instance => _instance;
+
   Future<void> init() async {
     if (!_isInitialized) {
       if (!Hive.isAdapterRegistered(1)) {
@@ -29,27 +31,28 @@ class CacheService {
 
   Future<int> getCacheSize() async {
     try {
-      final dir = await getTemporaryDirectory();
-      final cacheDir = Directory('${dir.path}/hive');
-      
-      if (!await cacheDir.exists()) {
-        return 0;
-      }
-
-      int totalSize = 0;
-      
-      // Recursively get all files in cache directory
-      await for (var entity in cacheDir.list(recursive: true, followLinks: false)) {
-        if (entity is File) {
-          totalSize += await entity.length();
-        }
-      }
-
-      return totalSize;
+      final cacheDir = await getTemporaryDirectory();
+      return await _calculateDirSize(cacheDir);
     } catch (e) {
-      print('Error calculating cache size: $e');
+      print('Error getting cache size: $e');
       return 0;
     }
+  }
+
+  Future<int> _calculateDirSize(Directory dir) async {
+    int totalSize = 0;
+    try {
+      if (dir.existsSync()) {
+        await for (var entity in dir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            totalSize += await entity.length();
+          }
+        }
+      }
+    } catch (e) {
+      print('Error calculating cache size: $e');
+    }
+    return totalSize;
   }
 
   Duration get cacheValidity => Duration(
@@ -88,17 +91,18 @@ class CacheService {
   }
 
   Future<void> clear() async {
-    await _ensureInitialized();
-    await _cacheBox?.clear();
+    await clearCache();
   }
 
   Future<void> clearCache() async {
     try {
-      final dir = await getTemporaryDirectory();
-      final cacheDir = Directory('${dir.path}/hive');
-      
-      if (await cacheDir.exists()) {
-        await cacheDir.delete(recursive: true);
+      final cacheDir = await getTemporaryDirectory();
+      if (cacheDir.existsSync()) {
+        await for (var entity in cacheDir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            await entity.delete();
+          }
+        }
       }
     } catch (e) {
       print('Error clearing cache: $e');

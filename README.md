@@ -1,7 +1,7 @@
 # MovieDex - Open Source Movie Streaming App
 
 <p align="center">
-  <img src="assets/images/icon.png" width="150" alt="MovieDex Logo">
+  <img src="assets/images/screenshot-1.jpg" alt="MovieDex">
 </p>
 
 MovieDex is a Flutter-based movie and TV show streaming application that provides a beautiful user interface and rich features for streaming enthusiasts.
@@ -21,7 +21,30 @@ MovieDex is a Flutter-based movie and TV show streaming application that provide
 
 ## Screenshots
 
-[Add your app screenshots here]
+<table>
+  <tr>
+    <td align="center">
+        <img src="assets/images/screenshot-2.jpg" width="200px;" alt=""/>
+    </td>
+    <td align="center">
+        <img src="assets/images/screenshot-3.jpeg" width="200px;" alt=""/>
+    </td>
+    <td align="center">
+        <img src="assets/images/screenshot-4.jpeg" width="200px;" alt=""/>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+        <img src="assets/images/screenshot-5.jpeg" width="200px;" alt=""/>
+    </td>
+    <td align="center">
+        <img src="assets/images/screenshot-6.jpeg" width="200px;" alt=""/>
+    </td>
+    <td align="center">
+        <img src="assets/images/screenshot-8.jpeg" width="200px;" alt=""/>
+    </td>
+  </tr>
+</table>
 
 ## Setup Instructions
 

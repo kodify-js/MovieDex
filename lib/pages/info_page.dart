@@ -208,17 +208,43 @@ class _InfopageState extends State<Infopage> {
   }
 
   Future<String?> _showQualityDialog(StreamClass stream) {
-    return showDialog<String>(
+    return showModalBottomSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Quality'),
-        content: Column(
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ...stream.sources.map((source) => ListTile(
-              title: Text('${source.quality}p'),
-              onTap: () => Navigator.pop(context, source.quality),
-            )),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select Quality',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...stream.sources.map((source) => ListTile(
+                      title: Text('${source.quality}p', 
+                        style: const TextStyle(color: Colors.white)),
+                      onTap: () => Navigator.pop(context, source.quality),
+                    )),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -226,22 +252,48 @@ class _InfopageState extends State<Infopage> {
   }
 
   Future<String?> _showLanguageDialog(List<StreamClass> streams) {
-    return showDialog<String>(
+    return showModalBottomSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Language'),
-        content: Column(
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: streams.map((stream) => ListTile(
-            title: Text(stream.language),
-            onTap: () => Navigator.pop(context, stream.language),
-          )).toList(),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Select Language',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            Divider(color: Colors.white.withOpacity(0.1)),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: streams.map((stream) => ListTile(
+                    title: Text(
+                      stream.language,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    onTap: () => Navigator.pop(context, stream.language),
+                  )).toList(),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
-
-
 
   void _showEpisodeDownloadDialog(Contentclass data) {
     if (data.seasons == null || data.seasons == 0) {
@@ -602,19 +654,6 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
-  Widget _buildDownloadSection(Contentclass data) {
-    if (Platform.isAndroid || Platform.isIOS) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: DownloadButtonWidget(
-          data: data,
-          isLoadingStream: _isLoadingStream,
-          onDownloadStarted: () => _handleDownload(data),
-        ),
-      );
-    }
-    return const SizedBox.shrink();
-  }
 
   @override
   void dispose() {
@@ -831,7 +870,6 @@ class _InfopageState extends State<Infopage> {
                         ],
                       ),
                     ),
-                    _buildDownloadSection(data),
                     data.type==ContentType.movie.value?
                     HorizontalScrollList(title: "Recommendations", fetchMovies: () => api.getRecommendations(id: widget.id, type: widget.type), showNumber: false):
                     EpisodesSection(data: data,initialSeason: selectedSeason), 
