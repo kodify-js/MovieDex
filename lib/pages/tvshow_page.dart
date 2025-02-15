@@ -16,7 +16,7 @@ class _TvshowsState extends State<Tvshows>{
   Widget build(BuildContext context){
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Movie Dex",style: TextStyle(
+        title: const Text("MovieDex",style: TextStyle(
           fontWeight: FontWeight.bold,
         ),
         ),

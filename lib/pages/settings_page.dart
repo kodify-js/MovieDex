@@ -31,7 +31,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _defaultQuality = 'Auto';
   String _version = '1.0.0';
   final String _repoOwner = 'kodify-js';
-  final String _repoName = 'MovieDex-Flutter';
+  final String _repoName = 'MovieDex';
   Map<String, dynamic>? _repoInfo;
   Map<String, dynamic>? _maintainerInfo;
   final List<Map<String, String>> _fonts = [

@@ -3,6 +3,7 @@ import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
+import 'package:moviedex/providers/downloads_provider.dart';
 import 'package:moviedex/services/downloads_manager.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/horizontal_scroll_list.dart';
@@ -13,8 +14,9 @@ import 'package:moviedex/components/episodes_section.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:moviedex/services/m3u8_downloader_service.dart';
-import 'package:moviedex/providers/downloads_provider.dart';
+import 'package:moviedex/components/download_icon_widget.dart';
 import 'package:moviedex/services/share_service.dart';
+import 'package:moviedex/components/download_button_widget.dart';
 
 class Infopage extends StatefulWidget {
   final int id;
@@ -37,8 +39,6 @@ class _InfopageState extends State<Infopage> {
   late ContentProvider contentProvider;
   int _providerIndex = 0;
   final M3U8DownloaderService _downloader = M3U8DownloaderService();
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
   List<StreamClass> _stream = [];
   bool isError = false;
   bool _isLoadingStream = false;
@@ -48,20 +48,6 @@ class _InfopageState extends State<Infopage> {
     super.initState();
     Hive.openBox(widget.name).then((value) => storage = value);
     _isInList = ListService.instance.isInList(widget.id);
-    _checkDownloadStatus();
-  }
-
-  void _checkDownloadStatus() {
-    // Use _downloader instead of _downloadService
-    if (_isDownloading) {
-      setState(() => _isDownloading = true);
-      _listenToDownloadProgress();
-    }
-  }
-
-  void _listenToDownloadProgress() {
-    // Remove this method as M3U8DownloaderService already handles progress updates
-    // through the onProgress callback in _startDownload
   }
 
   void _navigateToPlayer(Contentclass data) async {
@@ -91,20 +77,6 @@ class _InfopageState extends State<Infopage> {
   Future<void> _handleDownload(Contentclass data) async {
     try {
       setState(() => _isLoadingStream = true);
-      
-      // Initialize downloader with callbacks
-      _downloader.setCallbacks(
-        onProgress: (progress) {
-          setState(() => _downloadProgress = progress);
-        },
-        onError: (error) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error)),
-            );
-          }
-        },
-      );
 
       if (_stream.isEmpty) {
         await getStream();
@@ -129,12 +101,32 @@ class _InfopageState extends State<Infopage> {
           ? stream.url 
           : stream.sources.firstWhere((s) => s.quality == quality).url;
 
-      setState(() => _isDownloading = true);
-
       final fileName = '${data.title}${data.type == ContentType.tv.value ? '_S${selectedSeason}E${storage?.get("episode")?.toString().replaceAll("E", "")}' : ''}_$quality';
       
+      // Initialize downloader with callbacks that use DownloadsProvider
+      _downloader.setCallbacks(
+        onProgress: (progress) {
+          // Update progress through DownloadsProvider instead of setState
+          DownloadsProvider.instance.updateProgress(
+            data.id,
+            progress,
+            'downloading',
+            data.title,
+            data.poster,
+            quality,
+          );
+        },
+        onError: (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error)),
+            );
+          }
+        },
+      );
+
       await _downloader.startDownload(
-        context,  // Pass context here
+        context,
         url,
         fileName,
         data,
@@ -153,10 +145,7 @@ class _InfopageState extends State<Infopage> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoadingStream = false;
-          _isDownloading = false;
-        });
+        setState(() => _isLoadingStream = false);
       }
     }
   }
@@ -183,74 +172,6 @@ class _InfopageState extends State<Infopage> {
     } catch (e) {
       isError = true;
       debugPrint('Stream error: $e');
-    }
-  }
-
-  Future<void> _startDownload(
-    Contentclass data, {
-    int? episodeNumber,
-    int seasonNumber = 1,
-  }) async {
-    try {
-      if (_stream.isEmpty) {
-        await getStream();
-      }
-      
-      if (_stream.isEmpty || isError) {
-        throw 'No streams available';
-      }
-      // Show quality selection dialog
-      final quality = await _showQualityDialog(_stream.first);
-      if (quality == null) return;
-
-      final language = _stream.length > 1 
-          ? await _showLanguageDialog(_stream) 
-          : _stream.first.language;
-      if (language == null) return;
-
-      final stream = _stream.firstWhere((s) => s.language == language);
-      final url = quality == 'Auto' ? stream.url : 
-                 stream.sources.firstWhere((s) => s.quality == quality).url;
-
-      // Start download with progress tracking
-      setState(() {
-        _isDownloading = true;
-        _downloadProgress = 0.0;
-      });
-
-      final fileName = '${data.title}${episodeNumber != null ? '_S${seasonNumber}E$episodeNumber' : ''}_$quality';
-      
-      final outputPath = await _downloader.startDownload(
-        context,
-        url,
-        fileName,
-        data,
-        quality,
-        episodeNumber: episodeNumber,
-        seasonNumber: seasonNumber,
-      );
-      
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = 1.0;
-        });
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded to: $outputPath')),
-        );
-      }
-
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isDownloading = false;
-          _downloadProgress = 0.0;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download error: $e')),
-        );
-      }
     }
   }
 
@@ -383,11 +304,7 @@ class _InfopageState extends State<Infopage> {
                               ? null  // Disable if already downloaded
                               : () {
                                   Navigator.pop(context);
-                                  _startDownload(
-                                    data,
-                                    episodeNumber: episode.episode,
-                                    seasonNumber: selectedSeason,
-                                  );
+                                  _handleDownload(data); // Changed from _startDownload to _handleDownload
                                 },
                         );
                       },
@@ -524,270 +441,11 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
-  Widget _buildDownloadButton(Contentclass data) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 0), // Remove horizontal padding
-      child: ListenableBuilder(
-        listenable: DownloadsProvider.instance,
-        builder: (context, child) {
-          final downloadProgress = DownloadsProvider.instance.getDownloadProgress(data.id);
-          final isDownloaded = _isDownloaded(data);
-          
-          if (isDownloaded) {
-            return _buildCompleteButton();
-          }
-
-          if (downloadProgress != null) {
-            return _buildProgressButton(downloadProgress);
-          }
-
-          return _buildInitialButton(data);
-        },
-      ),
-    );
-  }
-
-  Widget _buildCompleteButton() {
-    return TextButton(
-      onPressed: null,
-      style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all(Theme.of(context).colorScheme.primary),
-        minimumSize: MaterialStateProperty.all(const Size.fromHeight(50)),
-        shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.check, color: Colors.white),
-          SizedBox(width: 8),
-          Text("Downloaded", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressButton(DownloadProgress progress) {
-    return TextButton(
-      onPressed: () {
-        if (progress.isPaused) {
-          M3U8DownloaderService().resumeDownload();
-        } else {
-          M3U8DownloaderService().pauseDownload();
-        }
-      },
-      style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-        minimumSize: MaterialStateProperty.all(const Size.fromHeight(50)),
-        padding: MaterialStateProperty.all(EdgeInsets.zero),
-        shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Progress bar background
-          Container(
-            height: 50,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5),
-              color: Colors.grey[900],
-            ),
-          ),
-          // Progress bar fill
-          Positioned.fill(
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress.progress,
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(5),
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-                ),
-              ),
-            ),
-          ),
-          // Text and icon
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                progress.isPaused ? Icons.play_arrow : Icons.pause,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                "${(progress.progress * 100).toInt()}% • ${progress.isPaused ? 'Paused' : 'Downloading'}",
-                style: const TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInitialButton(Contentclass data) {
-    return TextButton(
-      onPressed: _isLoadingStream ? null : () async {
-        try {
-          setState(() => _isLoadingStream = true);
-          await getStream();
-          
-          if (mounted) {
-            setState(() => _isLoadingStream = false);
-          }
-          
-          if (_stream.isNotEmpty) {
-            await _handleDownload(data);
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No streams available')),
-              );
-            }
-          }
-        } catch (e) {
-          if (mounted) {
-            setState(() => _isLoadingStream = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: $e')),
-            );
-          }
-        }
-      },
-      style: ButtonStyle(
-        backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-        minimumSize: MaterialStateProperty.all(const Size.fromHeight(50)),
-        shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (_isLoadingStream)
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              )
-            )
-          else ...[
-            const Icon(Icons.download, color: Colors.white),
-            const SizedBox(width: 8),
-            const Text(
-              "Download",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _buildDownloadIcon(Contentclass data) {
-    // Wrap only the download icon with ListenableBuilder
-    return ListenableBuilder(
-      listenable: DownloadsProvider.instance,
-      builder: (context, child) {
-        final downloadProgress = DownloadsProvider.instance.getDownloadProgress(data.id);
-        
-        if (DownloadsManager.instance.hasDownload(data.id)) {
-          return Column(
-            children: [
-              IconButton(
-                onPressed: () {
-                  // Add logic to open the downloaded file
-                },
-                icon: const Icon(Icons.check_circle),
-                color: Theme.of(context).colorScheme.primary,
-                iconSize: 32,
-              ),
-              const Text(
-                "Downloaded",
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          );
-        }
-
-        if (downloadProgress != null) {
-          return Column(
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(
-                      value: downloadProgress.progress,
-                      strokeWidth: 2,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: _showCancelDownloadDialog,
-                    icon: const Icon(Icons.close),
-                    color: Colors.white,
-                    iconSize: 20,
-                  ),
-                ],
-              ),
-              const Text(
-                "Downloading",
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          );
-        }
-
-        return Column(
-          children: [
-            IconButton(
-              onPressed: () => _handleDownload(data),
-              icon: const Icon(Icons.download),
-              color: Colors.white,
-              iconSize: 32,
-            ),
-            const Text(
-              "Download",
-              style: TextStyle(color: Colors.white),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showCancelDownloadDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Cancel Download?'),
-        content: const Text('This will cancel the download in progress.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _downloader.cancelDownload();
-              setState(() {
-                _isDownloading = false;
-                _downloadProgress = 0.0;
-              });
-            },
-            child: const Text('Yes', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    return DownloadIconWidget(
+      contentId: data.id,
+      data: data,
+      onDownload: _handleDownload,
     );
   }
 
@@ -940,7 +598,11 @@ class _InfopageState extends State<Infopage> {
                               (Theme.of(context).platform == TargetPlatform.iOS || Theme.of(context).platform == TargetPlatform.android) && isMobile?
                               Padding(
                                 padding: EdgeInsets.zero, // Remove padding
-                                child: _buildDownloadButton(data),
+                                child: DownloadButtonWidget(
+                                  data: data,
+                                  isLoadingStream: _isLoadingStream,
+                                  onDownloadStarted: () => _handleDownload(data),
+                                ),
                               ) : const SizedBox(),
                             ],
                           ),

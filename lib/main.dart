@@ -116,7 +116,7 @@ class _MovieDexState extends State<MovieDex> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Movie Dex',
+      title: 'MovieDex',
       debugShowCheckedModeBanner: false,
       theme: Provider.of<ThemeProvider>(context).getTheme(context),
       initialRoute: '/',

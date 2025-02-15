@@ -25,8 +25,16 @@ class DownloadsProvider extends ChangeNotifier {
   DownloadsProvider._();
 
   final Map<int, DownloadProgress> _activeDownloads = {};
+  final Map<int, ValueNotifier<DownloadProgress?>> _progressNotifiers = {};
 
   Map<int, DownloadProgress> get activeDownloads => Map.unmodifiable(_activeDownloads);
+
+  ValueNotifier<DownloadProgress?> getDownloadProgressNotifier(int contentId) {
+    if (!_progressNotifiers.containsKey(contentId)) {
+      _progressNotifiers[contentId] = ValueNotifier<DownloadProgress?>(_activeDownloads[contentId]);
+    }
+    return _progressNotifiers[contentId]!;
+  }
 
   void updateProgress(
     int contentId, 
@@ -37,7 +45,7 @@ class DownloadsProvider extends ChangeNotifier {
     String quality, {
     bool isPaused = false,  // Add isPaused parameter
   }) {
-    _activeDownloads[contentId] = DownloadProgress(
+    final downloadProgress = DownloadProgress(
       contentId: contentId,
       progress: progress,
       status: status,
@@ -46,11 +54,15 @@ class DownloadsProvider extends ChangeNotifier {
       quality: quality,
       isPaused: isPaused,
     );
+    
+    _activeDownloads[contentId] = downloadProgress;
+    _progressNotifiers[contentId]?.value = downloadProgress;
     notifyListeners();
   }
 
   void removeDownload(int contentId) {
     _activeDownloads.remove(contentId);
+    _progressNotifiers[contentId]?.value = null;
     notifyListeners();
   }
 
@@ -75,6 +87,7 @@ class DownloadsProvider extends ChangeNotifier {
         quality: download.quality,
         isPaused: true,
       );
+      _progressNotifiers[contentId]?.value = _activeDownloads[contentId];
       notifyListeners();
     }
   }
@@ -91,6 +104,7 @@ class DownloadsProvider extends ChangeNotifier {
         quality: download.quality,
         isPaused: false,
       );
+      _progressNotifiers[contentId]?.value = _activeDownloads[contentId];
       notifyListeners();
     }
   }
