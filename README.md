@@ -12,7 +12,6 @@ MovieDex is a Flutter-based movie and TV show streaming application that provide
 - 🔍 Advanced Search
 - 📱 Responsive Design
 - 🌙 Dark/AMOLED Theme
-- 🔄 Continue Watching
 - 📋 Watchlist Management
 - 🔐 User Authentication
 - 🔄 Cloud Sync
