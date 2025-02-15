@@ -21,7 +21,7 @@ class Carousel extends StatelessWidget {
     final viewInsets = mediaQuery.viewInsets;
     
     // Calculate navigation dimensions
-    final sidebarWidth = width > 800 ? 270.0 : 0.0;
+    final sidebarWidth = width > 800 ? 200.0 : 0.0;
     final bottomNavHeight = width <= 600 ? 70.0 : 0.0;
     
     // Calculate effective dimensions
@@ -31,7 +31,7 @@ class Carousel extends StatelessWidget {
     // Calculate optimal carousel height
     final carouselHeight = width > 800  // Desktop
         ? effectiveHeight * 0.75
-        : width > 600  // Tablet
+        : width > 800  // Tablet
             ? effectiveHeight * (width > height ? 0.85 : 0.5)
             : effectiveHeight * (width > height ? 0.9 : 0.45);
             

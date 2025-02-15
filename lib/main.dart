@@ -13,10 +13,7 @@
  * - Navigation structure
  */
 
-import 'dart:io';
-
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/models/cache_model.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
@@ -189,7 +186,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isDesktop = width > 600;
+    final isDesktop = width > 800;
 
     return Scaffold(
       body: Row(
