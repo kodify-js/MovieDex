@@ -505,12 +505,23 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       _currentScale = newScale;
       _isZoomed = _currentScale > 1.0;
 
-      // Calculate the focal point for zooming
-      final Offset centerOffset = details.localFocalPoint;
-      final Matrix4 matrix = Matrix4.identity()
-        ..translate(centerOffset.dx, centerOffset.dy)
-        ..scale(_currentScale)
-        ..translate(-centerOffset.dx, -centerOffset.dy);
+      // Get the current matrix
+      final Matrix4 matrix = Matrix4.identity();
+      
+      // Calculate the focal point relative to widget center
+      final RenderBox renderBox = context.findRenderObject() as RenderBox;
+      final Offset localFocalPoint = renderBox.globalToLocal(details.focalPoint);
+      final Offset focalPoint = localFocalPoint;
+      
+      // Apply the transformation with corrected pan direction
+      matrix.translate(focalPoint.dx, focalPoint.dy);
+      matrix.scale(newScale);
+      matrix.translate(-focalPoint.dx, -focalPoint.dy);
+      
+      // If zoomed, apply the pan translation directly (not inverted)
+      if (_isZoomed) {
+        matrix.translate(details.focalPointDelta.dx, details.focalPointDelta.dy);
+      }
 
       _transformationController.value = matrix;
     });
