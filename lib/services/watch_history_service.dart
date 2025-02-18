@@ -17,7 +17,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/models/watch_history_model.dart';
-import 'package:hive/hive.dart';
 
 /// Service for managing user watch history and progress
 class WatchHistoryService {

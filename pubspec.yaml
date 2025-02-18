@@ -54,7 +54,7 @@ dependencies:
   wakelock_plus: ^1.2.10
   screen_brightness: ^0.2.2
   volume_controller: ^2.0.7
-
+  zoom_widget: ^2.0.1
   # Download Related
   flutter_background_service: ^5.1.0
   path_provider: ^2.0.11

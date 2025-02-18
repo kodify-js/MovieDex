@@ -81,7 +81,7 @@ class _WatchPageState extends State<WatchPage> {
       DeviceOrientation.landscapeRight,
       DeviceOrientation.landscapeLeft,
     ]);
-    contentProvider = ContentProvider(id: widget.data!.id,type: widget.data!.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
+    contentProvider = ContentProvider(id: widget.data.id,type: widget.data.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
     getStream();
   }
 

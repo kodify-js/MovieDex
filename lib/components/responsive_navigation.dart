@@ -22,9 +22,9 @@ class ResponsiveNavigation extends StatelessWidget {
 
     final navigationTheme = NavigationBarThemeData(
       backgroundColor: theme.colorScheme.surface.withOpacity(0.8),
-      indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
-      labelTextStyle: MaterialStateProperty.resolveWith((states) {
-        if (states.contains(MaterialState.selected)) {
+      indicatorColor: Colors.transparent,
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
           return TextStyle(
             color: theme.colorScheme.primary,
             fontSize: 14,
@@ -48,9 +48,9 @@ class ResponsiveNavigation extends StatelessWidget {
         labelType: width > 800 
             ? NavigationRailLabelType.none 
             : NavigationRailLabelType.selected,
-        useIndicator: true,
+        useIndicator: false,
         indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
-        minWidth: 65,
+        minWidth: 60,
         minExtendedWidth: 200,
         destinations: items.map((item) => 
           NavigationRailDestination(
@@ -100,7 +100,7 @@ class ResponsiveNavigation extends StatelessWidget {
               onDestinationSelected: onTap,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              height: 70,
+              height: 75,
               destinations: items.map((item) => 
                 NavigationDestination(
                   icon: _buildIcon(

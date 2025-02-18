@@ -95,7 +95,7 @@ class ThemeProvider extends ChangeNotifier {
         iconColor: Colors.white,
       ),
       dividerTheme: DividerThemeData(
-        color: colorScheme.onBackground.withOpacity(0.1),
+        color: colorScheme.onSurface.withOpacity(0.1),
       ),
     );
   }

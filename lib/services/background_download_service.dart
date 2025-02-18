@@ -110,7 +110,7 @@ class BackgroundDownloadService {
     return await _service.isRunning();
   }
 
-  Future<void> _downloadSegment(String url, String savePath, {int retries = 3}) async {
+  Future<void> _downloadSegment(String url, String savePath) async {
     if (!await isRunning()) {
       await start();
     }

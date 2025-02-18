@@ -51,7 +51,7 @@ class _EpisodesSectionState extends State<EpisodesSection> {
             child: SizedBox(
               width: 160,
               height: 90,
-              child: episode.image != null && episode.image.isNotEmpty
+              child: episode.image.isNotEmpty
                 ? Image.network(
                     episode.image,
                     fit: BoxFit.cover,

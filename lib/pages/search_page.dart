@@ -4,7 +4,6 @@ import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/pages/info_page.dart';
-import 'package:moviedex/pages/watch_page.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});

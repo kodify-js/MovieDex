@@ -26,7 +26,7 @@ class _EpisodeListForPlayerState extends State<EpisodeListForPlayer> {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: episode.image != null && episode.image.isNotEmpty
+          child: episode.image.isNotEmpty
             ? Image.network(
                 episode.image,
                 width: 160,

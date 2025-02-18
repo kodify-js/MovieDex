@@ -463,7 +463,7 @@ class M3U8DownloaderService {
       }
       
       // Verify content data
-      if (content.id == null || content.title.isEmpty) {
+      if (content.title.isEmpty) {
         throw 'Invalid content data';
       }
 

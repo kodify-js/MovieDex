@@ -35,6 +35,8 @@ import 'package:moviedex/components/next_episode_button.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:moviedex/services/settings_service.dart';
+import 'package:vector_math/vector_math_64.dart' as vector;
+import 'package:zoom_widget/zoom_widget.dart';
 
 /// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
@@ -109,14 +111,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   bool _isDraggingSlider = false;
   double _dragProgress = 0.0;
 
-  late TransformationController _transformationController;
-  late AnimationController _zoomAnimationController;
-  Animation<Matrix4>? _zoomAnimation;
-  double _currentScale = 1.0;
-  double _baseScale = 1.0;
-  bool _isZoomed = false;
-  final double _maxScale = 3.0;
-
   // Add new variables for double tap
   Timer? _doubleTapTimer;
 
@@ -161,6 +155,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   String _defaultQuality = 'Auto';
   
   late Box? storage;
+
+  // Add lock state
+  bool _isLocked = false;
 
   String getSourceOfQuality(StreamClass data){
     final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
@@ -316,11 +313,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       // Initialize video player with proxy support
       _initializeVideoPlayer(videoUrl);
     });
-    _transformationController = TransformationController();
-    _zoomAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    )..addStatusListener(_onZoomAnimationStatus);
 
     _startHideTimer();
 
@@ -445,8 +437,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     if (_progress >= 0.9) {
       WatchHistoryService.instance.addToHistory(widget.data);
     }
-    _zoomAnimationController.dispose();
-    _transformationController.dispose();
     _seekAnimationController.dispose();
     _doubleTapTimer?.cancel();
     _consecutiveTapTimer?.cancel();
@@ -461,78 +451,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     super.dispose();
   }
 
-  void _onZoomAnimationStatus(AnimationStatus status) {
-    if (status == AnimationStatus.completed) {
-      _zoomAnimation?.removeListener(_onZoomAnimation);
-      _zoomAnimation = null;
-      _zoomAnimationController.reset();
-    }
-  }
-
-  void _onZoomAnimation() {
-    if (_zoomAnimation != null) {
-      _transformationController.value = _zoomAnimation!.value;
-    }
-  }
-
-  void _handleZoomReset() {
-    _isZoomed = false;
-    final Matrix4 current = _transformationController.value;
-    _zoomAnimation = Matrix4Tween(
-      begin: current,
-      end: Matrix4.identity(),
-    ).animate(CurvedAnimation(
-      parent: _zoomAnimationController,
-      curve: Curves.easeOutExpo,
-    ));
-    _zoomAnimation!.addListener(_onZoomAnimation);
-    _zoomAnimationController.forward();
-    _currentScale = 1.0;
-    _baseScale = 1.0;
-  }
-
-  void _handleZoomUpdate(ScaleUpdateDetails details) {
-    if (_zoomAnimationController.isAnimating) return;
-
-    final double newScale = (_baseScale * details.scale).clamp(1.0, _maxScale);
-    
-    if (newScale == 1.0 && _currentScale != 1.0) {
-      _handleZoomReset();
-      return;
-    }
-
-    setState(() {
-      _currentScale = newScale;
-      _isZoomed = _currentScale > 1.0;
-
-      // Get the current matrix
-      final Matrix4 matrix = Matrix4.identity();
-      
-      // Calculate the focal point relative to widget center
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-      final Offset localFocalPoint = renderBox.globalToLocal(details.focalPoint);
-      final Offset focalPoint = localFocalPoint;
-      
-      // Apply the transformation with corrected pan direction
-      matrix.translate(focalPoint.dx, focalPoint.dy);
-      matrix.scale(newScale);
-      matrix.translate(-focalPoint.dx, -focalPoint.dy);
-      
-      // If zoomed, apply the pan translation directly (not inverted)
-      if (_isZoomed) {
-        matrix.translate(details.focalPointDelta.dx, details.focalPointDelta.dy);
-      }
-
-      _transformationController.value = matrix;
-    });
-  }
-
-  void _handleZoomEnd(ScaleEndDetails details) {
-    _baseScale = _currentScale;
-    if (_currentScale <= 1.1) {
-      _handleZoomReset();
-    }
-  }
 
   void _startHideTimer() {
     _hideTimer?.cancel();
@@ -679,12 +597,17 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _handleTap() {
-    if (_isLocked) return; // Prevent showing controls when locked
+    if (_isLocked) return;
     setState(() {
-        _isCountrollesVisible = !_isCountrollesVisible;
-        if (_isCountrollesVisible) {
-          _cancelAndRestartHideTimer();
-        }
+      _isCountrollesVisible = !_isCountrollesVisible;
+      if (_isCountrollesVisible) {
+        _startHideTimer();
+      } else {
+        _hideTimer?.cancel();
+        // Hide settings and episodes menu when hiding controls
+        _isSettingsVisible = false;
+        _isEpisodesVisible = false;
+      }
     });
   }
 
@@ -1172,9 +1095,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               ],
             ),
           ),
-          // ...rest of existing action buttons
-          if (_isZoomed)
-            _buildZoomIndicator(),
           if (widget.contentType == 'tv')
             IconButton(
               onPressed: _toggleEpisodesMenu,
@@ -1325,29 +1245,29 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     final duration = _controller!.value.duration;
     final progress = position.inMilliseconds / duration.inMilliseconds;
 
-    if (progress >= 0.95) {
+    if (progress >= 0.95 && !_isAutoPlayDialogShowing) {
       // Check conditions for auto-play next
       if (widget.contentType == 'tv' && 
           widget.currentEpisode != null && 
           widget.episodes != null &&
-          widget.currentEpisode! < widget.episodes!.length &&
-          _autoPlayNext) {
-        _handleNextEpisode();
+          widget.currentEpisode! < widget.episodes!.length) {
+        if (_autoPlayNext) {
+          // If auto-play is enabled, show dialog with countdown
+          _showAutoPlayDialog();
+        }
       }
     }
   }
 
-  bool _isLocked = false;
   bool _showControls = true;
   Timer? _controlsTimer;
   Timer? _autoPlayTimer;
   bool _isAutoPlayDialogShowing = false;
 
   void _startControlsTimer() {
-    if (_isLocked) return;
     _controlsTimer?.cancel();
     _controlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && !_isLocked) {
+      if (mounted) {
         setState(() => _showControls = false);
       }
     });
@@ -1357,8 +1277,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     setState(() => _isAutoPlayDialogShowing = true);
     
     _autoPlayTimer = Timer(const Duration(seconds: 5), () {
-      if (mounted && widget.onNextEpisode != null) {
-        widget.onNextEpisode!(widget.currentEpisode! + 1);
+      if (mounted && widget.currentEpisode != null) {
+        _handleNextEpisode();
       }
     });
 
@@ -1381,7 +1301,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             onPressed: () {
               _autoPlayTimer?.cancel();
               Navigator.pop(context);
-              widget.onNextEpisode?.call(widget.currentEpisode! + 1);
+              _handleNextEpisode();
             },
             child: const Text('Play Now'),
           ),
@@ -1394,13 +1314,11 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     setState(() {
       _isLocked = !_isLocked;
       if (_isLocked) {
-        // When locking, hide all controls
         _isCountrollesVisible = false;
         _isSettingsVisible = false;
         _isEpisodesVisible = false;
         _hideTimer?.cancel();
       } else {
-        // When unlocking, show controls briefly
         _isCountrollesVisible = true;
         _startHideTimer();
       }
@@ -1409,27 +1327,24 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
   Widget _buildLockButton() {
     return Positioned(
-      left: 12,
-      top: 0,
-      bottom: 0,
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: _isCountrollesVisible || _isLocked ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 300),
-          child: GestureDetector(
-            onTap: _handleLockToggle,
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Icon(
-                _isLocked ? Icons.lock : Icons.lock_open,
-                color: Colors.white,
-                size: 24,
-              ),
+      left: 16,
+      top: MediaQuery.of(context).size.height * 0.5 - 24, // Center vertically
+      child: AnimatedOpacity(
+        opacity: _isCountrollesVisible || _isLocked ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: GestureDetector(
+          onTap: _handleLockToggle,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(
+              _isLocked ? Icons.lock : Icons.lock_open,
+              color: Colors.white,
+              size: 24,
             ),
           ),
         ),
@@ -1453,43 +1368,45 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Video Layer with InteractiveViewer
-          Positioned.fill(
-            child: InteractiveViewer(
-              transformationController: _transformationController,
-              minScale: 1.0,
-              maxScale: _maxScale,
-              onInteractionUpdate: _isLocked ? null : _handleZoomUpdate,
-              onInteractionEnd: _isLocked ? null : _handleZoomEnd,
-              clipBehavior: Clip.none,
-              panEnabled: _isZoomed && !_isLocked,
-              scaleEnabled: !_isLocked,
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: _controller!.value.isInitialized
-                      ? _controller!.value.aspectRatio
-                      : 16 / 9,
-                  child: Stack(
-                    children: [
-                      Container(
-                        color: Colors.black,
-                        child: VideoPlayer(_controller!),
-                      ),
-                    ],
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width,
+              height: MediaQuery.of(context).size.height,
+              color: Colors.black,
+              child: Zoom(
+                initTotalZoomOut: true,
+                maxZoomWidth: MediaQuery.of(context).size.width,
+                maxZoomHeight: MediaQuery.of(context).size.height,
+                canvasColor: Colors.black,
+                backgroundColor: Colors.black,
+                colorScrollBars: Colors.transparent,
+                opacityScrollBars: 0.0,
+                scrollWeight: 0.0,
+                centerOnScale: true,
+                enableScroll: !_isLocked,
+                doubleTapZoom: !_isLocked,
+                zoomSensibility: _isLocked ? 0 : 1.0,
+                child: SizedBox(
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: _controller!.value.isInitialized
+                          ? _controller!.value.aspectRatio
+                          : 16 / 9,
+                      child: VideoPlayer(_controller!),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          // Controls Layer - Always on top
+          // Controls Layer - make sure it's above the video
           Positioned.fill(
             child: Stack(
               children: [
-                if (!_isLocked && (_showRewindIndicator || _showForwardIndicator))
+                if (_showRewindIndicator || _showForwardIndicator)
                   _buildSeekIndicators(),
-                if (!_isLocked) 
-                  _buildTapOverlay(),
+                _buildTapOverlay(),
                 
                 // Controls overlay
                 Stack(
@@ -1515,29 +1432,23 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     ),
 
                     // Settings and episodes menus
-                    if (!_isLocked) ...[
-                      _buildSettingsMenu(),
-                      if (widget.contentType == 'tv')
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 200),
-                          right: _isEpisodesVisible ? 0 : -400,
-                          top: 0,
-                          bottom: 0,
-                          child: EpisodeListForPlayer(
-                            episodes: widget.episodes ?? [],
-                            currentEpisode: widget.currentEpisode,
-                            onEpisodeSelected: _handleEpisodeSelected,
-                            hasNextEpisode: hasNextEpisode,
-                          ),
-                        ),
-                    ],
-
-                    // Lock button - Always visible
-                    _buildLockButton(),
+                    _buildSettingsMenu(),
+                    if (widget.contentType == 'tv')
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 200),
+                        right: _isEpisodesVisible ? 0 : -400,
+                        top: 0,
+                        bottom: 0,
+                        child: EpisodeListForPlayer(
+                        episodes: widget.episodes ?? [],
+                        currentEpisode: widget.currentEpisode,
+                        onEpisodeSelected: _handleEpisodeSelected,
+                        hasNextEpisode: hasNextEpisode,
+                      ),
+                    ),
 
                     // Next episode button
-                    if (!_isLocked && 
-                        widget.contentType == 'tv' && 
+                    if (widget.contentType == 'tv' && 
                         _isInitialized && 
                         hasNextEpisode &&
                         !_autoPlayNext)
@@ -1550,6 +1461,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                         ),
                       ),
 
+                    // Lock button
+                    _buildLockButton(),
                   ],
                 ),
               ],
@@ -1607,35 +1520,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildZoomIndicator() {
-    return Positioned(
-      top: 16,
-      right: 16,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 200),
-        opacity: _isZoomed ? 1.0 : 0.0,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.zoom_in, color: Colors.white, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                '${(_currentScale * 100).toInt()}%',
-                style: TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ],
-          ),
         ),
       ),
     );

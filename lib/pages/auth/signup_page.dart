@@ -210,7 +210,7 @@ class _SignupPageState extends State<SignupPage> {
                                     child: Checkbox(
                                       value: _acceptTerms,
                                       onChanged: (value) => setState(() => _acceptTerms = value!),
-                                      fillColor: MaterialStateProperty.all(
+                                      fillColor: WidgetStateProperty.all(
                                         Theme.of(context).colorScheme.primary,
                                       ),
                                     ),

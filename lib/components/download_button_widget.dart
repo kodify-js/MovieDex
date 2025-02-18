@@ -34,9 +34,9 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       child: TextButton(
         onPressed: null,
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Theme.of(context).colorScheme.primary),
-          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+          backgroundColor: WidgetStateProperty.all(Theme.of(context).colorScheme.primary),
+          padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -64,10 +64,10 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
           }
         },
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-          padding: MaterialStateProperty.all(EdgeInsets.zero),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
-          minimumSize: MaterialStateProperty.all(const Size.fromHeight(buttonHeight)),  // Ensure consistent height
+          backgroundColor: WidgetStateProperty.all(Colors.grey[800]),
+          padding: WidgetStateProperty.all(EdgeInsets.zero),
+          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
+          minimumSize: WidgetStateProperty.all(const Size.fromHeight(buttonHeight)),  // Ensure consistent height
         ),
         child: Stack(
           fit: StackFit.expand,  // Make stack fill the button
@@ -133,9 +133,9 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       child: TextButton(
         onPressed: widget.isLoadingStream ? null : widget.onDownloadStarted,
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+          backgroundColor: WidgetStateProperty.all(Colors.grey[800]),
+          padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
