@@ -36,6 +36,7 @@ import 'package:moviedex/pages/splash_screen.dart';
 import 'firebase_options.dart'; 
 import 'package:moviedex/components/responsive_navigation.dart';
 import 'package:moviedex/services/background_download_service.dart';
+import 'package:moviedex/services/update_service.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
@@ -87,6 +88,7 @@ void _registerHiveAdapters() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await UpdateService.instance.initialize();
   await initializeServices();
   
   runApp(
@@ -111,7 +113,38 @@ class _MovieDexState extends State<MovieDex> {
   @override
   void initState() {
     super.initState();
-    // Remove deep linking initialization
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    final update = await UpdateService.instance.checkForUpdates();
+    if (update != null) {
+      if (!mounted) return;
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Update Available'),
+          content: Text('A new version (${update['version']}) is available.\n\n${update['description']}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Later'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                UpdateService.instance.downloadAndInstallUpdate(
+                  update['downloadUrl'],
+                  update['version'],
+                );
+              },
+              child: const Text('Update Now'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override

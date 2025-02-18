@@ -66,6 +66,7 @@ dependencies:
   flutter_local_notifications: ^18.0.1  # Downgrade to a more stable version
   file_picker: ^8.3.5
   flutter_background_service_android: ^6.3.0
+  open_filex: ^4.3.4  # Update to this specific version
   # uni_links: ^0.5.1
 
 dev_dependencies:
