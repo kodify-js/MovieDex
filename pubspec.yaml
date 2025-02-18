@@ -51,6 +51,7 @@ dependencies:
   firebase_core: ^3.11.0
   firebase_auth: ^5.4.2
   firebase_database: ^11.3.2
+  firebase_analytics: ^11.4.3
   wakelock_plus: ^1.2.10
   screen_brightness: ^0.2.2
   volume_controller: ^2.0.7
@@ -117,6 +118,7 @@ flutter:
     - assets/animations/loading.json
     - assets/animations/error.json
     - assets/images/icon.png
+    - assets/images/icon-bg.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

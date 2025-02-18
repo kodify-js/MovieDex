@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';  // Add this import
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21,37 +22,52 @@ class UpdateService {
     // Initialize notifications
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidSettings);
-    await _notifications.initialize(initSettings);
+    await _notifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) async {
+        if (details.payload != null) {
+          final result = await OpenFilex.open(details.payload!);
+          if (result.type != ResultType.done) {
+            debugPrint('Could not open APK file');
+          }
+        }
+      },
+    );
   }
-
+  
   Future<Map<String, dynamic>?> checkForUpdates() async {
-    try {
+    print("object");
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
+      debugPrint('Current version: $currentVersion');
       
       final response = await http.get(Uri.parse(_githubApiUrl));
+      debugPrint('GitHub API response status: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final latestVersion = data['tag_name'].toString().replaceAll('v', '').split("-")[0];
+        debugPrint('Latest version: $latestVersion');
         
         if (_isNewerVersion(currentVersion, latestVersion)) {
+          debugPrint('Update available!');
           return {
             'version': latestVersion,
             'description': data['body'],
             'downloadUrl': data['assets'][0]['browser_download_url'],
           };
-        }
+        }else{
+        return null;
       }
-    } catch (e) {
-      debugPrint('Error checking for updates: $e');
-    }
-    return null;
+      }else{
+        return null;
+      }
   }
 
   bool _isNewerVersion(String current, String latest) {
     final currentParts = current.split('.').map(int.parse).toList();
     final latestParts = latest.split('.').map(int.parse).toList();
-    
+    print(currentParts);
     for (var i = 0; i < 3; i++) {
       if (latestParts[i] > currentParts[i]) return true;
       if (latestParts[i] < currentParts[i]) return false;
@@ -59,41 +75,51 @@ class UpdateService {
     return false;
   }
 
-  Future<void> downloadAndInstallUpdate(String url, String version) async {
+  Future<void> downloadAndInstallUpdate(String downloadUrl, String version) async {
     try {
-      // Show download starting notification
-      await _showNotification(
-        'Downloading Update',
-        'MovieDex v$version is being downloaded...',
-      );
+      // Download update
+      final response = await http.get(Uri.parse(downloadUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download update');
+      }
 
-      // Download the APK
-      final response = await http.get(Uri.parse(url));
-      final appDir = await getExternalStorageDirectory();
-      final file = File('${appDir!.path}/MovieDex_$version.apk');
+      // Get temporary directory to save the update
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/update.apk');
       await file.writeAsBytes(response.bodyBytes);
 
-      // Show installation notification
-      await _showNotification(
-        'Update Ready',
-        'Tap to install MovieDex v$version',
-        payload: file.path,
-      );
-
-      // Open the APK file using url_launcher
-      final uri = Uri.file(file.path);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        throw 'Could not launch $uri';
+      // Install the update
+      if (Platform.isAndroid) {
+        await _installAndroidUpdate(file.path);
+      } else if (Platform.isIOS) {
+        await _installIOSUpdate(file.path);
       }
     } catch (e) {
-      debugPrint('Error downloading update: $e');
-      await _showNotification(
-        'Update Failed',
-        'Failed to download the update. Please try again.',
-      );
+      debugPrint('Update installation failed: $e');
+      rethrow;
     }
+  }
+
+  Future<void> _installAndroidUpdate(String filePath) async {
+    try {
+      final result = await OpenFilex.open(
+        filePath,
+        type: 'application/vnd.android.package-archive',
+        uti: 'public.android-package-archive',
+      );
+      
+      if (result.type != ResultType.done) {
+        throw Exception('Failed to open installation file');
+      }
+    } catch (e) {
+      debugPrint('Android installation failed: $e');
+      throw Exception('Installation failed: $e');
+    }
+  }
+
+  Future<void> _installIOSUpdate(String filePath) async {
+    // iOS updates are handled through the App Store
+    throw UnimplementedError('iOS updates are handled through the App Store');
   }
 
   Future<void> _showNotification(

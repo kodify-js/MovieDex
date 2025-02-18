@@ -37,6 +37,7 @@ import 'firebase_options.dart';
 import 'package:moviedex/components/responsive_navigation.dart';
 import 'package:moviedex/services/background_download_service.dart';
 import 'package:moviedex/services/update_service.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
@@ -86,103 +87,75 @@ void _registerHiveAdapters() {
   }
 }
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await UpdateService.instance.initialize();
   await initializeServices();
   
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider.value(value: DownloadsProvider.instance),
-      ],
-      child: const MovieDex(),
-    ),
-  );
+  runApp(const MyApp());
 }
 
-class MovieDex extends StatefulWidget {
-  const MovieDex({super.key});
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
   @override
-  State<MovieDex> createState() => _MovieDexState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class _MovieDexState extends State<MovieDex> {
+class _MyAppState extends State<MyApp> {
+  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  static FirebaseAnalyticsObserver observer = FirebaseAnalyticsObserver(analytics: analytics);
+
   @override
   void initState() {
     super.initState();
-    _checkForUpdates();
-  }
-
-  Future<void> _checkForUpdates() async {
-    final update = await UpdateService.instance.checkForUpdates();
-    if (update != null) {
-      if (!mounted) return;
-      
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Update Available'),
-          content: Text('A new version (${update['version']}) is available.\n\n${update['description']}'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Later'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                UpdateService.instance.downloadAndInstallUpdate(
-                  update['downloadUrl'],
-                  update['version'],
-                );
-              },
-              child: const Text('Update Now'),
-            ),
-          ],
-        ),
-      );
-    }
+    // Remove the update check from here since it's now in splash screen
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Movie Dex',
-      debugShowCheckedModeBanner: false,
-      theme: Provider.of<ThemeProvider>(context).getTheme(context),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const SplashScreen(),
-        '/home': (context) => const HomePage(),
-      },
-      onGenerateRoute: (settings) {
-        print(settings.name);
-        if (settings.name!.contains('/movie')) {
-          if(settings.name!.split('/')[2]!=""){
-            return MaterialPageRoute(
-              builder: (context) => Infopage(
-                id: int.parse(settings.name!.split('/')[2].toString()),
-                type: 'movie',
-                name: '',
-              ),
-            );
-          }
-        }
-        if (settings.name!.contains('/tv')) {
-          final args = settings.arguments as Map<String, dynamic>;
-          return MaterialPageRoute(
-            builder: (context) => Infopage(
-                id: int.parse(settings.name!.split('/')[2].toString()),
-                type: 'tv',
-                name: '',
-            ),
-          );
-        }
-        return null;
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider.value(value: DownloadsProvider.instance),
+      ],
+      child: Builder(
+        builder: (context) => MaterialApp(
+          title: 'Movie Dex',
+          debugShowCheckedModeBanner: false,
+          theme: Provider.of<ThemeProvider>(context).getTheme(context),
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const SplashScreen(),
+            '/home': (context) => const HomePage(),
+          },
+          navigatorObservers: [observer],
+          onGenerateRoute: (settings) {
+            if (settings.name?.contains('/movie') ?? false) {
+              final id = int.parse(settings.name!.split('/')[2]);
+              return MaterialPageRoute(
+                builder: (context) => Infopage(
+                  id: id,
+                  type: 'movie',
+                  name: 'Movie $id',
+                ),
+              );
+            }
+            if (settings.name?.contains('/tv') ?? false) {
+              final id = int.parse(settings.name!.split('/')[2]);
+              return MaterialPageRoute(
+                builder: (context) => Infopage(
+                  id: id,
+                  type: 'tv',
+                  name: 'TV Show $id',
+                ),
+              );
+            }
+            return null;
+          },
+        ),
+      ),
     );
   }
 }
