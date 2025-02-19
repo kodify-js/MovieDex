@@ -155,6 +155,8 @@ samples, guidance on mobile development, and a full API reference.
 
 ### Contributors
 
+<!--
+
 <table>
   <tr>
     <td align="center">
@@ -174,6 +176,11 @@ samples, guidance on mobile development, and a full API reference.
     <!-- Add more contributors here -->
   </tr>
 </table>
+
+
+<a href="https://github.com/Kodify-js/Moviedex/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Kodify-js/Moviedex" />
+</a>
 
 ## Project Structure
 
