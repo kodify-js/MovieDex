@@ -10,21 +10,17 @@
  * 
  * Part of MovieDex - MIT Licensed
  */
-
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/models/list_item_model.dart';
-
+import 'package:moviedex/services/appwrite_service.dart';
+import 'package:appwrite/appwrite.dart';
 /// Manages user's content lists with sync capabilities
 class ListService {
   static const String _listBoxName = 'my_list';
   Box<ListItem>? _listBox; // Change to nullable
   static ListService? _instance;
   bool _isInitialized = false;
-  final _database = FirebaseDatabase.instance.ref();
-  final _auth = FirebaseAuth.instance;
 
   // Add cache for list items
   List<ListItem>? _cachedList;
@@ -40,9 +36,6 @@ class ListService {
     if (!_isInitialized) {
       try {
         await Hive.initFlutter();
-        if (!Hive.isAdapterRegistered(5)) {
-          Hive.registerAdapter(ListItemAdapter());
-        }
         _listBox = await Hive.openBox<ListItem>(_listBoxName);
         _isInitialized = true;
       } catch (e) {
@@ -57,12 +50,61 @@ class ListService {
     }
   }
 
+    Future<void> syncWithAppwrite() async {
+    if (!_isInitialized) return;
+    
+    final appwrite = AppwriteService.instance;
+    if (!await appwrite.isLoggedIn()) return;
+
+    final settingsBox = await Hive.openBox('settings');
+    final syncEnabled = settingsBox.get('syncEnabled', defaultValue: true);
+    final isIncognito = settingsBox.get('incognitoMode', defaultValue: false);
+
+    if (!syncEnabled || isIncognito) return;
+
+    try {
+      // Get server data
+      final user = await appwrite.getCurrentUser();
+      final serverDocs = await appwrite.listDocuments(
+        collectionId: AppwriteService.userListCollection,
+        queries: [Query.equal('user_id', user.$id)],
+      );
+
+      // Merge with local data
+      for (var doc in serverDocs.documents) {
+        final serverItem = ListItem.fromJson(doc.data);
+        final localItem = _listBox?.get(serverItem.contentId.toString());
+
+        if (localItem == null) {
+          await _listBox?.put(serverItem.contentId.toString(), serverItem);
+        }
+      }
+
+      // Upload local data
+      for (var item in _listBox!.values) {
+        try {
+          await appwrite.createDocument(
+            collectionId: AppwriteService.userListCollection,
+            documentId: item.contentId.toString(),
+            data: {
+              ...item.toJson(),
+              'user_id': user.$id,
+            },
+          );
+        } catch (e) {
+          print('Error uploading list item: $e');
+        }
+      }
+    } catch (e) {
+      print('Error during watch list sync: $e');
+    }
+  }
+
   /// Adds content to user's list and syncs if enabled
   Future<void> addToList(Contentclass content) async {
     await _ensureInitialized();
     if (_listBox == null) return;
     
-    // Check if sync is enabled
     final settingsBox = await Hive.openBox('settings');
     final syncEnabled = settingsBox.get('syncEnabled', defaultValue: true);
 
@@ -72,23 +114,28 @@ class ListService {
       poster: content.poster,
       type: content.type,
       addedAt: DateTime.now(),
-      content: content.toJson(),
     );
 
     // Save to local storage
     await _listBox!.put(content.id.toString(), item);
 
-    // Sync with Firebase if enabled and user is logged in
-    if (syncEnabled && _auth.currentUser != null) {
-      await _database
-          .child('users')
-          .child(_auth.currentUser!.uid)
-          .child('myList')
-          .child(content.id.toString())
-          .set(item.content);
+    // Sync with Appwrite if enabled
+    if (syncEnabled && await AppwriteService.instance.isLoggedIn()) {
+      try {
+        final user = await AppwriteService.instance.getCurrentUser();
+        await AppwriteService.instance.createDocument(
+          collectionId: AppwriteService.userListCollection,
+          documentId: content.id.toString(),
+          data: {
+            ...item.toJson(),
+            'user_id': user.$id,
+          },
+        );
+      } catch (e) {
+        print('Error syncing list item: $e');
+      }
     }
 
-    // Update cache
     _cachedList = _listBox?.values.toList();
   }
 
@@ -104,21 +151,20 @@ class ListService {
     // Remove from local storage
     await _listBox!.delete(contentId.toString());
 
-    // Remove from Firebase if enabled and user is logged in
-    if (syncEnabled && _auth.currentUser != null) {
-      await _database
-          .child('users')
-          .child(_auth.currentUser!.uid)
-          .child('myList')
-          .child(contentId.toString())
-          .remove();
+    // Remove from Appwrite if enabled and user is logged in
+    if (syncEnabled && await AppwriteService.instance.isLoggedIn()) {
+      try {
+        await AppwriteService.instance.deleteDocument(
+          collectionId: AppwriteService.userListCollection,
+          documentId: contentId.toString(),
+        );
+      } catch (e) {
+        print('Error removing from synced list: $e');
+      }
     }
 
     // Update cache
     _cachedList = _listBox?.values.toList();
-
-    // Show success feedback
-    print('Successfully removed from My List');
   }
 
   List<ListItem> getList() {

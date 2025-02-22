@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/services/update_service.dart';
-import 'package:moviedex/services/analytics_service.dart';
 import 'dart:ui' as ui;
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -15,9 +14,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
-
+  String _version = '';
   @override
   void initState() {
+    PackageInfo.fromPlatform().then((info) {
+      setState(() => _version = info.version);
+    });
     _controller = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
@@ -40,7 +42,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     super.initState();
     _controller.forward();
     _initializeAndCheck();
-    AnalyticsService.instance.logScreenView('splash_screen');
   }
 
   @override
@@ -117,11 +118,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         update['version'],
       );
 
-      await AnalyticsService.instance.logUpdateEvent(
-        version: update['version'],
-        success: true,
-      );
-
       if (!mounted) return;
       Navigator.pop(context); // Close progress dialog
       Navigator.pop(context); // Close update dialog
@@ -131,11 +127,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         const SnackBar(content: Text('Update downloaded. Installing...')),
       );
     } catch (e) {
-      await AnalyticsService.instance.logUpdateEvent(
-        version: update['version'],
-        success: false,
-        error: e.toString(),
-      );
       
       if (!mounted) return;
       Navigator.pop(context); // Close progress dialog
@@ -280,7 +271,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               right: 0,
               child: Center(
                 child: Text(
-                  'Version 1.0.0',
+                  'Version $_version',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onBackground.withOpacity(0.5),
                     fontSize: 12,

@@ -206,15 +206,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         });
       }
     }
-
-    // Save to continue watching every 5 seconds
-    if (position.inSeconds % 5 == 0 && duration.inMilliseconds > 0) {
-      await WatchHistoryService.instance.updateContinueWatching(
-        widget.data,
-        position,
-        duration,
-      );
-    }
   }
 
   Future<void> _saveSetting(String key, dynamic value) async {
@@ -414,25 +405,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   @override
   void dispose() {
     WakelockPlus.disable();
-    // Update continue watching when exiting player
-    if (_controller != null && _controller!.value.isInitialized) {
-      final position = _controller!.value.position;
-      final duration = _controller!.value.duration;
-      
-      // Only add to continue watching if watched more than 1% and less than 95%
-      if (position.inSeconds > 0 && 
-          (position.inSeconds / duration.inSeconds) < 0.95) {
-        WatchHistoryService.instance.updateContinueWatching(
-          widget.data,
-          position,
-          duration,
-        );
-      } else if (position.inSeconds / duration.inSeconds >= 0.95) {
-        // Remove from continue watching if exists
-        WatchHistoryService.instance.removeFromContinueWatching(widget.data.id);
-      }
-    }
-
     // Add to history when finished watching
     if (_progress >= 0.9) {
       WatchHistoryService.instance.addToHistory(widget.data);

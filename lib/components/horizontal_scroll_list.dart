@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/pages/info_page.dart'; // Add this import
+import 'package:moviedex/components/cached_poster.dart';
 
 class HorizontalScrollList extends StatelessWidget {
   final String title;
@@ -66,7 +67,8 @@ class HorizontalScrollList extends StatelessWidget {
                         ),
                       );
                     },
-                    child: SizedBox(
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
                       width: itemWidth,
                       height: isMobile ? 200 : 250,
                       child: Stack(
@@ -76,17 +78,10 @@ class HorizontalScrollList extends StatelessWidget {
                             duration: const Duration(milliseconds: 200),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                item.poster,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey[900],
-                                    child: const Center(
-                                      child: Icon(Icons.error_outline, color: Colors.white),
-                                    ),
-                                  );
-                                },
+                              child: CachedPoster(
+                                imageUrl: item.poster,
+                                width: itemWidth,
+                                height: isMobile ? 200 : 250,
                               ),
                             ),
                           ),

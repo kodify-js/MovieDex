@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart';
 
 class ErrorHandlers {
   static void showErrorSnackbar(BuildContext context, dynamic error) {
@@ -32,26 +32,14 @@ class ErrorHandlers {
   }
 
   static String _getErrorMessage(dynamic error) {
-    if (error is FirebaseAuthException) {
-      switch (error.code) {
-        case 'weak-password':
-          return 'The password provided is too weak';
-        case 'email-already-in-use':
-          return 'An account already exists for that email';
-        case 'user-not-found':
-          return 'No user found for that email';
-        case 'wrong-password':
-          return 'Wrong password provided';
-        case 'invalid-email':
-          return 'The email address is badly formatted';
-        case 'user-disabled':
-          return 'This user account has been disabled';
-        case 'too-many-requests':
-          return 'Too many attempts. Please try again later';
-        default:
-          return 'Authentication error: ${error.message}';
-      }
+    if (error is AppwriteException) {
+      return error.message ?? 'An error occurred';
+    } else if (error is String) {
+      return error;
+    } else if (error is Exception) {
+      return error.toString().replaceFirst('Exception: ', '');
+    } else {
+      return 'An unexpected error occurred';
     }
-    return error.toString();
   }
 }

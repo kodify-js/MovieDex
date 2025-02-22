@@ -6,7 +6,7 @@ import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
-import 'package:moviedex/services/downloads_manager.dart';
+import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';

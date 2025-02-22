@@ -4,6 +4,7 @@ import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/pages/info_page.dart';
+import 'package:moviedex/components/cached_poster.dart'; // Add this import
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -136,12 +137,9 @@ class _SearchPageState extends State<SearchPage> {
                                       aspectRatio: 1/1.4,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(5),
-                                        child: Image.network(
-                                          data[index].poster,
+                                        child: CachedPoster(
+                                          imageUrl: data[index].poster,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Center(child: Icon(Icons.error));
-                                          },
                                         ),
                                       ),
                                     ),
@@ -188,12 +186,9 @@ class _SearchPageState extends State<SearchPage> {
                                   aspectRatio: 16/9,
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(5),
-                                    child: Image.network(
-                                      data[index].backdrop,
+                                    child: CachedPoster(
+                                      imageUrl: data[index].backdrop,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const Center(child: Icon(Icons.error));
-                                      },
                                     ),
                                   ),
                                 ),
@@ -243,12 +238,9 @@ class _SearchPageState extends State<SearchPage> {
                                       aspectRatio: 1/1.4,
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(5),
-                                        child: Image.network(
-                                          data[index].poster,
+                                        child: CachedPoster(
+                                          imageUrl: data[index].poster,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Center(child: Icon(Icons.error));
-                                          },
                                         ),
                                       ),
                                     ),

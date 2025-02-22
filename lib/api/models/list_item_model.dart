@@ -19,15 +19,31 @@ class ListItem extends HiveObject {
   @HiveField(4)
   final DateTime addedAt;
 
-  @HiveField(5)
-  final Map<String, dynamic>? content;
-
   ListItem({
     required this.contentId,
     required this.title,
     required this.poster,
     required this.type,
     required this.addedAt,
-    this.content,
   });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'content_id': contentId,
+      'title': title,
+      'poster': poster,
+      'type': type,
+      'added_at': addedAt.toIso8601String(),
+    };
+  }
+
+  factory ListItem.fromJson(Map<String, dynamic> json) {
+    return ListItem(
+      contentId: json['content_id'],
+      title: json['title'],
+      poster: json['poster'],
+      type: json['type'],
+      addedAt: DateTime.parse(json['added_at']),
+    );
+  }
 }

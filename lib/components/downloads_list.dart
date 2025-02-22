@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:moviedex/services/downloads_manager.dart';
-import 'package:moviedex/providers/downloads_provider.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manager;
+import 'package:moviedex/models/downloads_manager.dart';
+import 'package:moviedex/providers/downloads_provider.dart' as downloads;
 import 'package:moviedex/services/m3u8_downloader_service.dart';
 
 class DownloadsList extends StatelessWidget {
@@ -9,12 +11,12 @@ class DownloadsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: DownloadsProvider.instance,
+      listenable: downloads.DownloadsProvider.instance,
       builder: (context, _) {
-        final downloads = DownloadsManager.instance.getDownloads();
-        final activeDownloads = DownloadsProvider.instance.activeDownloads;
+        final downloadsList = DownloadsManager.instance.getDownloads();
+        final activeDownloads = downloads.DownloadsProvider.instance.activeDownloads;
 
-        if (downloads.isEmpty && activeDownloads.isEmpty) {
+        if (downloadsList.isEmpty && activeDownloads.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(16),
             child: Center(
@@ -54,7 +56,7 @@ class DownloadsList extends StatelessWidget {
             }),
 
             // Show completed downloads
-            ...downloads.map((download) {
+            ...downloadsList.map((download) {
               return Container(
                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 height: 150,
@@ -64,7 +66,10 @@ class DownloadsList extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         image: DecorationImage(
-                          image: NetworkImage(download.poster),
+                          image: CachedNetworkImageProvider(
+                            download.poster,
+                            cacheManager: cache_manager.DefaultCacheManager(),
+                          ),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -113,35 +118,7 @@ class DownloadsList extends StatelessWidget {
     );
   }
 
-  Widget _buildDownloadControls(DownloadProgress content) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: Icon(
-            content.isPaused ? Icons.play_arrow : Icons.pause,
-            color: Colors.white,
-            size: 20,
-          ),
-          onPressed: () {
-            if (content.isPaused) {
-              DownloadsProvider.instance.resumeDownload(content.contentId);
-            } else {
-              DownloadsProvider.instance.pauseDownload(content.contentId);
-            }
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.close, color: Colors.white, size: 20),
-          onPressed: () {
-            // Existing cancel logic
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActiveDownload(BuildContext context, DownloadProgress content) {
+  Widget _buildActiveDownload(BuildContext context, downloads.DownloadProgress content) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       height: 150,

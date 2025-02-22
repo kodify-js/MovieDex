@@ -1,16 +1,15 @@
+import 'package:appwrite/models.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/api.dart';
-import 'package:moviedex/api/models/watch_history_model.dart';
+import 'package:moviedex/api/models/list_item_model.dart';
 import 'package:moviedex/models/download_state_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/settings_page.dart';
 import 'package:moviedex/pages/auth/login_page.dart';  // Add this import
 import 'package:moviedex/pages/auth/signup_page.dart'; // Add this import
-import 'package:moviedex/services/downloads_manager.dart';
-import 'package:moviedex/services/firebase_service.dart';
+import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/services/m3u8_downloader_service.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/utils/error_handlers.dart';
@@ -20,7 +19,7 @@ import 'package:moviedex/pages/watch_history_page.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'dart:async';
 import 'package:moviedex/components/downloads_list.dart';
-import 'package:moviedex/utils/utils.dart';
+import 'package:moviedex/services/appwrite_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,7 +29,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClientMixin {
-  final _firebaseService = FirebaseService();
   
   // Add StreamController for list updates
   final _listUpdateController = StreamController<void>.broadcast();
@@ -51,9 +49,11 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
 
   Future<void> _initializeServices() async {
     await SettingsService.instance.init();
-    await ListService.instance.init();
     await WatchHistoryService.instance.init().then((_) {
-      WatchHistoryService.instance.syncWithFirebase();
+      WatchHistoryService.instance.syncWithAppwrite();
+    });
+    await ListService.instance.init().then((_) {
+      ListService.instance.syncWithAppwrite();  
     });
     await _initSettings();
 
@@ -95,24 +95,18 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
 
   Future<void> _handleRefresh() async {
     // Sync data when manually refreshing
-    await WatchHistoryService.instance.syncWithFirebase();
+    await WatchHistoryService.instance.syncWithAppwrite();
     _listUpdateController.add(null);
     _watchHistoryController.add(null);
   }
 
-  Future<void> _handleWatchHistoryItemTap(WatchHistoryItem item) async {
+  Future<void> _handleWatchHistoryItemTap(ListItem item) async {
     try {
       final data = await Api().getDetails(id: item.contentId, type: item.type);
       
       if (mounted) {
         // Open custom box for item
         final storage = await Hive.openBox(data.title);
-        
-        // Set last watched episode if it's a TV show
-        if (item.type == ContentType.tv.value && item.episodeNumber != null) {
-          await storage.put('episode', 'E${item.episodeNumber}');
-          await storage.put('season', 'S${item.seasonNumber}');
-        }
 
         if (mounted) {
           Navigator.push(
@@ -191,8 +185,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder<User?>(
+      future: _getCurrentUser(),
       builder: (context, snapshot) {
         final User? currentUser = snapshot.data;
 
@@ -263,6 +257,17 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
         );
       },
     );
+  }
+
+  Future<User?> _getCurrentUser() async {
+    try {
+      if (await AppwriteService.instance.isLoggedIn()) {
+        return await AppwriteService.instance.getCurrentUser();
+      }
+    } catch (e) {
+      print('Error getting current user: $e');
+    }
+    return null;
   }
 
   Widget _buildIncognitoBanner() {
@@ -350,7 +355,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                         radius: 50,
                         backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
                         child: Text(
-                          user.displayName?.substring(0, 1).toUpperCase() ?? 
+                          user.name.substring(0, 1).toUpperCase() ?? 
                           user.email?.substring(0, 1).toUpperCase() ?? 
                           'U',
                           style: const TextStyle(
@@ -363,7 +368,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      user.displayName ?? 'User',
+                      user.name ?? 'User',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -533,12 +538,14 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
 
   Future<void> _handleLogout(BuildContext context) async {
     try {
-      await _firebaseService.signOut();
+      await AppwriteService.instance.deleteCurrentSession();
       if (mounted) {
+        setState(() {
         ErrorHandlers.showSuccessSnackbar(
           context,
           'Successfully logged out',
         );
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -719,7 +726,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
     );
   }
 
-  void _showHistoryItemOptions(WatchHistoryItem item) {
+  void _showHistoryItemOptions(ListItem item) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(

@@ -13,6 +13,7 @@
  */
 
 import 'package:hive/hive.dart';
+import 'package:moviedex/services/cached_image_service.dart';
 
 /// Content type enumeration for Movies and TV Shows
 enum ContentType {
@@ -75,9 +76,19 @@ final List<Map<String, dynamic>> tvGenres = [
   {"id": 37, "name": "Western"}
 ];
 
-/// Constructs optimized image URL with WebP conversion
-String imagePath({required ImageSize size, required String path}) {
-  return 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/${size.value}$path&output=webp';
+/// Constructs optimized image URL with WebP conversion and optional precaching
+String imagePath({
+  required ImageSize size, 
+  required String path, 
+  bool precache = false
+}) {
+  final url = 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/${size.value}$path&output=webp';
+  
+  if (precache) {
+    CachedImageService.instance.precacheImage(url);
+  }
+  
+  return url;
 }
 
 /// Helper function for safe Hive storage operations

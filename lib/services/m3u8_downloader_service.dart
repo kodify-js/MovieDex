@@ -9,7 +9,7 @@ import 'package:moviedex/utils/error_handlers.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:moviedex/api/class/content_class.dart';
-import 'package:moviedex/services/downloads_manager.dart';
+import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
 import 'package:moviedex/services/settings_service.dart';
 

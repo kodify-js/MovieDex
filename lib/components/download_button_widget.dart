@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
-import 'package:moviedex/services/downloads_manager.dart';
+import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/services/m3u8_downloader_service.dart';
 
 class DownloadButtonWidget extends StatefulWidget {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moviedex/services/cached_image_service.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:moviedex/pages/info_page.dart';
 
@@ -40,9 +41,10 @@ class MyListPage extends StatelessWidget {
               },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  item.poster,
+                child: CachedImageService.instance.getImage(
+                  imageUrl: item.poster,
                   fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             );

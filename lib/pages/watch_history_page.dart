@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moviedex/services/cached_image_service.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/pages/info_page.dart';
 
@@ -8,7 +9,7 @@ class WatchHistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final watchHistory = WatchHistoryService.instance.getWatchHistory()
-      ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+      ..sort((a, b) => b.addedAt.compareTo(a.addedAt));
 
     return Scaffold(
       appBar: AppBar(
@@ -41,9 +42,10 @@ class WatchHistoryPage extends StatelessWidget {
               },
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  item.poster,
+                child: CachedImageService.instance.getImage(
+                  imageUrl: item.poster,
                   fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(8),
                 ),
               ),
             );

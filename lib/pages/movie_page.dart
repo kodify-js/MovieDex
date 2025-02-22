@@ -6,6 +6,7 @@ import 'package:moviedex/components/carousel.dart';
 import 'package:moviedex/components/horizontal_scroll_list.dart';
 import 'package:moviedex/pages/search_page.dart';
 
+
 class Movie extends StatefulWidget {
   const Movie({super.key});
   @override

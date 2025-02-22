@@ -3,12 +3,12 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/providers/theme_provider.dart';
+import 'package:moviedex/services/appwrite_service.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:moviedex/services/cache_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -29,7 +29,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _selectedTheme = 'system';
   String _selectedAccentColor = 'blue';
   String _defaultQuality = 'Auto';
-  String _version = '1.0.0';
+  String _version = '';
   final String _repoOwner = 'kodify-js';
   final String _repoName = 'MovieDex';
   Map<String, dynamic>? _repoInfo;
@@ -907,7 +907,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildPrivacySection() {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AppwriteService.instance.getCurrentUser();
     final settingsService = SettingsService.instance;
 
     return _buildSettingSection(
