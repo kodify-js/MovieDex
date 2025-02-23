@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,20 @@ import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
 import 'package:moviedex/services/settings_service.dart';
+
+class _DownloadSnapshot {
+  final DateTime time;
+  final int bytesDownloaded;
+  final double speed;
+  final Duration timeRemaining;
+
+  _DownloadSnapshot({
+    required this.time,
+    required this.bytesDownloaded,
+    required this.speed,
+    required this.timeRemaining,
+  });
+}
 
 class M3U8DownloaderService {
   static const int _baseNotificationId = 1000;
@@ -41,6 +56,47 @@ class M3U8DownloaderService {
   int? _currentSeason;
   Map<String, int> _lastDownloadedSegment = {};
   Map<String, List<String>> _segmentsList = {};
+
+  // Add these properties for speed calculation
+  DateTime? _lastUpdateTime;
+  int _lastDownloadedBytes = 0;
+  double _downloadSpeed = 0;
+  int _totalBytes = 0;
+
+  // Add these properties for overall progress
+  int _totalSegments = 0;
+  int _currentSegment = 0;
+  int _totalDownloadedBytes = 0;
+  int _estimatedTotalBytes = 0;
+
+  // Add these properties for smoother speed/time calculations
+  final Queue<double> _speedSamples = Queue();
+  static const int _maxSpeedSamples = 5;
+  DateTime? _lastSpeedUpdate;
+  Duration? _lastTimeRemaining;
+
+  // Add these properties for better speed tracking
+  int _totalBytesDownloaded = 0;
+  DateTime? _downloadStartTime;
+
+  // Add these properties for smoother time remaining updates
+  static const int _minTimeUpdateInterval = 1000; // milliseconds
+  DateTime? _lastTimeUpdate;
+  Queue<Duration> _timeRemainingSamples = Queue();
+  static const int _maxTimeRemainingSamples = 5;
+
+  // Add these properties for smoother time tracking
+  static const int _updateIntervalMs = 500;
+  final Queue<_DownloadSnapshot> _snapshots = Queue();
+  static const int _maxSnapshots = 10;
+  DateTime? _lastProgressUpdate;
+
+  // Add these properties for better speed calculation
+  Queue<double> _recentSpeeds = Queue();
+  DateTime? _lastSpeedCalculation;
+  int _lastBytesDownloaded = 0;
+  double _currentSpeed = 0.0;
+  Duration _currentTimeRemaining = Duration.zero;
 
   // Remove duplicate constructor
   // M3U8DownloaderService({
@@ -242,33 +298,6 @@ class M3U8DownloaderService {
     }
   }
 
-  String? _parseMasterPlaylist(String content, String baseUrl) {
-    final lines = content.split('\n');
-    String? highestQualityUrl;
-    int maxBandwidth = 0;
-
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].contains('#EXT-X-STREAM-INF')) {
-        // Parse bandwidth
-        final bandwidthMatch = RegExp(r'BANDWIDTH=(\d+)').firstMatch(lines[i]);
-        if (bandwidthMatch != null) {
-          final bandwidth = int.parse(bandwidthMatch.group(1)!);
-          if (bandwidth > maxBandwidth && i + 1 < lines.length) {
-            maxBandwidth = bandwidth;
-            var streamUrl = lines[i + 1].trim();
-            if (!streamUrl.startsWith('http')) {
-              // Convert relative URL to absolute
-              final uri = Uri.parse(baseUrl);
-              final baseUri = uri.replace(path: uri.path.substring(0, uri.path.lastIndexOf('/')));
-              streamUrl = baseUri.resolve(streamUrl).toString();
-            }
-            highestQualityUrl = streamUrl;
-          }
-        }
-      }
-    }
-    return highestQualityUrl;
-  }
 
   List<String> _parseM3U8(String content, String baseUrl) {
     final lines = content.split('\n');
@@ -298,15 +327,36 @@ class M3U8DownloaderService {
     return segments;
   }
 
+  // Add new method to get temp directory path
+  Future<String> _getTempPath() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final tempDir = Directory('${appDir.path}/temp_downloads');
+    if (!await tempDir.exists()) {
+      await tempDir.create(recursive: true);
+    }
+    return tempDir.path;
+  }
+
   Future<void> _downloadSegment(String url, String savePath, {int retries = 3}) async {
     if (_isCancelled) return;
 
     for (int attempt = 0; attempt < retries; attempt++) {
       try {
-        final segmentFile = File(savePath);
+        final tempPath = await _getTempPath();
+        final segmentFile = File('$tempPath/${savePath.split('/').last}');
+        
         final parent = segmentFile.parent;
         if (!await parent.exists()) {
           await parent.create(recursive: true);
+        }
+
+        int receivedBytes = 0;
+        final startTime = DateTime.now();
+
+        // Initialize download start time if first segment
+        if (_currentSegment == 0) {
+          _downloadStartTime = DateTime.now();
+          _totalBytesDownloaded = 0;
         }
 
         final response = await _dio.get(
@@ -322,12 +372,91 @@ class M3U8DownloaderService {
             receiveTimeout: const Duration(seconds: 30),
             sendTimeout: const Duration(seconds: 30),
           ),
+          onReceiveProgress: (received, total) {
+            if (_isCancelled || _isPaused) return;
+
+            final now = DateTime.now();
+            
+            // Initialize if first update
+            if (_lastSpeedCalculation == null) {
+              _lastSpeedCalculation = now;
+              _lastBytesDownloaded = _totalBytesDownloaded;
+              _downloadStartTime = now;
+            }
+
+            // Update total bytes downloaded
+            _totalBytesDownloaded += received;
+
+            // Calculate speed and time remaining every 500ms
+            if (now.difference(_lastSpeedCalculation!) >= const Duration(milliseconds: _updateIntervalMs)) {
+              final duration = now.difference(_lastSpeedCalculation!).inMilliseconds / 1000.0;
+              if (duration > 0) {
+                // Calculate instantaneous speed
+                final bytesPerSecond = (_totalBytesDownloaded - _lastBytesDownloaded) / duration;
+                final speedMBps = bytesPerSecond / (1024 * 1024);
+
+                // Add to recent speeds queue with weighted averaging
+                _recentSpeeds.add(speedMBps);
+                while (_recentSpeeds.length > _maxSpeedSamples) {
+                  _recentSpeeds.removeFirst();
+                }
+
+                // Calculate weighted average speed
+                double totalWeight = 0;
+                double weightedSpeed = 0;
+                final weights = List.generate(_recentSpeeds.length, (i) => i + 1);
+                
+                for (int i = 0; i < _recentSpeeds.length; i++) {
+                  weightedSpeed += _recentSpeeds.elementAt(i) * weights[i];
+                  totalWeight += weights[i];
+                }
+                
+                _currentSpeed = _recentSpeeds.isNotEmpty 
+                    ? weightedSpeed / totalWeight 
+                    : speedMBps;
+
+                // Ensure speed doesn't drop to zero
+                _currentSpeed = _currentSpeed < 0.01 ? 0.01 : _currentSpeed;
+
+                // Calculate time remaining with smoothing
+                if (_estimatedTotalBytes > 0 && _currentSpeed > 0) {
+                  final remainingBytes = _estimatedTotalBytes - _totalBytesDownloaded;
+                  final timeRemainingSeconds = remainingBytes / (bytesPerSecond > 0 ? bytesPerSecond : _currentSpeed * 1024 * 1024);
+                  
+                  final newTimeRemaining = Duration(seconds: timeRemainingSeconds.round());
+                  
+                  // Add to time samples queue
+                  _timeRemainingSamples.add(newTimeRemaining);
+                  while (_timeRemainingSamples.length > _maxTimeRemainingSamples) {
+                    _timeRemainingSamples.removeFirst();
+                  }
+
+                  // Calculate average time remaining
+                  final totalDuration = _timeRemainingSamples.fold(
+                    Duration.zero,
+                    (prev, curr) => prev + curr,
+                  );
+                  
+                  _currentTimeRemaining = Duration(
+                    seconds: (totalDuration.inSeconds / _timeRemainingSamples.length).round()
+                  );
+                }
+
+                // Update progress with new values
+                _updateDownloadProgress();
+
+                _lastSpeedCalculation = now;
+                _lastBytesDownloaded = _totalBytesDownloaded;
+              }
+            }
+          },
         );
 
         if (response.statusCode == 200 && response.data != null) {
           await segmentFile.writeAsBytes(response.data);
           
           if (await segmentFile.exists() && await segmentFile.length() > 0) {
+            _currentSegment++;
             return;
           }
           throw 'Invalid segment file';
@@ -344,12 +473,8 @@ class M3U8DownloaderService {
   }
 
   Future<String> getDownloadPath(String filename, String title) async {
-    try {
-      // Sanitize title to remove special characters
-      final sanitizedTitle = title.replaceAll(RegExp(r'[^\w\s-]'), '')
-                               .replaceAll(RegExp(r'\s+'), '_');
-      
-      final basePath = '${SettingsService.instance.downloadPath}/$sanitizedTitle';
+    try {      
+      final basePath = '${SettingsService.instance.downloadPath}';
       final directory = Directory(basePath);
       
       // Create directories recursively with proper permissions
@@ -525,6 +650,20 @@ class M3U8DownloaderService {
       final startIndex = _lastDownloadedSegment[downloadId] ?? 0;
       final totalSegments = segments.length;
 
+      // Reset counters
+      _currentSegment = 0;
+      _totalDownloadedBytes = 0;
+      _estimatedTotalBytes = 0;
+      _totalSegments = segments.length;
+
+      // Reset download tracking
+      _downloadStartTime = null;
+      _totalBytesDownloaded = 0;
+      _downloadSpeed = 0;
+      _speedSamples.clear();
+      _timeRemainingSamples.clear();
+      _lastTimeUpdate = null;
+
       for (var i = startIndex; i < totalSegments; i++) {
         if (_isCancelled) {
           // Save last downloaded segment index
@@ -652,12 +791,14 @@ class M3U8DownloaderService {
 
   Future<void> _combineSegments(String dirPath, String outputPath, int count) async {
     try {
-      final output = File(outputPath);
-      if (await output.exists()) {
-        await output.delete();
+      final tempPath = await _getTempPath();
+      final tempOutput = File('$tempPath/temp_output.mp4');
+      
+      if (await tempOutput.exists()) {
+        await tempOutput.delete();
       }
       
-      final sink = await output.open(mode: FileMode.writeOnly);
+      final sink = await tempOutput.open(mode: FileMode.writeOnly);
       var combinedCount = 0;
 
       if (_currentContent != null) {
@@ -674,13 +815,11 @@ class M3U8DownloaderService {
       for (var i = 0; i < count; i++) {
         if (_isCancelled) {
           await sink.close();
-          if (await output.exists()) {
-            await output.delete();
-          }
+          await tempOutput.delete();
           return;
         }
 
-        final segment = File('$dirPath/segment_$i.ts');
+        final segment = File('$tempPath/segment_$i.ts');
         if (await segment.exists()) {
           try {
             final bytes = await segment.readAsBytes();
@@ -697,11 +836,26 @@ class M3U8DownloaderService {
       await sink.flush();
       await sink.close();
       
-      if (combinedCount != count || !await output.exists() || (await output.length()) == 0) {
+      if (combinedCount != count || !await tempOutput.exists() || (await tempOutput.length()) == 0) {
         throw 'Failed to merge all segments';
       }
 
-      await _cleanupSegments(dirPath);
+      // Move final file to download path
+      final finalOutput = File(outputPath);
+      if (await finalOutput.exists()) {
+        await finalOutput.delete();
+      }
+      
+      final downloadDir = finalOutput.parent;
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+
+      await tempOutput.copy(outputPath);
+      await tempOutput.delete();
+      
+      // Clean up temp directory
+      await _cleanupTempDir();
 
     } catch (e) {
       debugPrint('Merge error: $e');
@@ -737,36 +891,104 @@ class M3U8DownloaderService {
     }
   }
 
+  Future<void> _cleanupTempDir() async {
+    try {
+      final tempPath = await _getTempPath();
+      final tempDir = Directory(tempPath);
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+        await tempDir.create();
+      }
+    } catch (e) {
+      debugPrint('Cleanup error: $e');
+    }
+  }
+
+  Future<void> _cleanupDownload() async {
+    try {
+      // Clean temp directory
+      final tempPath = await _getTempPath();
+      final tempDir = Directory(tempPath);
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+        await tempDir.create();
+      }
+
+      // Clean partial downloads if any
+      if (_currentContent != null) {
+        final downloadPath = await getDownloadPath(
+          '${_currentContent!.title}_${_currentQuality ?? ""}',
+          _currentContent!.title
+        );
+        final downloadDir = Directory(downloadPath).parent;
+        if (await downloadDir.exists()) {
+          await downloadDir.delete(recursive: true);
+        }
+      }
+    } catch (e) {
+      debugPrint('Cleanup error: $e');
+    }
+  }
+
   void cancelDownload() {
     if (!_isActive) return;
     
     _isCancelled = true;
     _isPaused = false;
     _isActive = false;
+    _recentSpeeds.clear();
+    _currentSpeed = 0;
+    _currentTimeRemaining = Duration.zero;
 
-    // Cancel all related notifications
+    // Cancel notifications
     _notifications.cancel(_notificationId);
     _notifications.cancel(_completionNotificationId);
     _notifications.cancel(_errorNotificationId);
 
-    // Update provider state
+    // Clean up downloaded segments and files
+    _cleanupDownload();
+
+    // Update provider state and remove from active downloads
     if (_currentContent != null) {
+      final contentId = _currentContent!.id;
       _activeDownloadId = null;
-      DownloadsProvider.instance.removeDownload(_currentContent!.id);
+      
+      // Remove directly without updating status
+      DownloadsProvider.instance.removeDownload(contentId);
+      
+      // Remove from Hive storage
+      DownloadsManager.instance.removeDownload(contentId);
+      
       _currentContent = null;
     }
+
+    // Reset all state variables
+    _lastDownloadedSegment.clear();
+    _segmentsList.clear();
+    _currentEpisode = null;
+    _currentSeason = null;
+    _currentQuality = null;
+    _speedSamples.clear();
+    _lastUpdateTime = null;
+    _lastSpeedUpdate = null;
+    _lastTimeRemaining = null;
   }
 
   void pauseDownload() {
     if (!_isActive || _isCancelled) return;
     
     _isPaused = true;
-    if (_currentContent != null && _activeDownloadId != null) {
-      DownloadsProvider.instance.pauseDownload(_currentContent!.id);
-      _showProgressNotification(
+    if (_currentContent != null) {
+      DownloadsProvider.instance.updateProgress(
+        _currentContent!.id,
+        _totalBytesDownloaded / _estimatedTotalBytes,
+        'paused',
         _currentContent!.title,
-        DownloadsProvider.instance.getDownloadProgress(_currentContent!.id)?.progress ?? 0.0,
-        isPaused: true
+        _currentContent!.poster,
+        _currentQuality ?? '',
+        isPaused: true,
+        speed: 0,
+        timeRemaining: _currentTimeRemaining,
       );
     }
   }
@@ -798,6 +1020,9 @@ class M3U8DownloaderService {
   void _updateProgress(Contentclass content, double progress) {
     onProgressCallback?.call(progress);
     
+    // Keep existing speed and time when updating progress
+    final currentProgress = DownloadsProvider.instance.getDownloadProgress(content.id);
+    
     DownloadsProvider.instance.updateProgress(
       content.id,
       progress,
@@ -806,6 +1031,8 @@ class M3U8DownloaderService {
       content.poster,
       _currentQuality ?? '',
       isPaused: _isPaused,
+      speed: currentProgress?.speed ?? _downloadSpeed,
+      timeRemaining: currentProgress?.timeRemaining,
     );
 
     _showProgressNotification(
@@ -835,6 +1062,43 @@ class M3U8DownloaderService {
       context, url, title, content, quality,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber,
+    );
+  }
+
+  void dispose() {
+    _cleanupTempDir();
+  }
+
+  void _updateDownloadProgress() {
+    if (_currentContent == null || _isPaused || _isCancelled) return;
+
+    // Calculate progress
+    final progress = _totalSegments > 0 
+        ? (_currentSegment / _totalSegments).clamp(0.0, 1.0)
+        : 0.0;
+
+    // Ensure we have valid values
+    final speed = _currentSpeed.isNaN || _currentSpeed < 0 ? 0.01 : _currentSpeed;
+    final timeRemaining = _currentTimeRemaining.inSeconds < 0 
+        ? Duration.zero 
+        : _currentTimeRemaining;
+
+    DownloadsProvider.instance.updateProgress(
+      _currentContent!.id,
+      progress,
+      'downloading',
+      _currentContent!.title,
+      _currentContent!.poster,
+      _currentQuality ?? '',
+      isPaused: false,
+      speed: speed,
+      timeRemaining: timeRemaining,
+    );
+
+    _showProgressNotification(
+      _currentContent!.title,
+      progress,
+      isPaused: false,
     );
   }
 }

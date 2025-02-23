@@ -11,10 +11,13 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/utils/utils.dart';
+import 'package:moviedex/api/api.dart';
 
 /// Handles stream extraction from VidSrc provider
 class Vidsrc {
@@ -34,41 +37,81 @@ class Vidsrc {
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
     try {
-      final baseUrl = _buildStreamUrl();
+      final baseUrl = await _buildStreamUrl();
       final response = await http.get(Uri.parse(baseUrl));
-      return await _parseStreams(response.body);
+      
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch stream: ${response.statusCode}');
+      }
+
+      final data = jsonDecode(response.body);
+      
+      // Check if data is a List, if not wrap it in a List
+      final contentList = data is List ? data : [data];
+      
+      if (contentList.isEmpty) {
+        throw Exception('No streams available');
+      }
+
+      final streams = await Future.wait(
+        contentList.map((content) async {
+          final m3u8Url = content['m3u8_stream'];
+          if (m3u8Url == null || m3u8Url.isEmpty) {
+            return null;
+          }
+
+          final sources = await _getSources(url: m3u8Url);
+          return sources.isEmpty ? null : StreamClass(
+            language: content['language'] ?? 'original',
+            url: m3u8Url,
+            sources: sources,
+            isError: false
+          );
+        })
+      );
+
+      // Filter out null values and return valid streams
+      return streams.whereType<StreamClass>().toList();
+      
     } catch (e) {
-      return [];
+      print('Stream error: $e');
+      isError = true;
+      return [
+        StreamClass(
+          language: 'original',
+          url: '',
+          sources: [],
+          isError: true
+        )
+      ];
     }
   }
 
-  String _buildStreamUrl() {
-    final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie ? '' : "/${episodeNumber ?? '1'}/${seasonNumber ?? '1'}";
-    return 'https://proxy.wafflehacker.io/?destination=https://vidsrc.su/embed/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
-  }
-
-  Future<List<StreamClass>> _parseStreams(String body) async {
-    final script = body.split("fixedServers = [")[1];
-    final sourceString = script.split("];")[0];
-    
-    // Extract valid URLs
-    final urlPattern = RegExp(r"((https?:www\.)|(https?:\/\/)|(www\.))[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9]{1,6}(\/[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)?");
-    final matches = urlPattern.allMatches(sourceString).toList().reversed;
-
-    // Convert matches to StreamClass objects
-    final streams = matches.map((match) async {
-      final url = sourceString.substring(match.start, match.end);
-      final sources = await _getSources(url: url);
+  Future<List<StreamClass>> getAllStreams(data) async {
+    final streams = data.map((content) async {
+      final sources = await _getSources(url: content['m3u8_stream']);
       return StreamClass(
-        language: "Stream ${matches.length - matches.toList().indexOf(match)}",
-        url: url,
+        language: content['language'] ?? 'original',
+        url: content['m3u8_stream'],
         sources: sources,
         isError: isError
       );
-    }).toList();
-
+    });
     return Future.wait(streams);
+  }
+
+  Future<String> _buildStreamUrl() async {
+    final isMovie = type == ContentType.movie.value;
+    final episodeSegment = isMovie ? '' : "&s=${seasonNumber ?? '1'}&e=${episodeNumber ?? '1'}";
+    
+    final api = Api();
+    final imdbId = await api.getExternalIds(id: id, type: type);
+    
+    if (imdbId.isEmpty) {
+        throw Exception("No IMDB ID found for this content");
+    }
+    
+    return 'https://vidsrc.vip/hnd.php?id=$imdbId$episodeSegment';
   }
 
   /// Extracts quality options from M3U8 playlist or direct URL
@@ -80,7 +123,6 @@ class Vidsrc {
 
       final response = await http.get(Uri.parse(url));
       final sources = _parseM3U8Playlist(response.body, url);
-      
       if (sources.isEmpty) throw "No valid sources found";
       isError = false;
       return sources;
@@ -98,7 +140,7 @@ class Vidsrc {
       if (lines[i].contains('#EXT-X-STREAM-INF')) {
         final quality = _extractQuality(lines[i]);
         if (quality != null && i + 1 < lines.length) {
-          final streamUrl = _resolveStreamUrl(lines[i + 1].trim(), baseUrl);
+          final streamUrl = _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl);
           sources.add(SourceClass(quality: quality, url: streamUrl));
         }
       }
@@ -113,8 +155,7 @@ class Vidsrc {
   }
 
   String _resolveStreamUrl(String streamUrl, String baseUrl) {
-    final baseUri = Uri.parse(baseUrl);
-    final resolvedUri = baseUri.resolve(streamUrl);
+    final resolvedUri = '${baseUrl.split('index')[0]}$streamUrl';
     return resolvedUri.toString();
   }
 }

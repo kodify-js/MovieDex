@@ -16,7 +16,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
-import 'package:moviedex/api/secrets.dart.local';
+import 'package:moviedex/api/secrets.dart';
 import 'package:moviedex/services/cache_service.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:moviedex/utils/utils.dart';
@@ -378,6 +378,21 @@ class Api {
             return searchResults;
         }catch(e){
             throw Exception("Failed to search: ${e.toString()}");
+        }
+    }
+
+    Future<String> getExternalIds({required int id, required String type}) async {
+        try {
+            final data = await _get(
+                '$baseUrl/3/$type/$id?api_key=$apiKey&append_to_response=external_ids'
+            );
+            final response = jsonDecode(data.body);
+            if (response['status_code'] != null) {
+                throw Exception("Failed to fetch external IDs");
+            }
+            return response['external_ids']['imdb_id'] ?? '';
+        } catch (e) {
+            throw Exception("Failed to load external IDs: ${e.toString()}");
         }
     }
 }

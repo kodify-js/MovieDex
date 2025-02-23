@@ -1,6 +1,6 @@
 /**
  * MovieDex - Open Source Movie & TV Show Streaming Application
- * https://github.com/kodify-js/MovieDex-Flutter
+ * https://github.com/kodify-js/MovieDex
  * 
  * Copyright (c) 2024 MovieDex Contributors
  * Licensed under MIT License

@@ -44,7 +44,7 @@ class _WatchPageState extends State<WatchPage> {
 
   void getStream() async {
     try{
-    if(_providerIndex >= contentProvider.providers.length) isError = true;
+    if(_providerIndex >= contentProvider.providers.length) throw Exception("Stream not found");
     _stream = await contentProvider.providers[_providerIndex].getStream();
     _stream = _stream.where((element) => !element.isError).toList();
     if(_stream.isEmpty){
@@ -54,7 +54,9 @@ class _WatchPageState extends State<WatchPage> {
       setState(() {});
     }
     }catch(e){
-      isError = true;
+      setState(() {
+        isError = true;
+      });
     }
   }
   @override

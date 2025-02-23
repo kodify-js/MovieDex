@@ -4,6 +4,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart' as cache_manag
 import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/providers/downloads_provider.dart' as downloads;
 import 'package:moviedex/services/m3u8_downloader_service.dart';
+import 'package:moviedex/utils/format_utils.dart';
 
 class DownloadsList extends StatelessWidget {
   const DownloadsList({super.key});
@@ -41,78 +42,80 @@ class DownloadsList extends StatelessWidget {
           );
         }
 
-        return ListView(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            // Show active downloads first
-            ...activeDownloads.values.map((content) {
-              // Ensure all required values are present
-              if (content.title.isEmpty || content.poster.isEmpty) {
-                return const SizedBox(); // Skip invalid downloads
-              }
-
-              return _buildActiveDownload(context, content); // Pass context here
-            }),
-
-            // Show completed downloads
-            ...downloadsList.map((download) {
-              return Container(
-                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                height: 150,
-                child: Stack(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        image: DecorationImage(
-                          image: CachedNetworkImageProvider(
-                            download.poster,
-                            cacheManager: cache_manager.DefaultCacheManager(),
+        return SizedBox(
+          height: 180,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              // Show active downloads first
+              ...activeDownloads.values.map((content) {
+                // Ensure all required values are present
+                if (content.title.isEmpty || content.poster.isEmpty) {
+                  return const SizedBox(); // Skip invalid downloads
+                }
+          
+                return _buildActiveDownload(context, content); // Pass context here
+              }),
+          
+              // Show completed downloads
+              ...downloadsList.map((download) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  height: 150,
+                  child: Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          image: DecorationImage(
+                            image: CachedNetworkImageProvider(
+                              download.poster,
+                              cacheManager: cache_manager.DefaultCacheManager(),
+                            ),
+                            fit: BoxFit.cover,
                           ),
-                          fit: BoxFit.cover,
                         ),
                       ),
-                    ),
-                    // Info overlay
-                    Positioned(
-                      bottom: 8,
-                      left: 8,
-                      right: 8,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            download.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (download.episodeNumber != null)
+                      // Info overlay
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        right: 8,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              'S${download.seasonNumber}E${download.episodeNumber}',
+                              download.title,
                               style: const TextStyle(
-                                color: Colors.white70,
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (download.episodeNumber != null)
+                              Text(
+                                'S${download.seasonNumber}E${download.episodeNumber}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            Text(
+                              'Downloaded • ${download.quality}',
+                              style: const TextStyle(
+                                color: Colors.white,
                                 fontSize: 14,
                               ),
                             ),
-                          Text(
-                            'Downloaded • ${download.quality}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
         );
       },
     );
@@ -211,7 +214,10 @@ class DownloadsList extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${(content.progress * 100).toInt()}% • ${content.isPaused ? 'Paused' : 'Downloading'}',
+                  '${FormatUtils.formatProgress(content.progress)} • '
+                  '${content.isPaused ? 'Paused' : 'Downloading'}\n'
+                  '${FormatUtils.formatDownloadSpeed(content.speed)} • '
+                  '${FormatUtils.formatTimeLeft(content.timeRemaining)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

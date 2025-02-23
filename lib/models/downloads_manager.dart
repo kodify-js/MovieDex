@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
@@ -182,7 +184,36 @@ class DownloadsManager {
   }
 
   Future<void> removeDownload(int contentId) async {
-    await _downloadsBox?.delete(contentId.toString());
+    try {
+      // Get the box
+      final box = await Hive.openBox<Map>('downloads');
+      
+      // Get all downloads for this content
+      final downloads = getAllDownloadsForContent(contentId);
+      
+      // Delete each download's file
+      for (var download in downloads) {
+        final filePath = download['path'] as String;
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
+
+      // Remove from Hive box
+      await box.delete(contentId.toString());
+
+      // Remove any episode-specific downloads
+      final episodeKeys = box.keys.where((key) => key.toString().startsWith('${contentId}_'));
+      for (var key in episodeKeys) {
+        await box.delete(key);
+      }
+
+      await box.compact();
+      
+    } catch (e) {
+      debugPrint('Error removing download: $e');
+    }
   }
 
   bool hasDownload(int contentId) {
@@ -267,5 +298,36 @@ class DownloadsManager {
     return _downloadStatesBox.values
         .where((state) => state.status != 'completed')
         .toList();
+  }
+
+  List<Map<String, dynamic>> getAllDownloadsForContent(int contentId) {
+    if (_downloadsBox == null) return [];
+
+    try {
+      // Get all download entries that match the content ID
+      final List<Map<String, dynamic>> downloads = [];
+      
+      // Check main content download
+      final mainDownload = _downloadsBox?.get(contentId.toString());
+      if (mainDownload != null) {
+        downloads.add(Map<String, dynamic>.from(mainDownload));
+      }
+
+      // Check episode-specific downloads
+      final episodeKeys = _downloadsBox?.keys
+          .where((key) => key.toString().startsWith('${contentId}_'));
+      
+      for (final key in episodeKeys ?? []) {
+        final download = _downloadsBox?.get(key);
+        if (download != null) {
+          downloads.add(Map<String, dynamic>.from(download));
+        }
+      }
+
+      return downloads;
+    } catch (e) {
+      debugPrint('Error getting downloads for content: $e');
+      return [];
+    }
   }
 }
