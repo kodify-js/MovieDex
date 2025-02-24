@@ -2,11 +2,8 @@ import 'dart:collection';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/foundation.dart';
-import 'package:moviedex/utils/error_handlers.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:moviedex/api/class/content_class.dart';
@@ -967,6 +964,8 @@ class M3U8DownloaderService {
     _isCancelled = true;
     _isPaused = false;
     _isActive = false;
+    
+    // Cancel all ongoing operations
     _recentSpeeds.clear();
     _currentSpeed = 0;
     _currentTimeRemaining = Duration.zero;
@@ -982,18 +981,18 @@ class M3U8DownloaderService {
     // Update provider state and remove from active downloads
     if (_currentContent != null) {
       final contentId = _currentContent!.id;
-      _activeDownloadId = null;
       
-      // Remove directly without updating status
+      // Remove from active downloads
       DownloadsProvider.instance.removeDownload(contentId);
       
-      // Remove from Hive storage
+      // Remove from Hive storage if exists
       DownloadsManager.instance.removeDownload(contentId);
       
+      // Reset content reference
       _currentContent = null;
     }
 
-    // Reset all state variables
+    // Reset all trackers
     _lastDownloadedSegment.clear();
     _segmentsList.clear();
     _currentEpisode = null;
@@ -1003,16 +1002,26 @@ class M3U8DownloaderService {
     _lastUpdateTime = null;
     _lastSpeedUpdate = null;
     _lastTimeRemaining = null;
+    _activeDownloadId = null;
+
+    // Clean temp files
+    _cleanupTempDir();
   }
 
   void pauseDownload() {
     if (!_isActive || _isCancelled) return;
     
     _isPaused = true;
+    
+    // Save current download state
     if (_currentContent != null) {
+      final progress = _totalSegments > 0 
+          ? (_currentSegment / _totalSegments).clamp(0.0, 1.0)
+          : 0.0;
+          
       DownloadsProvider.instance.updateProgress(
         _currentContent!.id,
-        _totalBytesDownloaded / _estimatedTotalBytes,
+        progress,
         'paused',
         _currentContent!.title,
         _currentContent!.poster,
@@ -1022,17 +1031,25 @@ class M3U8DownloaderService {
         timeRemaining: _currentTimeRemaining,
       );
     }
+
+    // Save download state for resume
+    if (_currentContent != null) {
+      final downloadId = '${_currentContent!.id}_${_currentEpisode ?? 0}_${_currentSeason ?? 0}';
+      _lastDownloadedSegment[downloadId] = _currentSegment;
+    }
   }
 
   Future<void> resumeDownload() async {
     if (!_isActive || _isCancelled || _currentContent == null) return;
     
     _isPaused = false;
-    if (_currentContent != null) {
-      DownloadsProvider.instance.resumeDownload(_currentContent!.id);
-      
-      // Restart download from last segment
-      try {
+    
+    // Notify provider about resume
+    DownloadsProvider.instance.resumeDownload(_currentContent!.id);
+    
+    try {
+      // Restart download from last saved segment
+      if (_lastContext != null && _lastUrl != null) {
         await startDownload(
           _lastContext!,
           _lastUrl!,
@@ -1042,9 +1059,11 @@ class M3U8DownloaderService {
           episodeNumber: _currentEpisode,
           seasonNumber: _currentSeason,
         );
-      } catch (e) {
-        debugPrint('Resume error: $e');
       }
+    } catch (e) {
+      debugPrint('Resume error: $e');
+      // Handle resume error by canceling the download
+      cancelDownload();
     }
   }
 

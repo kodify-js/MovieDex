@@ -83,6 +83,8 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
         poster: download.poster,
         quality: download.quality,
         isPaused: true,
+        speed: 0, // Reset speed when paused
+        timeRemaining: download.timeRemaining,
         lastSpeed: download.speed,
         lastTimeRemaining: download.timeRemaining,
       );
@@ -100,8 +102,10 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
         poster: download.poster,
         quality: download.quality,
         isPaused: false,
-        lastSpeed: download.speed,
-        lastTimeRemaining: download.timeRemaining,
+        speed: download.lastSpeed,
+        timeRemaining: download.lastTimeRemaining,
+        lastSpeed: download.lastSpeed,
+        lastTimeRemaining: download.lastTimeRemaining,
       );
       notifyListeners();
     }

@@ -59,6 +59,15 @@ class _SettingsPageState extends State<SettingsPage> {
     _initializeSettings();
     _fetchGitHubInfo();
     _loadCacheInfo();
+    
+    // Add listener for login state changes
+    AppwriteService.instance.isLoggedIn().then((isLoggedIn) {
+      if (!isLoggedIn) {
+        setState(() {
+          _syncEnabled = false;
+        });
+      }
+    });
   }
 
   Future<void> _initializeSettings() async {
@@ -907,58 +916,63 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildPrivacySection() {
-    bool isUserLoggedIn = false;
-    AppwriteService.instance.getCurrentUser().then((user){
-      isUserLoggedIn = true;
-    });
     final settingsService = SettingsService.instance;
-
-    return _buildSettingSection(
-      'Privacy & Data',
-      [
-        SwitchListTile(
-          title: Text('Sync Data', 
-            style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text(
-            _incognitoMode
-                ? 'Sync is disabled in incognito mode'
-                : isUserLoggedIn 
-                    ? 'Sync your watch history and preferences across devices'
-                    : 'Login required to enable sync',
-            style: Theme.of(context).textTheme.bodyMedium
-          ),
-          value: _syncEnabled && isUserLoggedIn && !_incognitoMode,
-          onChanged: (isUserLoggedIn && !_incognitoMode) ? (value) async {
-            await settingsService.setSyncEnabled(value);
-            setState(() => _syncEnabled = value);
-          } : null,  // Switch is disabled when user is not logged in or in incognito mode
-        ),
-        SwitchListTile(
-          title: Text('Incognito Mode', 
-            style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text(
-            'Browse without saving history or preferences',
-            style: Theme.of(context).textTheme.bodyMedium
-          ),
-          value: settingsService.isIncognito, // Use direct value from service
-          onChanged: (value) async {
-            await settingsService.setIncognitoMode(value);
-            if (value) {
-              _showIncognitoWarning();
-            }
-          },
-        ),
-        if (_incognitoMode)
-          ListTile(
-            leading: const Icon(Icons.delete_outline, color: Colors.red),
-            title: Text('Clear All Local Data',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.red,
-              )
+    
+    return FutureBuilder<bool>(
+      future: AppwriteService.instance.isLoggedIn(),
+      builder: (context, snapshot) {
+        final bool isUserLoggedIn = snapshot.data ?? false;
+        
+        return _buildSettingSection(
+          'Privacy & Data',
+          [
+            SwitchListTile(
+              title: Text('Sync Data', 
+                style: Theme.of(context).textTheme.bodyLarge),
+              subtitle: Text(
+                _incognitoMode
+                    ? 'Sync is disabled in incognito mode'
+                    : isUserLoggedIn 
+                        ? 'Sync your watch history and preferences across devices'
+                        : 'Login required to enable sync',
+                style: Theme.of(context).textTheme.bodyMedium
+              ),
+              value: isUserLoggedIn && _syncEnabled && !_incognitoMode,
+              onChanged: isUserLoggedIn && !_incognitoMode 
+                  ? (value) async {
+                      await settingsService.setSyncEnabled(value);
+                      setState(() => _syncEnabled = value);
+                    }
+                  : null,
             ),
-            onTap: () => _showClearDataConfirmation(),
-          ),
-      ],
+            SwitchListTile(
+              title: Text('Incognito Mode', 
+                style: Theme.of(context).textTheme.bodyLarge),
+              subtitle: Text(
+                'Browse without saving history or preferences',
+                style: Theme.of(context).textTheme.bodyMedium
+              ),
+              value: settingsService.isIncognito,
+              onChanged: (value) async {
+                await settingsService.setIncognitoMode(value);
+                if (value) {
+                  _showIncognitoWarning();
+                }
+              },
+            ),
+            if (_incognitoMode)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: Text('Clear All Local Data',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.red,
+                  )
+                ),
+                onTap: () => _showClearDataConfirmation(),
+              ),
+          ],
+        );
+      },
     );
   }
 
