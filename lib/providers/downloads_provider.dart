@@ -9,6 +9,8 @@ class DownloadProgress {
   final bool isPaused;
   final double? speed;
   final Duration? timeRemaining;
+  final double? lastSpeed;
+  final Duration? lastTimeRemaining;
 
   DownloadProgress({
     required this.progress,
@@ -19,6 +21,8 @@ class DownloadProgress {
     this.isPaused = false,
     this.speed,
     this.timeRemaining,
+    this.lastSpeed,
+    this.lastTimeRemaining,
   });
 }
 
@@ -48,6 +52,7 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
     double? speed,
     Duration? timeRemaining,
   }) {
+    final currentDownload = _activeDownloads[contentId];
     _activeDownloads[contentId] = DownloadProgress(
       progress: progress,
       status: status,
@@ -55,8 +60,10 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
       poster: poster,
       quality: quality,
       isPaused: isPaused,
-      speed: speed,
-      timeRemaining: timeRemaining,
+      speed: speed != null ? speed.abs() : currentDownload?.speed?.abs(), // Ensure positive speed
+      timeRemaining: timeRemaining ?? currentDownload?.timeRemaining,
+      lastSpeed: speed != null ? speed.abs() : currentDownload?.speed ?? currentDownload?.lastSpeed,
+      lastTimeRemaining: timeRemaining ?? currentDownload?.timeRemaining ?? currentDownload?.lastTimeRemaining,
     );
     notifyListeners();
   }
@@ -76,6 +83,8 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
         poster: download.poster,
         quality: download.quality,
         isPaused: true,
+        lastSpeed: download.speed,
+        lastTimeRemaining: download.timeRemaining,
       );
       notifyListeners();
     }
@@ -91,6 +100,8 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
         poster: download.poster,
         quality: download.quality,
         isPaused: false,
+        lastSpeed: download.speed,
+        lastTimeRemaining: download.timeRemaining,
       );
       notifyListeners();
     }

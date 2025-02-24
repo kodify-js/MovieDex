@@ -907,7 +907,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildPrivacySection() {
-    final user = AppwriteService.instance.getCurrentUser();
+    bool isUserLoggedIn = false;
+    AppwriteService.instance.getCurrentUser().then((user){
+      isUserLoggedIn = true;
+    });
     final settingsService = SettingsService.instance;
 
     return _buildSettingSection(
@@ -919,16 +922,16 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: Text(
             _incognitoMode
                 ? 'Sync is disabled in incognito mode'
-                : user != null 
+                : isUserLoggedIn 
                     ? 'Sync your watch history and preferences across devices'
                     : 'Login required to enable sync',
             style: Theme.of(context).textTheme.bodyMedium
           ),
-          value: _syncEnabled && user != null && !_incognitoMode,
-          onChanged: (user != null && !_incognitoMode) ? (value) async {
+          value: _syncEnabled && isUserLoggedIn && !_incognitoMode,
+          onChanged: (isUserLoggedIn && !_incognitoMode) ? (value) async {
             await settingsService.setSyncEnabled(value);
             setState(() => _syncEnabled = value);
-          } : null,
+          } : null,  // Switch is disabled when user is not logged in or in incognito mode
         ),
         SwitchListTile(
           title: Text('Incognito Mode', 

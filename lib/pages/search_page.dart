@@ -6,7 +6,8 @@ import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/components/cached_poster.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:flutter/services.dart';
+import 'package:moviedex/utils/ui_constants.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -15,7 +16,7 @@ class SearchPage extends StatefulWidget {
   State<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchPageState extends State<SearchPage> {
+class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateMixin {
   Api api = Api();
   bool isSearching = false;
   bool isSearched = false;
@@ -24,6 +25,8 @@ class _SearchPageState extends State<SearchPage> {
   final Debouncer _debouncer = Debouncer();
   bool _isLoading = false;
   String _errorMessage = '';
+  late AnimationController _fadeController;
+  final _scrollController = ScrollController();
 
   void _handleTextFieldChange(String value) {
     const duration = Duration(milliseconds: 500);
@@ -41,6 +44,10 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
     textEditingController.addListener(() {
       if (textEditingController.text.isNotEmpty) {
         if (textEditingController.text.toString() != searchQuery) {
@@ -55,90 +62,98 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   @override
+  void dispose() {
+    _fadeController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isMobile = size.width < 600;
-    final crossAxisCount = size.width ~/ (isMobile ? 120 : 200);
+    final crossAxisCount = isMobile ? 2 : (size.width ~/ 180).clamp(3, 6);
 
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            floating: true,
-            pinned: true,
-            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-            expandedHeight: 120,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                alignment: Alignment.bottomCenter,
-                child: _buildSearchField(),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        scaffoldBackgroundColor: const Color(0xFF141414),
+      ),
+      child: Scaffold(
+        body: Column(
+          children: [
+            _buildAppBar(),
+            Expanded(
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  _buildHeaderSection(),
+                  _buildContent(isMobile, crossAxisCount),
+                ],
               ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _buildHeaderText(),
-            ),
-          ),
-          _buildContent(isMobile, crossAxisCount),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchField() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: textEditingController,
-        autofocus: false,
-        style: const TextStyle(fontSize: 16),
-        decoration: InputDecoration(
-          prefixIcon: const Icon(Icons.search, size: 20),
-          suffixIcon: textEditingController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, size: 20),
-                  onPressed: () {
-                    textEditingController.clear();
-                    setState(() {
-                      isSearched = false;
-                      searchQuery = '';
-                    });
-                  },
-                )
-              : null,
-          hintText: "Search movies and TV shows",
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildHeaderText() {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: Text(
-        isSearched && searchQuery.isNotEmpty
-            ? 'Results for "$searchQuery"'
-            : "Popular Movies",
-        key: ValueKey(searchQuery),
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+  Widget _buildAppBar() {
+    return Container(
+      color: const Color(0xFF141414),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 8,
+        left: 16,
+        right: 16,
+        bottom: 8,
+      ),
+      child: _buildSearchField(),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Container(
+      height: UIConstants.searchBarHeight,
+      decoration: UIConstants.searchBarDecoration(context),
+      child: TextField(
+        controller: textEditingController,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+        ),
+        decoration: UIConstants.searchInputDecoration(
+          context: context,
+          controller: textEditingController,
+          onClear: () {
+            textEditingController.clear();
+            setState(() {
+              isSearched = false;
+              searchQuery = '';
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: Text(
+            isSearched && searchQuery.isNotEmpty
+                ? 'Results for "$searchQuery"'
+                : "Trending Movies",
+            key: ValueKey(searchQuery),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ),
       ),
     );
   }
@@ -181,14 +196,25 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildShimmerItem(bool isMobile) {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: Container(
-        height: isMobile ? 200 : 300,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[900]!,
+        highlightColor: Colors.grey[800]!,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
     );
@@ -300,35 +326,108 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildContentItem(Contentclass content, bool isMobile) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => Infopage(
-              id: content.id,
-              name: content.title,
-              type: content.type,
+    return Hero(
+      tag: 'content_${content.id}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => Infopage(
+                  id: content.id,
+                  name: content.title,
+                  type: content.type,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+          child: Container(
+            decoration: UIConstants.cardDecoration(context),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedPoster(
+                    imageUrl: content.poster,
+                    fit: BoxFit.cover,
+                  ),
+                  _buildContentOverlay(content),
+                ],
+              ),
             ),
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentOverlay(Contentclass content) {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: CachedPoster(
-            imageUrl: content.poster,
-            fit: BoxFit.cover,
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(UIConstants.cardRadius),
           ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black.withOpacity(0.9),
+            ],
+          ),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              content.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black,
+                    offset: Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (content.rating != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.star_rounded,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    content.rating!.toStringAsFixed(1),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );

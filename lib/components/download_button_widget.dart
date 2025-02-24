@@ -35,9 +35,9 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       child: TextButton(
         onPressed: null,
         style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.all(Theme.of(context).colorScheme.primary),
-          padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+          backgroundColor: MaterialStateProperty.all(Theme.of(context).colorScheme.primary),
+          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -121,15 +121,15 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
                             fontWeight: FontWeight.bold
                           ),
                         ),
-                        if (!progress.isPaused && progress.status == 'downloading' && progress.speed != null)
+                        if (!progress.isPaused && progress.status == 'downloading')
                           Text(
-                            '${FormatUtils.formatDownloadSpeed(progress.speed)} • '
-                            '${FormatUtils.formatTimeLeft(progress.timeRemaining)}',
+                            '${FormatUtils.formatDownloadSpeed(progress.speed ?? progress.lastSpeed)} • '
+                            '${FormatUtils.formatTimeLeft(progress.timeRemaining ?? progress.lastTimeRemaining)}',
                             style: TextStyle(
                               color: Colors.grey[300],
                               fontSize: 12,
                             ),
-                          ),
+                          )
                       ],
                     ),
                   ),
@@ -193,9 +193,9 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
           }
         },
         style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.all(Colors.grey[800]),
-          padding: WidgetStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
+          backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
+          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
+          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

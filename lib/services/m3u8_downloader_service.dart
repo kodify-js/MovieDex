@@ -13,6 +13,7 @@ import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
 import 'package:moviedex/services/settings_service.dart';
+import 'dart:math' as Math;
 
 class _DownloadSnapshot {
   final DateTime time;
@@ -97,6 +98,13 @@ class M3U8DownloaderService {
   int _lastBytesDownloaded = 0;
   double _currentSpeed = 0.0;
   Duration _currentTimeRemaining = Duration.zero;
+
+  // Add these new properties for accurate speed/time tracking
+  final Queue<int> _bytesPerSecondQueue = Queue();
+  static const int _speedSampleSize = 5;
+  int _totalExpectedBytes = 0;
+  int _previousTotalBytes = 0;
+
 
   // Remove duplicate constructor
   // M3U8DownloaderService({
@@ -287,7 +295,30 @@ class M3U8DownloaderService {
 
         final content = response.data as String;
         if (content.contains('#EXTM3U')) {
-          return _parseM3U8(content, url);
+          final segments = _parseM3U8(content, url);
+          
+          // Better total size estimation
+          if (segments.isNotEmpty) {
+            try {
+              // Sample first few segments for better size estimation
+              final sampleSize = segments.length > 3 ? 3 : segments.length;
+              int totalSampleSize = 0;
+              
+              for (var i = 0; i < sampleSize; i++) {
+                final response = await _dio.head(segments[i]);
+                totalSampleSize += int.parse(response.headers.value('content-length') ?? '0');
+              }
+              
+              // Calculate average segment size and estimate total
+              final averageSegmentSize = totalSampleSize / sampleSize;
+              _totalExpectedBytes = (averageSegmentSize * segments.length).round();
+              _estimatedTotalBytes = _totalExpectedBytes;
+              _totalSegments = segments.length;
+            } catch (e) {
+              debugPrint('Error estimating total size: $e');
+            }
+          }
+          return segments;
         }
       }
       throw 'Invalid M3U8 response: ${response.statusCode}';
@@ -359,6 +390,13 @@ class M3U8DownloaderService {
           _totalBytesDownloaded = 0;
         }
 
+        // Initialize download tracking on first segment
+        if (_currentSegment == 0) {
+          _downloadStartTime = DateTime.now();
+          _previousTotalBytes = 0;
+          _bytesPerSecondQueue.clear();
+        }
+
         final response = await _dio.get(
           url,
           options: Options(
@@ -378,75 +416,65 @@ class M3U8DownloaderService {
             final now = DateTime.now();
             
             // Initialize if first update
-            if (_lastSpeedCalculation == null) {
-              _lastSpeedCalculation = now;
-              _lastBytesDownloaded = _totalBytesDownloaded;
-              _downloadStartTime = now;
+            if (_lastSpeedUpdate == null) {
+              _lastSpeedUpdate = now;
+              _previousTotalBytes = _totalBytesDownloaded;
+              _downloadStartTime ??= now;
             }
 
             // Update total bytes downloaded
-            _totalBytesDownloaded += received;
+            final newBytes = received - (_lastBytesDownloaded ?? 0);
+            if (newBytes >= 0) { // Only update if we have positive progress
+              _totalBytesDownloaded += newBytes;
+            }
+            _lastBytesDownloaded = received;
 
-            // Calculate speed and time remaining every 500ms
-            if (now.difference(_lastSpeedCalculation!) >= const Duration(milliseconds: _updateIntervalMs)) {
-              final duration = now.difference(_lastSpeedCalculation!).inMilliseconds / 1000.0;
+            // Calculate overall progress
+            final overallProgress = _totalSegments > 0
+                ? ((_currentSegment + (received / total)) / _totalSegments)
+                : 0.0;
+
+            // Update speed and time every 500ms
+            if (now.difference(_lastSpeedUpdate!).inMilliseconds >= 500) {
+              final duration = now.difference(_lastSpeedUpdate!).inSeconds;
+              
               if (duration > 0) {
-                // Calculate instantaneous speed
-                final bytesPerSecond = (_totalBytesDownloaded - _lastBytesDownloaded) / duration;
-                final speedMBps = bytesPerSecond / (1024 * 1024);
+                // Calculate speed in MB/s
+                final bytesPerSecond = (_totalBytesDownloaded - _previousTotalBytes) / duration;
+                _currentSpeed = Math.max(0, bytesPerSecond / (1024 * 1024)); // Ensure positive speed
 
-                // Add to recent speeds queue with weighted averaging
-                _recentSpeeds.add(speedMBps);
-                while (_recentSpeeds.length > _maxSpeedSamples) {
-                  _recentSpeeds.removeFirst();
-                }
-
-                // Calculate weighted average speed
-                double totalWeight = 0;
-                double weightedSpeed = 0;
-                final weights = List.generate(_recentSpeeds.length, (i) => i + 1);
-                
-                for (int i = 0; i < _recentSpeeds.length; i++) {
-                  weightedSpeed += _recentSpeeds.elementAt(i) * weights[i];
-                  totalWeight += weights[i];
-                }
-                
-                _currentSpeed = _recentSpeeds.isNotEmpty 
-                    ? weightedSpeed / totalWeight 
-                    : speedMBps;
-
-                // Ensure speed doesn't drop to zero
-                _currentSpeed = _currentSpeed < 0.01 ? 0.01 : _currentSpeed;
-
-                // Calculate time remaining with smoothing
-                if (_estimatedTotalBytes > 0 && _currentSpeed > 0) {
-                  final remainingBytes = _estimatedTotalBytes - _totalBytesDownloaded;
-                  final timeRemainingSeconds = remainingBytes / (bytesPerSecond > 0 ? bytesPerSecond : _currentSpeed * 1024 * 1024);
-                  
-                  final newTimeRemaining = Duration(seconds: timeRemainingSeconds.round());
-                  
-                  // Add to time samples queue
-                  _timeRemainingSamples.add(newTimeRemaining);
-                  while (_timeRemainingSamples.length > _maxTimeRemainingSamples) {
-                    _timeRemainingSamples.removeFirst();
+                // Calculate time remaining based on total expected size
+                if (_totalExpectedBytes > 0 && _currentSpeed > 0) {
+                  final remainingBytes = _totalExpectedBytes - _totalBytesDownloaded;
+                  if (remainingBytes > 0) {
+                    final timeRemainingSeconds = remainingBytes / (bytesPerSecond);
+                    _currentTimeRemaining = Duration(seconds: timeRemainingSeconds.round());
                   }
-
-                  // Calculate average time remaining
-                  final totalDuration = _timeRemainingSamples.fold(
-                    Duration.zero,
-                    (prev, curr) => prev + curr,
-                  );
-                  
-                  _currentTimeRemaining = Duration(
-                    seconds: (totalDuration.inSeconds / _timeRemainingSamples.length).round()
-                  );
                 }
 
-                // Update progress with new values
-                _updateDownloadProgress();
+                _previousTotalBytes = _totalBytesDownloaded;
+                _lastSpeedUpdate = now;
+              }
 
-                _lastSpeedCalculation = now;
-                _lastBytesDownloaded = _totalBytesDownloaded;
+              // Update progress in UI
+              if (_currentContent != null) {
+                DownloadsProvider.instance.updateProgress(
+                  _currentContent!.id,
+                  overallProgress.clamp(0.0, 1.0), // Ensure progress is between 0 and 1
+                  'downloading',
+                  _currentContent!.title,
+                  _currentContent!.poster,
+                  _currentQuality ?? '',
+                  isPaused: false,
+                  speed: _currentSpeed,
+                  timeRemaining: _currentTimeRemaining,
+                );
+
+                _showProgressNotification(
+                  _currentContent!.title,
+                  overallProgress.clamp(0.0, 1.0),
+                  isPaused: false,
+                );
               }
             }
           },
@@ -663,6 +691,9 @@ class M3U8DownloaderService {
       _speedSamples.clear();
       _timeRemainingSamples.clear();
       _lastTimeUpdate = null;
+
+      // Initialize _downloadStartTime at the start of download
+      _downloadStartTime = DateTime.now();
 
       for (var i = startIndex; i < totalSegments; i++) {
         if (_isCancelled) {
@@ -1071,6 +1102,16 @@ class M3U8DownloaderService {
 
   void _updateDownloadProgress() {
     if (_currentContent == null || _isPaused || _isCancelled) return;
+
+    // Ensure _downloadStartTime is initialized
+    _downloadStartTime ??= DateTime.now();
+
+    final now = DateTime.now();
+    
+    // Calculate speed using non-null _downloadStartTime
+    if (now.difference(_downloadStartTime!).inMilliseconds >= 500) {
+      // ...existing speed calculation code...
+    }
 
     // Calculate progress
     final progress = _totalSegments > 0 

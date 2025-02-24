@@ -190,9 +190,6 @@ class Api {
                         Contentclass data = Contentclass(id: movie['id'], backdrop: imagePath(size: ImageSize.original,path: movie['backdrop_path']), title: movie['title'] ?? movie['name'], language: movie['original_language'], genres: [], type: type, description: movie['overview'], poster: 'https://wsrv.nl/?url=https://image.tmdb.org/t/p/w342${movie["poster_path"]}&output=webp');
                         return data;
                     }).toList();
-                for(int i=0;i<5;i++){
-                    result[i].logoPath = await getLogo(result[i].id,type);
-                }
                 return result;
             } catch (e) {
                 throw e.toString();

@@ -216,8 +216,8 @@ class DownloadsList extends StatelessWidget {
                 Text(
                   '${FormatUtils.formatProgress(content.progress)} • '
                   '${content.isPaused ? 'Paused' : 'Downloading'}\n'
-                  '${FormatUtils.formatDownloadSpeed(content.speed)} • '
-                  '${FormatUtils.formatTimeLeft(content.timeRemaining)}',
+                  '${FormatUtils.formatDownloadSpeed(content.speed ?? content.lastSpeed)} • '
+                  '${FormatUtils.formatTimeLeft(content.timeRemaining ?? content.lastTimeRemaining)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

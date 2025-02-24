@@ -65,9 +65,9 @@ dependencies:
   flutter_background_service_android: ^6.3.0
   open_filex: ^4.3.4  # Update to this specific version
   appwrite: ^13.1.1
-  flutter_staggered_grid_view: ^0.7.0
   shimmer: ^3.0.0
   # uni_links: ^0.5.1
+  flutter_staggered_animations: ^1.1.1
 
 dev_dependencies:
   flutter_test:

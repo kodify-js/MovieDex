@@ -443,14 +443,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.24"
-  flutter_staggered_grid_view:
+  flutter_staggered_animations:
     dependency: "direct main"
     description:
-      name: flutter_staggered_grid_view
-      sha256: "19e7abb550c96fbfeb546b23f3ff356ee7c59a019a651f8f102a4ba9b7349395"
+      name: flutter_staggered_animations
+      sha256: "81d3c816c9bb0dca9e8a5d5454610e21ffb068aedb2bde49d2f8d04f75538351"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.0"
+    version: "1.1.1"
   flutter_test:
     dependency: "direct dev"
     description: flutter

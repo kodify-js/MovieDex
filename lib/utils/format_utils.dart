@@ -1,6 +1,6 @@
 class FormatUtils {
   static String formatDownloadSpeed(double? speed) {
-    if (speed == null) return '';
+    if (speed == null) return '0 MB/s';
     if (speed < 1.0) {
       return '${(speed * 1000).toStringAsFixed(0)} KB/s';
     }
@@ -8,18 +8,18 @@ class FormatUtils {
   }
 
   static String formatTimeLeft(Duration? duration) {
-    if (duration == null) return '';
+    if (duration == null) return '--:--';
     
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
 
     if (hours > 0) {
-      return '${hours}h ${minutes}m remaining';
+      return '${hours}h ${minutes}m left';
     } else if (minutes > 0) {
-      return '${minutes}m ${seconds}s remaining';
+      return '${minutes}m ${seconds}s left';
     } else {
-      return '${seconds}s remaining';
+      return '${seconds}s left';
     }
   }
 
