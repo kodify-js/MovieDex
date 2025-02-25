@@ -26,8 +26,7 @@ class _TvshowsState extends State<Tvshows>{
           }, icon: Icon(Icons.search)),
         ],
       ),
-      body: SafeArea(
-        child: FutureBuilder(
+      body: FutureBuilder(
           future: api.getPopular(type: ContentType.tv.value ,language: "en"),
           builder: (context,snapshot) {
             if(snapshot.connectionState == ConnectionState.waiting){
@@ -72,8 +71,7 @@ class _TvshowsState extends State<Tvshows>{
               ),
             );
           },
-        ),
-      ),
+        )
     );
     }
 }
