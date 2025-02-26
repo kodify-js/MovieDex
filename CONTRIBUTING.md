@@ -54,7 +54,7 @@ MovieDex/
 1. Fork the repository
 2. Clone your fork:
 ```bash
-git clone https://github.com/kodify-js/MovieDex-Flutter.git
+git clone https://github.com/kodify-js/MovieDex.git
 ```
 
 3. Set up development environment:
