@@ -38,7 +38,8 @@ class Vidsrc {
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = await _buildStreamUrl();
-      final response = await http.get(Uri.parse(baseUrl));
+      final response = await http.get(Uri.parse(baseUrl))
+        .timeout(const Duration(seconds: 5));
       
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');
@@ -121,7 +122,8 @@ class Vidsrc {
         return [SourceClass(quality: "Auto", url: url)];
       }
 
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(Uri.parse(url))
+        .timeout(const Duration(seconds: 5));
       final sources = _parseM3U8Playlist(response.body, url);
       if (sources.isEmpty) throw "No valid sources found";
       isError = false;

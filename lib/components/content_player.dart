@@ -933,6 +933,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
           Text(

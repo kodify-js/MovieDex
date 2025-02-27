@@ -1,7 +1,7 @@
 /**
- * AutoEmbed Stream Provider
+ * VietAutoEmbed Stream Provider
  * 
- * Handles video stream extraction from AutoEmbed:
+ * Handles video stream extraction from VietAutoEmbed:
  * - Stream source detection
  * - Quality options parsing
  * - Direct link extraction
@@ -18,15 +18,15 @@ import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/utils/utils.dart';
 
-/// Handles stream extraction from AutoEmbed provider
-class AutoEmbed {
+/// Handles stream extraction from VietAutoEmbed provider
+class VietAutoEmbed {
   final int id;
   final String type;
   final int? episodeNumber;
   final int? seasonNumber;
   bool isError = false;
 
-  AutoEmbed({
+  VietAutoEmbed({
     required this.id,
     required this.type,
     this.episodeNumber,
@@ -37,7 +37,8 @@ class AutoEmbed {
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = _buildStreamUrl();
-      final response = await http.get(Uri.parse(baseUrl));
+      final response = await http.get(Uri.parse(baseUrl))
+      .timeout(const Duration(seconds: 5));
       isError = response.statusCode != 200;
       return await _parseStreams(response.body);
     } catch (e) {
@@ -49,27 +50,25 @@ class AutoEmbed {
   String _buildStreamUrl() {
     final isMovie = type == ContentType.movie.value;
     final episodeSegment = isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
-    return 'https://simple-proxy.metalewis21.workers.dev/?destination=https://hin.autoembed.cc/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
+    return 'https://simple-proxy.metalewis21.workers.dev/?destination=https://viet.autoembed.cc/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
   }
 
   Future<List<StreamClass>> _parseStreams(String body) async {
     final List<StreamClass> streams = [];
-    final script = body.split("sources:")[1];
-    final List source = jsonDecode('${script.split("],")[0]}]');
-    for (var data in source) {
-      final url = data['file'];
-      if (_isValidStreamUrl(url)) {
-        final sources = await _getSources(url);
+    final url = body.split("file:")[1].split(",")[0].trim().replaceAll('"', '');
+    if (_isValidStreamUrl(url)) {
+      final response = await http.get(Uri.parse(url))
+        .timeout(const Duration(seconds: 5));
+        final sources = _parseM3U8Playlist(response.body, url);
         if (sources.isNotEmpty) {
           streams.add(StreamClass(
-            language: data['label'],
+            language: 'original',
             url: url,
             sources: sources,
             isError: isError
           ));
         }
       }
-    }
 
     return streams;
   }
@@ -81,32 +80,31 @@ class AutoEmbed {
            url.contains('player');
   }
 
-  Future<List<SourceClass>> _getSources(String url) async {
-    try {
-      final response = await http.get(Uri.parse(url));
-      
-      // Extract quality options
-      final qualities = _parseQualities(response.body,url);
-      if (qualities.isEmpty) {
-        return [];
+  List<SourceClass> _parseM3U8Playlist(String playlist, String baseUrl) {
+    final sources = <SourceClass>[];
+    final lines = playlist.split('\n');
+    
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].contains('#EXT-X-STREAM-INF')) {
+        final quality = _extractQuality(lines[i]);
+        if (quality != null && i + 1 < lines.length) {
+          final streamUrl = _resolveStreamUrl(lines[i + 1], baseUrl);
+          sources.add(SourceClass(quality: quality, url: streamUrl));
+        }
       }
-      return qualities;
-    } catch (e) {
-      return [];
     }
+    return sources;
   }
 
-  List<SourceClass> _parseQualities(String body,String url) {
-        try {
-        final data = body.split("./");
-        final result = data.where((url) => url.contains(".m3u8")).map((link) {
-        return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
-        }).toList();
-        isError = false;
-        return result;
-      } catch (e) {
-        isError = true;
-        throw Exception("Failed to load video: ${e.toString()}");
-      }
+  String? _extractQuality(String infoLine) {
+    final resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
+    final match = resolutionRegex.firstMatch(infoLine);
+    return match?.group(1);
   }
+
+  String _resolveStreamUrl(String streamUrl, String baseUrl) {
+    final resolvedUri = '${baseUrl.split('index')[0]}$streamUrl';
+    return resolvedUri.toString();
+  }
+
 }

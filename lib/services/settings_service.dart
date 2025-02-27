@@ -50,6 +50,11 @@ class SettingsService {
       _settingsBox = await Hive.openBox('settings');
       _isInitialized = true;
       _incognitoController.add(isIncognito);
+
+      // Initialize default values if not set
+      if (!_settingsBox.containsKey('showUpdateDialog')) {
+        await _settingsBox.put('showUpdateDialog', true);
+      }
     }
   }
 
@@ -116,10 +121,30 @@ class SettingsService {
     await _settingsBox.put(_downloadPathKey, path);
   }
 
+  /// Get auto-play next episode setting
+  bool get isAutoPlayNext => _settingsBox.get('autoPlayNext', defaultValue: true);
+
+  /// Set auto-play next episode setting
+  Future<void> setAutoPlayNext(bool value) async {
+    await _ensureInitialized();
+    await _settingsBox.put('autoPlayNext', value);
+    _settingsController.add(null); // Notify listeners
+  }
+
   bool get isAutoPlayEnabled => _settingsBox.get('autoPlayNext', defaultValue: true);
   
   Future<void> setAutoPlayEnabled(bool value) async {
     await _settingsBox.put('autoPlayNext', value);
     _settingsController.add(null);
+  }
+
+  /// Current show update dialog state
+  bool get showUpdateDialog => _settingsBox.get('showUpdateDialog', defaultValue: true);
+  
+  /// Set show update dialog state
+  Future<void> setShowUpdateDialog(bool value) async {
+    await _ensureInitialized();
+    await _settingsBox.put('showUpdateDialog', value);
+    _settingsController.add(null); // Notify listeners
   }
 }

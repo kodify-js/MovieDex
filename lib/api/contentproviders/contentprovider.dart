@@ -11,8 +11,11 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
-import 'package:moviedex/api/contentproviders/autoembed.dart';
-import 'package:moviedex/api/contentproviders/vidsrc.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/autoembed.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrc.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrcsu.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/vietautoembed.dart';
 
 /// Manages and coordinates multiple streaming providers
 class ContentProvider {
@@ -54,6 +57,27 @@ class ContentProvider {
     seasonNumber: seasonNumber
   );
   
+  Embed get embed => Embed(
+    id: id,
+    type: type,
+    episodeNumber: episodeNumber,
+    seasonNumber: seasonNumber
+  );
+
+  VietAutoEmbed get vietautoembed => VietAutoEmbed(
+    id: id,
+    type: type,
+    episodeNumber: episodeNumber,
+    seasonNumber: seasonNumber
+  );
+
+  VidSrcSu get vidsecsu => VidSrcSu(
+    id: id,
+    type: type,
+    episodeNumber: episodeNumber,
+    seasonNumber: seasonNumber
+  );
+
   /// List of all available providers
-  List get providers => [autoembed, vidsrc];
+  List get providers => [autoembed, vidsrc,embed,vidsecsu,vietautoembed];
 }

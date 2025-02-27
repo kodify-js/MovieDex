@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:moviedex/services/update_service.dart';
 import 'dart:ui' as ui;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:moviedex/services/settings_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -55,11 +56,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (!mounted) return;
     
     try {
-      final update = await UpdateService.instance.checkForUpdates();
+      await SettingsService.instance.init();
+      final showUpdateDialog = SettingsService.instance.showUpdateDialog;
+      final update = await UpdateService.instance.checkForUpdate();
+      final latestRelease = await UpdateService.instance.getLatestRelease();
+      
       if (!mounted) return;
 
-      if (update != null) {
-        await _showUpdateDialog(update);
+      if (update && showUpdateDialog && latestRelease != null) {
+        await _showUpdateDialog(latestRelease);
       } else {
         _navigateToHome();
       }
@@ -72,12 +77,43 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _showUpdateDialog(Map<String, dynamic> update) async {
     if (!mounted) return;
     
+    final currentVersion = _version;
+    final newVersion = update['tag_name']?.toString().replaceAll("v", "").split("-")[0] ?? '';
+    final hasChangelog = update['body']?.toString()?.isNotEmpty ?? false;
+
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Update Available'),
-        content: Text('New version ${update['version']} is available!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('A new version of MovieDex is available!'),
+            const SizedBox(height: 8),
+            Text(
+              'Current version: $currentVersion\nNew version: $newVersion',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (hasChangelog) ...[
+              const SizedBox(height: 16),
+              const Text('What\'s new:'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[850],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  update['body']?.toString() ?? '',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () {

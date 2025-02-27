@@ -85,6 +85,49 @@ class _InfopageState extends State<Infopage> {
     });
   }
 
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Preparing download...'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Getting available streams',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[400],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() => _isLoadingStream = false);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Download cancelled'))
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _handleDownload(
     Contentclass data, {
     int? seasonNumber,
@@ -92,6 +135,7 @@ class _InfopageState extends State<Infopage> {
   }) async {
     try {
       setState(() => _isLoadingStream = true);
+      _showLoadingDialog(); // Show loading dialog
 
       // Initialize stream data
       if (_stream.isEmpty) {
@@ -100,6 +144,12 @@ class _InfopageState extends State<Infopage> {
       
       if (_stream.isEmpty || isError) {
         throw 'No streams available';
+      }
+
+      // Close loading dialog if still showing
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
       }
 
       // Initialize download state in provider
@@ -129,6 +179,9 @@ class _InfopageState extends State<Infopage> {
       // Clear download state on error
       DownloadsProvider.instance.removeDownload(data.id);
       if (mounted) {
+        // Close loading dialog if still showing
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Download error: $e')),
         );
@@ -974,18 +1027,10 @@ class _InfopageState extends State<Infopage> {
   }
 
   Widget _buildDownloadButton(Contentclass data) {
-    return ValueListenableBuilder(
-      valueListenable: DownloadsProvider.instance
-          .getDownloadProgressNotifier(data.id),
-      builder: (context, progress, _) {
-        return DownloadButtonWidget(
-          data: data,
-          isLoadingStream: _isLoadingStream || (progress?.status == 'preparing'),
-          onDownloadStarted: () async {
-            await _handleDownload(data);
-          },
-        );
-      },
+    return DownloadButtonWidget(
+      data: data,
+      onDownloadStarted: () => _handleDownload(data),
+      isLoadingStream: _isLoadingStream,
     );
   }
 

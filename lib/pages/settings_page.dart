@@ -12,6 +12,7 @@ import 'package:moviedex/services/cache_service.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:moviedex/services/update_service.dart';
 import 'dart:io';
 
 class SettingsPage extends StatefulWidget {
@@ -49,6 +50,10 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _incognitoMode = false;
   bool _isValidatingProxy = false;
   bool _isProxyValid = false;
+  bool _showUpdateDialog = true;
+  bool _isCheckingForUpdates = false;
+  String? _latestVersion;
+  Map<String, dynamic>? _latestRelease;
 
   @override
   void initState() {
@@ -59,6 +64,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _initializeSettings();
     _fetchGitHubInfo();
     _loadCacheInfo();
+    _loadSettings();
     
     // Add listener for login state changes
     AppwriteService.instance.isLoggedIn().then((isLoggedIn) {
@@ -145,6 +151,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
+
   @override
   void dispose() {
     _proxyController.dispose();
@@ -187,6 +194,92 @@ class _SettingsPageState extends State<SettingsPage> {
         });
       }
     }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_isCheckingForUpdates) return;
+
+    setState(() => _isCheckingForUpdates = true);
+    try {
+      final updateAvailable = await UpdateService.instance.checkForUpdate();
+      
+      if (!mounted) return;
+
+      if (updateAvailable) {
+        _latestRelease = await UpdateService.instance.getLatestRelease();
+        _latestVersion = _latestRelease!['tag_name'].toString().replaceAll('v', '').split('-').first;
+        _showUpdateAvailableDialog();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You have the latest version')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking for updates: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingForUpdates = false);
+      }
+    }
+  }
+
+  void _showUpdateAvailableDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Version $_latestVersion is available'),
+            const SizedBox(height: 16),
+            if (_latestRelease != null && _latestRelease!['body'] != null)
+              Text(
+                'What\'s New:\n${_latestRelease!['body']}',
+                style: const TextStyle(fontSize: 14),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              UpdateService.instance.launchUpdate();
+            },
+            child: const Text('Update Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showWhatsNew() {
+    if (_latestRelease == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('What\'s New in $_latestVersion'),
+        content: SingleChildScrollView(
+          child: Text(_latestRelease!['body'] ?? 'No release notes available'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSettingSection(String title, List<Widget> children) {
@@ -1103,7 +1196,49 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+        const Divider(),
+        SwitchListTile(
+          title: Text('Show Update Dialog', 
+            style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text(
+            'Show dialog when updates are available',
+            style: Theme.of(context).textTheme.bodyMedium
+          ),
+          value: _showUpdateDialog,
+          onChanged: (value) async {
+            setState(() => _showUpdateDialog = value);
+            await SettingsService.instance.setShowUpdateDialog(value);
+          },
+        ),
+        ListTile(
+          title: Text('Check for Updates',
+            style: Theme.of(context).textTheme.bodyLarge),
+          trailing: _isCheckingForUpdates
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.system_update),
+          onTap: _isCheckingForUpdates ? null : _checkForUpdates,
+        ),
+        if (_latestVersion != null)
+          ListTile(
+            title: Text('What\'s New',
+              style: Theme.of(context).textTheme.bodyLarge),
+            trailing: const Icon(Icons.new_releases),
+            onTap: _showWhatsNew,
+          ),
       ],
     );
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = SettingsService.instance;
+    await settings.init();
+    setState(() {
+      _showUpdateDialog = settings.showUpdateDialog;
+      // ...other settings loading...
+    });
   }
 }

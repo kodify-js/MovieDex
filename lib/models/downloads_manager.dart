@@ -330,4 +330,19 @@ class DownloadsManager {
       return [];
     }
   }
+
+  List<DownloadItem> getDownloadsForSeason(int contentId, {required int seasonNumber}) {
+    if (_downloadsBox == null) return [];
+    
+    try {
+      final downloads = getDownloads();
+      return downloads.where((download) => 
+        download.contentId == contentId &&
+        download.seasonNumber == seasonNumber
+      ).toList();
+    } catch (e) {
+      debugPrint('Error getting season downloads: $e');
+      return [];
+    }
+  }
 }
