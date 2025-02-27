@@ -150,8 +150,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       );
 
       await UpdateService.instance.downloadAndInstallUpdate(
-        update['downloadUrl'],
-        update['version'],
+        update['assets'].first['browser_download_url'],
+        update['tag_name']?.toString() ?? '',
       );
 
       if (!mounted) return;
