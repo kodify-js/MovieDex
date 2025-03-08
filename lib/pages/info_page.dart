@@ -135,7 +135,9 @@ class _InfopageState extends State<Infopage> {
   }) async {
     try {
       setState(() => _isLoadingStream = true);
-      _showLoadingDialog(); // Show loading dialog
+      if (data.type == ContentType.movie.value || (data.type == ContentType.tv.value && seasonNumber != null && episodeNumber != null)) {
+        _showLoadingDialog(); // Show loading dialog only for movies or selected TV episode
+      }
 
       // Initialize stream data
       if (_stream.isEmpty) {
@@ -147,21 +149,9 @@ class _InfopageState extends State<Infopage> {
       }
 
       // Close loading dialog if still showing
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true)
-            .popUntil((route) => route.isFirst);
+      if (mounted && (data.type == ContentType.movie.value || (data.type == ContentType.tv.value && seasonNumber != null && episodeNumber != null))) {
+        Navigator.of(context, rootNavigator: true).pop();
       }
-
-      // Initialize download state in provider
-      DownloadsProvider.instance.updateProgress(
-        data.id,
-        0.0,
-        'preparing',
-        data.title,
-        data.poster,
-        'Auto',
-      );
-
       if (data.type == ContentType.tv.value) {
         if (seasonNumber != null && episodeNumber != null) {
           await _handleEpisodeDownload(
@@ -180,8 +170,7 @@ class _InfopageState extends State<Infopage> {
       DownloadsProvider.instance.removeDownload(data.id);
       if (mounted) {
         // Close loading dialog if still showing
-        Navigator.of(context, rootNavigator: true)
-            .popUntil((route) => route.isFirst);
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Download error: $e')),
         );
@@ -304,10 +293,15 @@ class _InfopageState extends State<Infopage> {
       final quality = await _showQualityDialog(_stream.first);
       if (quality == null) return;
 
+      final language = _stream.length > 1 
+          ? await _showLanguageDialog(_stream) 
+          : _stream.first.language;
+      if (language == null) return;
+
       await _startDownload(
         data,
         quality,
-        _stream.first.language,
+        language,
         episodeNumber: episodeNumber,
         seasonNumber: seasonNumber,
       );
@@ -372,6 +366,9 @@ class _InfopageState extends State<Infopage> {
           data.poster,
           quality,
         );
+        if (mounted) {
+          setState(() {}); // Update UI to reflect download progress
+        }
       },
       onError: (error) {
         if (mounted) {
@@ -381,6 +378,19 @@ class _InfopageState extends State<Infopage> {
         }
       },
     );
+
+    // Add to downloading list and update button text
+    DownloadsProvider.instance.updateProgress(
+      data.id,
+      0.0,
+      'downloading',
+      data.title,
+      data.poster,
+      quality,
+    );
+    if (mounted) {
+      setState(() {}); // Update UI to reflect download start
+    }
 
     await _downloader.startDownload(
       context,

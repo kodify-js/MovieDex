@@ -37,13 +37,12 @@ class VidSrcSu {
       final baseUrl = await _buildStreamUrl();
       final response = await http.get(
         Uri.parse(baseUrl),
-        headers: {'Accept': 'application/json'}
+        headers: {"User-Agent": "Mozilla/5.0",  
+    "Accept": "text/html"}      
       ).timeout(const Duration(seconds: 5));
-      
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');
       }
-
       final data = response.body;
       // get all the links from the page
       final links = RegExp(r"url: '([^']+)'").allMatches(data).map((e) => e.group(1)).where((item)=>item!.contains(".m3u8")).toList();
@@ -82,9 +81,9 @@ class VidSrcSu {
 
   Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie ? '' : "${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
+    final episodeSegment = isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
 
-    return 'https://proxy5.uira.live?destination=$baseUrl/embed/${isMovie ? 'movie' : 'tv'}/$id$episodeSegment';
+    return '$baseUrl/embed/${isMovie ? 'movie' : 'tv'}/$id$episodeSegment';
   }
 
   /// Extracts quality options from M3U8 playlist or direct URL
@@ -109,12 +108,11 @@ class VidSrcSu {
   List<SourceClass> _parseM3U8Playlist(String playlist, String baseUrl) {
     final sources = <SourceClass>[];
     final lines = playlist.split('\n');
-    
     for (int i = 0; i < lines.length; i++) {
       if (lines[i].contains('#EXT-X-STREAM-INF')) {
         final quality = _extractQuality(lines[i]);
         if (quality != null && i + 1 < lines.length) {
-          final streamUrl = _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl);
+          final streamUrl = lines[i + 1].contains("./")?_resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl):lines[i+1];
           sources.add(SourceClass(quality: quality, url: streamUrl));
         }
       }

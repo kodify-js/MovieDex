@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/api/class/episode_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/api/class/subtitle_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:moviedex/components/content_player.dart';
 import 'package:lottie/lottie.dart';
 import 'package:hive/hive.dart';
+import 'package:http/http.dart' as http;
 
 class WatchPage extends StatefulWidget {
   final Contentclass data;
@@ -41,7 +44,8 @@ class _WatchPageState extends State<WatchPage> {
   int? currentEpisodeNumber;
   int? currentSeasonNumber;
   Box? storage;
-
+  List<String> _addedSub = [];
+  List<SubtitleClass>? subtitles;
   void getStream() async {
     try{
     if(_providerIndex >= contentProvider.providers.length) throw Exception("Stream not found");
@@ -57,6 +61,17 @@ class _WatchPageState extends State<WatchPage> {
       setState(() {
         isError = true;
       });
+    }
+  }
+  void getSubtitles() async {
+    try {
+      final data = await http.get(Uri.parse('https://sub.wyzie.ru/search?id=${widget.data.id}&format=srt'));
+      final response = jsonDecode(data.body);
+      subtitles = (response as List).where((e)=>!_addedSub.contains(e['display'])).map((e){ 
+        _addedSub.add(e['display']);
+        return SubtitleClass(language: e['language'],url: e['url'],label: e['display']);}).toList();
+    } catch (e) {
+      subtitles = [];
     }
   }
   @override
@@ -84,6 +99,7 @@ class _WatchPageState extends State<WatchPage> {
       DeviceOrientation.landscapeLeft,
     ]);
     contentProvider = ContentProvider(id: widget.data.id,type: widget.data.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
+    getSubtitles();
     getStream();
   }
 
@@ -241,6 +257,7 @@ class _WatchPageState extends State<WatchPage> {
               episodes: episodes,
               currentEpisode: currentEpisodeNumber,
               onEpisodeSelected: _handleEpisodeSelected,
+              subtitles: subtitles,
             ),
           )
         : !isError 

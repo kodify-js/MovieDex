@@ -37,6 +37,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:moviedex/services/settings_service.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 import 'package:zoom_widget/zoom_widget.dart';
+import '../api/class/subtitle_class.dart';
+import '../services/subtitle_service.dart';
 
 /// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
@@ -66,6 +68,8 @@ class ContentPlayer extends StatefulWidget {
   final bool hasNextEpisode;
   final bool hasPreviousEpisode;
 
+  final List<SubtitleClass>? subtitles;
+
   const ContentPlayer({
     super.key, 
     required this.data,
@@ -79,6 +83,7 @@ class ContentPlayer extends StatefulWidget {
     this.onPreviousEpisode,
     this.hasNextEpisode = false,
     this.hasPreviousEpisode = false,
+    this.subtitles,
   });
 
   @override
@@ -102,7 +107,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   Duration? _position;
   var _progress = 0.0;
   var _bufferingProgress = 0.0;
-  List settingElements = ["Quality", "Language", "Speed"];
+  List settingElements = ["Quality", "Language", "Speed", "Subtitles"];
   bool _showForwardIndicator = false;
   bool _showRewindIndicator = false;
   late AnimationController _seekAnimationController;
@@ -158,6 +163,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
   // Add lock state
   bool _isLocked = false;
+
+  // Add new state variables
+  SubtitleClass? _currentSubtitle;
+  List<SubtitleEntry>? _subtitleEntries;
+  String? _currentSubtitleText;
+  bool _subtitlesEnabled = true;
 
   String getSourceOfQuality(StreamClass data){
     final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
@@ -383,6 +394,17 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
     _startControlsTimer();
     _controller?.addListener(_onVideoProgress);
+
+    // Initialize subtitles if available
+    if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
+      _currentSubtitle = widget.subtitles!.first;
+      _loadSubtitles();
+    }
+
+    // Add subtitle update timer
+    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      _updateSubtitles();
+    });
   }
 
   Future<void> _initStorage() async {
@@ -568,6 +590,42 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
+  void _selectSubtitle(SubtitleClass? subtitle) async {
+    setState(() {
+      _currentSubtitle = subtitle;
+      _currentSubtitleText = '';
+      _subtitleEntries = null;
+    });
+
+    if (subtitle != null) {
+      await _loadSubtitles();
+    }
+    
+    _isSettingsVisible = false;
+  }
+
+  Future<void> _loadSubtitles() async {
+    if (_currentSubtitle != null) {
+      _subtitleEntries = await SubtitleService.instance.loadSubtitles(_currentSubtitle!.url);
+    }
+  }
+
+  void _updateSubtitles() {
+    if (!mounted || _controller == null || !_controller!.value.isInitialized || _subtitleEntries == null) return;
+
+    final position = _controller!.value.position;
+    final entry = _subtitleEntries!.firstWhere(
+      (entry) => position >= entry.start && position <= entry.end,
+      orElse: () => SubtitleEntry(start: Duration.zero, end: Duration.zero, text: ''),
+    );
+
+    if (mounted && _subtitlesEnabled) {
+      setState(() {
+        _currentSubtitleText = entry.text;
+      });
+    }
+  }
+
   void _handleTap() {
     if (_isLocked) return;
     setState(() {
@@ -733,6 +791,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     _settingsPage == 'main' ? 'Settings' 
                     : _settingsPage == 'quality' ? 'Quality' 
                     : _settingsPage == 'language' ? 'Language'
+                    : _settingsPage == 'subtitles' ? 'Subtitles'
                     : 'Speed',
                     style: TextStyle(
                       color: Colors.white,
@@ -760,6 +819,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                 Text(
                                   element == 'Quality' ? _currentQuality 
                                   : element == 'Language' ? _currentLanguage
+                                  : element == 'Subtitles' ? (_currentSubtitle?.label ?? 'Off')
                                   : _playbackSpeed == 1.0 ? 'Normal' : '${_playbackSpeed}x',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.7),
@@ -789,6 +849,20 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                                     _currentLanguage == stream.language,
                                     () => _selectLanguage(stream)))
                                 .toList()
+                            : _settingsPage == 'subtitles'
+                            ? [
+                                _buildOptionTile(
+                                  'Off',
+                                  _currentSubtitle == null,
+                                  () => _selectSubtitle(null),
+                                ),
+                                if (widget.subtitles != null)
+                                  ...widget.subtitles!.map((subtitle) => _buildOptionTile(
+                                    subtitle.label ?? subtitle.language,
+                                    _currentSubtitle?.language == subtitle.language,
+                                    () => _selectSubtitle(subtitle),
+                                  )),
+                              ]
                             : _speedOptions.map((option) => ListTile(
                                 onTap: () => _selectSpeed(option['value']),
                                 title: Text(
@@ -1441,6 +1515,38 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               ],
             ),
           ),
+
+          // Add subtitle overlay to the Stack
+
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 70,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _currentSubtitleText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 4.0,
+                          color: Colors.black,
+                          offset: Offset(2.0, 2.0),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

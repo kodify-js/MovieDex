@@ -97,7 +97,7 @@ class Embed {
 
   Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie ? '' : "${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
+    final episodeSegment = isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
 
     return '$baseUrl/embed/${isMovie ? 'movie' : 'tv'}/$id$episodeSegment';
   }
