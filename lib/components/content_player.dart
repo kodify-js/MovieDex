@@ -20,7 +20,6 @@
 
 import 'dart:async';
 import 'dart:convert'; // Add this import for base64Encode
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
@@ -34,8 +33,6 @@ import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/components/next_episode_button.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:moviedex/services/settings_service.dart';
-import 'package:vector_math/vector_math_64.dart' as vector;
 import 'package:zoom_widget/zoom_widget.dart';
 import '../api/class/subtitle_class.dart';
 import '../services/subtitle_service.dart';
@@ -1517,7 +1514,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           ),
 
           // Add subtitle overlay to the Stack
-
+          if (_subtitlesEnabled && _currentSubtitleText != null)
             Positioned(
               left: 0,
               right: 0,

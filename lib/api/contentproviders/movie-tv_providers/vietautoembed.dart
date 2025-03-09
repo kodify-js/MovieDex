@@ -11,8 +11,6 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';

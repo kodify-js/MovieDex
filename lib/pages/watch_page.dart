@@ -19,14 +19,15 @@ class WatchPage extends StatefulWidget {
   final int? episodeNumber, seasonNumber;
   final String title;
   final Box? storage; // Add storage parameter
-
+  final int? providerIndex;
   const WatchPage({
     super.key, 
     required this.data, 
     this.episodeNumber, 
     this.seasonNumber,
     required this.title,
-    this.storage, // Add this parameter
+    this.storage,
+    this.providerIndex = 0,
   });
   
   @override
@@ -63,13 +64,19 @@ class _WatchPageState extends State<WatchPage> {
       });
     }
   }
-  void getSubtitles() async {
+  void getSubtitles({int? id,int? episode,int? season}) async {
     try {
-      final data = await http.get(Uri.parse('https://sub.wyzie.ru/search?id=${widget.data.id}&format=srt'));
+      final api = new Api();
+      final imdbId = await api.getExternalIds(id: id??widget.data.id, type: widget.data.type);
+      if (imdbId.isEmpty) {
+        throw Exception("No IMDB ID found for this content");
+      }
+      final data = await http.get(Uri.parse(widget.data.type == ContentType.tv.value ? 'https://hilarious-rugelach-6767a8.netlify.app/?destination=https%3A%2F%2Frest.opensubtitles.org%2Fsearch%2Fepisode-${episode??widget.episodeNumber}%2Fimdbid-${imdbId.replaceAll("tt", "")}%2Fseason-${season??widget.seasonNumber}':'https://hilarious-rugelach-6767a8.netlify.app/?destination=https%3A%2F%2Frest.opensubtitles.org%2Fsearch%2Fimdbid-${imdbId.replaceAll("tt", "")}'));
       final response = jsonDecode(data.body);
-      subtitles = (response as List).where((e)=>!_addedSub.contains(e['display'])).map((e){ 
-        _addedSub.add(e['display']);
-        return SubtitleClass(language: e['language'],url: e['url'],label: e['display']);}).toList();
+      subtitles = (response as List).where((e)=>!_addedSub.contains(e['LanguageName'])).where((e)=>e['SubFormat']=='srt').map((e){ 
+        _addedSub.add(e['LanguageName']);
+        print(e['SubDownloadLink']);
+        return SubtitleClass(language: e['SubLanguageID'],url: e['SubDownloadLink'].split(".gz")[0],label: e['LanguageName']);}).toList();
     } catch (e) {
       subtitles = [];
     }
@@ -100,6 +107,7 @@ class _WatchPageState extends State<WatchPage> {
     ]);
     contentProvider = ContentProvider(id: widget.data.id,type: widget.data.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
     getSubtitles();
+    _providerIndex = widget.providerIndex ?? 0;
     getStream();
   }
 
@@ -154,9 +162,10 @@ class _WatchPageState extends State<WatchPage> {
       episodeNumber: episodeNumber,
       seasonNumber: currentSeasonNumber,
     );
-
+    
+    getSubtitles(episode: episodeNumber,season: currentSeasonNumber);
     // Reset provider index
-    _providerIndex = 0;
+    _providerIndex = widget.providerIndex ?? 0;
     
     // Get new stream
     getStream();

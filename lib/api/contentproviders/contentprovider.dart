@@ -12,7 +12,10 @@
  */
 
 import 'package:moviedex/api/contentproviders/movie-tv_providers/autoembed.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/coitus.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/uiralive.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/vidapi.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrc.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrcsu.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vietautoembed.dart';
@@ -77,7 +80,18 @@ class ContentProvider {
     episodeNumber: episodeNumber,
     seasonNumber: seasonNumber
   );
-
+  Coitus get coitus => Coitus(
+    id: id,
+    type: type,
+    episodeNumber: episodeNumber,
+    seasonNumber: seasonNumber
+  );
+  Uiralive get uiralive => Uiralive(
+    id: id,
+    type: type,
+    episodeNumber: episodeNumber,
+    seasonNumber: seasonNumber
+  );
   /// List of all available providers
-  List get providers => [autoembed, vidsrc,embed,vidsecsu,vietautoembed];
+  List get providers => [uiralive,autoembed, vidsrc,vidsecsu,coitus,embed,vietautoembed];
 }

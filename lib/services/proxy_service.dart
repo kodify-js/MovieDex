@@ -37,7 +37,7 @@ class ProxyService {
   Future<bool> validateProxy(String proxyUrl) async {
     try {
       final response = await http.get(
-        Uri.parse('https://www.google.com'),
+        Uri.parse('${proxyUrl}https://www.google.com'),
         headers: {'User-Agent': 'Mozilla/5.0'},
       ).timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
