@@ -24,9 +24,11 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
+import 'package:moviedex/api/class/server_class.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/components/episode_list_player.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/services/watch_history_service.dart';
@@ -67,6 +69,10 @@ class ContentPlayer extends StatefulWidget {
 
   final List<SubtitleClass>? subtitles;
 
+  final List<ServerClass> servers;
+  final Function(int)? onServerChanged;
+  final int currentServerIndex;
+
   const ContentPlayer({
     super.key, 
     required this.data,
@@ -81,6 +87,9 @@ class ContentPlayer extends StatefulWidget {
     this.hasNextEpisode = false,
     this.hasPreviousEpisode = false,
     this.subtitles,
+    required this.servers,
+    this.onServerChanged,
+    required this.currentServerIndex,
   });
 
   @override
@@ -104,7 +113,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   Duration? _position;
   var _progress = 0.0;
   var _bufferingProgress = 0.0;
-  List settingElements = ["Quality", "Language", "Speed", "Subtitles"];
+  List settingElements = ["Quality", "Language", "Speed", "Subtitles", "Servers"];
   bool _showForwardIndicator = false;
   bool _showRewindIndicator = false;
   late AnimationController _seekAnimationController;
@@ -789,6 +798,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     : _settingsPage == 'quality' ? 'Quality' 
                     : _settingsPage == 'language' ? 'Language'
                     : _settingsPage == 'subtitles' ? 'Subtitles'
+                    : _settingsPage == 'servers' ? 'Servers'
                     : 'Speed',
                     style: TextStyle(
                       color: Colors.white,
@@ -810,26 +820,80 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                               element,
                               style: const TextStyle(color: Colors.white),
                             ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  element == 'Quality' ? _currentQuality 
-                                  : element == 'Language' ? _currentLanguage
-                                  : element == 'Subtitles' ? (_currentSubtitle?.label ?? 'Off')
-                                  : _playbackSpeed == 1.0 ? 'Normal' : '${_playbackSpeed}x',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
+                            trailing: SizedBox(
+                              width: 120, // Constrain width of trailing widget
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      element == 'Quality' ? _currentQuality 
+                                      : element == 'Language' ? _currentLanguage
+                                      : element == 'Subtitles' ? (_currentSubtitle?.label ?? 'Off')
+                                      : element == 'Servers' ? (widget.servers.isNotEmpty ? 
+                                          widget.servers[widget.currentServerIndex].name : 'Default')
+                                      : _playbackSpeed == 1.0 ? 'Normal' : '${_playbackSpeed}x',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.7),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                                Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.7)),
-                              ],
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.7)),
+                                ],
+                              ),
                             ),
                           ),
                         ).toList(),
                       )
                     : Column(
-                        children: _settingsPage == 'quality'
+                        children: _settingsPage == 'servers' && widget.servers.isNotEmpty
+                            ? widget.servers.asMap().entries.map((entry) => 
+                                ListTile(
+                                  onTap: entry.value.status != ServerStatus.unavailable 
+                                      ? () {
+                                          if (widget.onServerChanged != null) {
+                                            widget.onServerChanged!(entry.key);
+                                          }
+                                          setState(() => _isSettingsVisible = false);
+                                        }
+                                      : null,
+                                  title: Text(
+                                    entry.value.name,
+                                    style: TextStyle(
+                                      color: entry.value.status == ServerStatus.unavailable 
+                                          ? Colors.grey 
+                                          : Colors.white,
+                                    ),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (entry.value.status == ServerStatus.active)
+                                        Icon(
+                                          Icons.check_circle,
+                                          color: Theme.of(context).colorScheme.primary,
+                                        )
+                                      else if (entry.value.status == ServerStatus.unavailable)
+                                        const Icon(
+                                          Icons.error,
+                                          color: Colors.red,
+                                        ),
+                                      if (entry.key == widget.currentServerIndex)
+                                        const SizedBox(width: 8),
+                                      if (entry.key == widget.currentServerIndex)
+                                        const Icon(
+                                          Icons.check,
+                                          color: Colors.white,
+                                        ),
+                                    ],
+                                  ),
+                                  enabled: entry.value.status != ServerStatus.unavailable,
+                                ),
+                              ).toList()
+                            : _settingsPage == 'quality'
                             ? [
                                 _buildOptionTile('Auto', _currentQuality == 'Auto',() => _selectQuality('Auto', widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].url)),
                                 ...widget.streams[0].sources
@@ -1431,6 +1495,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                 doubleTapZoom: !_isLocked,
                 zoomSensibility: _isLocked ? 0 : 1.0,
                 child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
                   child: Center(
                     child: AspectRatio(
                       aspectRatio: _controller!.value.isInitialized
@@ -1514,11 +1580,11 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           ),
 
           // Add subtitle overlay to the Stack
-          if (_subtitlesEnabled && _currentSubtitleText != null)
+          if (_subtitlesEnabled && _currentSubtitleText != "" && _currentSubtitleText != null)
             Positioned(
               left: 0,
               right: 0,
-              bottom: 70,
+              bottom: 50,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

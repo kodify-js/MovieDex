@@ -14,7 +14,7 @@ class SubtitleService {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final subtitleData = utf8.decode(response.bodyBytes);
-        return SubtitleParser.parseSrt(subtitleData);
+        return url.contains("vtt")?SubtitleParser.parseVtt(subtitleData):SubtitleParser.parseSrt(subtitleData);
       }
       throw Exception('Failed to load subtitles');
     } catch (e) {

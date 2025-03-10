@@ -23,7 +23,12 @@ enum ContentType {
   final String value;
   const ContentType(this.value);
 }
-
+enum ServerStatus {
+  available,
+  unavailable,
+  notTested,
+  active
+}
 /// Image size configuration for TMDB API
 enum ImageSize {
   w342("w342"),    // Medium quality

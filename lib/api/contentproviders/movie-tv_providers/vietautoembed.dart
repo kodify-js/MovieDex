@@ -23,10 +23,11 @@ class VietAutoEmbed {
   final int? episodeNumber;
   final int? seasonNumber;
   bool isError = false;
-
+  String? name;
   VietAutoEmbed({
     required this.id,
     required this.type,
+    this.name = 'VietAutoEmbed',
     this.episodeNumber,
     this.seasonNumber
   });

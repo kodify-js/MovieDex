@@ -25,9 +25,11 @@ class Embed {
   final int? seasonNumber;
   bool isError = false;
   String baseUrl = 'https://embed.su';
+  String? name;
   Embed({
     required this.id,
     required this.type,
+    this.name = 'Embed.su',
     this.episodeNumber,
     this.seasonNumber
   });

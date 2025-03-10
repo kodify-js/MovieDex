@@ -5,6 +5,7 @@ import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/api/class/episode_class.dart';
+import 'package:moviedex/api/class/server_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
 import 'package:moviedex/api/contentproviders/contentprovider.dart';
@@ -47,18 +48,39 @@ class _WatchPageState extends State<WatchPage> {
   Box? storage;
   List<String> _addedSub = [];
   List<SubtitleClass>? subtitles;
+  List<ServerClass> servers = [];
   void getStream() async {
-    try{
-    if(_providerIndex >= contentProvider.providers.length) throw Exception("Stream not found");
-    _stream = await contentProvider.providers[_providerIndex].getStream();
-    _stream = _stream.where((element) => !element.isError).toList();
-    if(_stream.isEmpty){
-      _providerIndex++;
-      getStream();
-    }else{
-      setState(() {});
-    }
-    }catch(e){
+    try {
+      if(_providerIndex >= contentProvider.providers.length) {
+        setState(() {
+          isError = true;
+        });
+        return;
+      }
+      _stream = await contentProvider.providers[_providerIndex].getStream();
+      _stream = _stream.where((element) => !element.isError).toList();
+      if(_stream.isEmpty){
+        setState(() {
+          servers[_providerIndex].status = ServerStatus.unavailable;
+          _providerIndex++;
+          if (_providerIndex < contentProvider.providers.length) {
+            getStream();
+          } else {
+            isError = true;
+          }
+        });
+      } else {
+        setState(() {
+          servers[_providerIndex].status = ServerStatus.active;
+          if(_stream.first.subtitles != null && _stream.first.subtitles!.isNotEmpty){
+            subtitles = _stream.first.subtitles;
+          }else{
+            getSubtitles(episode: contentProvider.episodeNumber,season: contentProvider.seasonNumber);
+          }
+          isLoading = false;
+        });
+      }
+    } catch(e) {
       setState(() {
         isError = true;
       });
@@ -73,10 +95,11 @@ class _WatchPageState extends State<WatchPage> {
       }
       final data = await http.get(Uri.parse(widget.data.type == ContentType.tv.value ? 'https://hilarious-rugelach-6767a8.netlify.app/?destination=https%3A%2F%2Frest.opensubtitles.org%2Fsearch%2Fepisode-${episode??widget.episodeNumber}%2Fimdbid-${imdbId.replaceAll("tt", "")}%2Fseason-${season??widget.seasonNumber}':'https://hilarious-rugelach-6767a8.netlify.app/?destination=https%3A%2F%2Frest.opensubtitles.org%2Fsearch%2Fimdbid-${imdbId.replaceAll("tt", "")}'));
       final response = jsonDecode(data.body);
-      subtitles = (response as List).where((e)=>!_addedSub.contains(e['LanguageName'])).where((e)=>e['SubFormat']=='srt').map((e){ 
+      setState(() {
+        subtitles = (response as List).where((e)=>!_addedSub.contains(e['LanguageName'])).where((e)=>e['SubFormat']=='srt').map((e){ 
         _addedSub.add(e['LanguageName']);
-        print(e['SubDownloadLink']);
         return SubtitleClass(language: e['SubLanguageID'],url: e['SubDownloadLink'].split(".gz")[0],label: e['LanguageName']);}).toList();
+      });
     } catch (e) {
       subtitles = [];
     }
@@ -105,8 +128,8 @@ class _WatchPageState extends State<WatchPage> {
       DeviceOrientation.landscapeRight,
       DeviceOrientation.landscapeLeft,
     ]);
-    contentProvider = ContentProvider(id: widget.data.id,type: widget.data.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber);
-    getSubtitles();
+    contentProvider = ContentProvider(title: widget.data.title,id: widget.data.id,type: widget.data.type,episodeNumber: widget.episodeNumber,seasonNumber: widget.seasonNumber,isAnime: widget.data.genres.contains("Animation"));
+    contentProvider.providers.forEach((element) {servers.add(ServerClass(name: element.name));});
     _providerIndex = widget.providerIndex ?? 0;
     getStream();
   }
@@ -156,18 +179,29 @@ class _WatchPageState extends State<WatchPage> {
     });
 
     // Create new content provider for selected episode
-    contentProvider = ContentProvider(
-      id: widget.data.id,
-      type: widget.data.type,
-      episodeNumber: episodeNumber,
-      seasonNumber: currentSeasonNumber,
-    );
-    
-    getSubtitles(episode: episodeNumber,season: currentSeasonNumber);
+    if (contentProvider.animeEpisode!=null){
+      contentProvider = ContentProvider(title: widget.data.title,id: widget.data.id,type: widget.data.type,episodeNumber: episodeNumber,seasonNumber: currentSeasonNumber,animeEpisode: contentProvider.animeEpisode,isAnime: contentProvider.isAnime);
+    }else{
+      contentProvider = ContentProvider(title: widget.data.title,id: widget.data.id,type: widget.data.type,episodeNumber: episodeNumber,seasonNumber: currentSeasonNumber,isAnime: contentProvider.isAnime);
+    }
+    servers.clear();
+    contentProvider.providers.forEach((element) {servers.add(ServerClass(name: element.name));});
     // Reset provider index
     _providerIndex = widget.providerIndex ?? 0;
     
     // Get new stream
+    getStream();
+  }
+
+  void _handleServerChanged(int index) {
+    if (index == _providerIndex || index >= servers.length) return;
+    
+    setState(() {
+      isLoading = true;
+      _stream = [];
+      _providerIndex = index;
+    });
+    
     getStream();
   }
 
@@ -267,6 +301,9 @@ class _WatchPageState extends State<WatchPage> {
               currentEpisode: currentEpisodeNumber,
               onEpisodeSelected: _handleEpisodeSelected,
               subtitles: subtitles,
+              servers: servers,
+              onServerChanged: _handleServerChanged,
+              currentServerIndex: _providerIndex,
             ),
           )
         : !isError 

@@ -406,6 +406,7 @@ class _InfopageState extends State<Infopage> {
   Future<void> getStream() async {
     try {
       contentProvider = ContentProvider(
+        title: widget.name,
         id: widget.id,
         type: widget.type,
       );

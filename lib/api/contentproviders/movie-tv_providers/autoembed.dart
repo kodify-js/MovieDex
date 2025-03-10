@@ -24,19 +24,22 @@ class AutoEmbed {
   final String type;
   final int? episodeNumber;
   final int? seasonNumber;
+  final String? name;
   bool isError = false;
 
   AutoEmbed({
     required this.id,
     required this.type,
     this.episodeNumber,
-    this.seasonNumber
+    this.seasonNumber,
+    this.name = 'AutoEmbed (Multi Language <Use Vpn>)'
   });
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = _buildStreamUrl();
+      print(baseUrl);
       final response = await http.get(Uri.parse(baseUrl))
         .timeout(const Duration(seconds: 5));
       isError = response.statusCode != 200;
@@ -102,6 +105,7 @@ class AutoEmbed {
         try {
         final data = body.split("./");
         final result = data.where((url) => url.contains(".m3u8")).map((link) {
+          print('${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
         return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
         }).toList();
         isError = false;

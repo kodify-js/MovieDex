@@ -26,10 +26,11 @@ class Vidsrc {
   final int? episodeNumber;
   final int? seasonNumber;
   bool isError = false;
-
+  String? name;
   Vidsrc({
     required this.id,
     required this.type,
+    this.name = 'VidSrc.vip (Multi Language <Use Vpn>)',
     this.episodeNumber,
     this.seasonNumber
   });

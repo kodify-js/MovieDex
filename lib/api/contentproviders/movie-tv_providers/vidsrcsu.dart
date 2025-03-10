@@ -24,9 +24,11 @@ class VidSrcSu {
   final int? seasonNumber;
   bool isError = false;
   String baseUrl = 'https://VidSrc.su';
+  String? name;
   VidSrcSu({
     required this.id,
     required this.type,
+    this.name = 'VidSrc.su',
     this.episodeNumber,
     this.seasonNumber
   });

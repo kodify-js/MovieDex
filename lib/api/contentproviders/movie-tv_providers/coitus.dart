@@ -25,12 +25,13 @@ class Coitus {
   final int? episodeNumber;
   final int? seasonNumber;
   bool isError = false;
-
+  final String? name;
   Coitus({
     required this.id,
     required this.type,
     this.episodeNumber,
-    this.seasonNumber
+    this.seasonNumber,
+    this.name = 'Coitus'
   });
 
   /// Fetches available streams for content

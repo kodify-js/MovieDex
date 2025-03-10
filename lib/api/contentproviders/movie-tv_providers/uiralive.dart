@@ -25,10 +25,11 @@ class Uiralive {
   final int? episodeNumber;
   final int? seasonNumber;
   bool isError = false;
-
+  final String? name;
   Uiralive({
     required this.id,
     required this.type,
+    this.name = 'Uira.live',
     this.episodeNumber,
     this.seasonNumber
   });
@@ -37,42 +38,33 @@ class Uiralive {
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = await _buildStreamUrl();
-      final response = await http.get(Uri.parse(baseUrl))
-        .timeout(const Duration(seconds: 5));
-      
+      final response = await http.get(
+        Uri.parse(baseUrl),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
+          "sec-fetch-mode": "cors",
+          "sec-ch-ua-platform": "Windows",
+          "sec-fetch-site": "cross-site", 
+          "accept-language": "en-US,en;q=0.9,en-IN;q=0.8",
+          "accept": "*/*",
+          "accept-encoding": "identity", // Changed to identity to avoid compression
+          "Origin": "https://pstream.org"
+        }
+      ).timeout(const Duration(seconds: 5));
+
       if (response.statusCode != 200) {
-        throw Exception('Failed to fetch stream: ${response.statusCode}');
+        throw Exception('Failed to get stream: ${response.statusCode}');
       }
 
-      final data = jsonDecode(response.body);
-      print(baseUrl);
-      print(data); 
-      // Check if data is a List, if not wrap it in a List
-      final contentList = data['sources'] is List ? data['sources'] : [data['sources']];
+      // Decode with UTF8
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
       
-      if (contentList.isEmpty) {
-        throw Exception('No streams available');
+      if (data == null || data.isEmpty) {
+        throw Exception('Empty response from server');
       }
 
-      final streams = await Future.wait(
-        contentList.map((content) async {
-          final m3u8Url = content['url'];
-          if (m3u8Url == null || m3u8Url.isEmpty) {
-            return null;
-          }
-
-          final sources = await _getSources(url: m3u8Url);
-          return sources.isEmpty ? null : StreamClass(
-            language: content['language'] ?? 'original',
-            url: m3u8Url,
-            sources: sources,
-            isError: false
-          );
-        })
-      );
-
-      // Filter out null values and return valid streams
-      return streams.whereType<StreamClass>().toList();
+      print('Response data: $data'); // Debug log
+      return await getAllStreams(data);
       
     } catch (e) {
       print('Stream error: $e');
