@@ -16,6 +16,8 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
 import 'package:hive/hive.dart';
+import 'package:moviedex/api/class/content_class.dart';
+import 'package:flutter/foundation.dart';
 
 /// Manages application-wide settings and preferences
 class SettingsService {
@@ -26,13 +28,13 @@ class SettingsService {
 
   /// Broadcasts incognito mode state changes
   final _incognitoController = StreamController<bool>.broadcast();
-  
+
   /// Stream of incognito mode state changes
   Stream<bool> get incognitoStream => _incognitoController.stream;
 
   /// Broadcasts settings changes
   final _settingsController = StreamController<void>.broadcast();
-  
+
   /// Stream of settings changes
   Stream<void> get settingsStream => _settingsController.stream;
 
@@ -59,7 +61,8 @@ class SettingsService {
   }
 
   /// Current incognito mode state
-  bool get isIncognito => _settingsBox.get('incognitoMode', defaultValue: false);
+  bool get isIncognito =>
+      _settingsBox.get('incognitoMode', defaultValue: false);
 
   /// Current sync enabled state
   bool get isSyncEnabled => _settingsBox.get('syncEnabled', defaultValue: true);
@@ -70,7 +73,7 @@ class SettingsService {
   /// Set incognito mode and handle related settings
   Future<void> setIncognitoMode(bool value) async {
     await _ensureInitialized();
-    
+
     if (value) {
       await _settingsBox.put('lastSyncState', isSyncEnabled);
       await _settingsBox.put('syncEnabled', false);
@@ -78,7 +81,7 @@ class SettingsService {
       final previousState = lastSyncState ?? true;
       await _settingsBox.put('syncEnabled', previousState);
     }
-    
+
     await _settingsBox.put('incognitoMode', value);
     _incognitoController.add(value);
   }
@@ -112,9 +115,9 @@ class SettingsService {
 
   /// Current download path
   String get downloadPath => _settingsBox.get(
-    _downloadPathKey,
-    defaultValue: '/storage/emulated/0/Download/MovieDex',
-  );
+        _downloadPathKey,
+        defaultValue: '/storage/emulated/0/Download/MovieDex',
+      );
 
   /// Set download path
   Future<void> setDownloadPath(String path) async {
@@ -122,7 +125,8 @@ class SettingsService {
   }
 
   /// Get auto-play next episode setting
-  bool get isAutoPlayNext => _settingsBox.get('autoPlayNext', defaultValue: true);
+  bool get isAutoPlayNext =>
+      _settingsBox.get('autoPlayNext', defaultValue: true);
 
   /// Set auto-play next episode setting
   Future<void> setAutoPlayNext(bool value) async {
@@ -131,20 +135,63 @@ class SettingsService {
     _settingsController.add(null); // Notify listeners
   }
 
-  bool get isAutoPlayEnabled => _settingsBox.get('autoPlayNext', defaultValue: true);
-  
+  bool get isAutoPlayEnabled =>
+      _settingsBox.get('autoPlayNext', defaultValue: true);
+
   Future<void> setAutoPlayEnabled(bool value) async {
     await _settingsBox.put('autoPlayNext', value);
     _settingsController.add(null);
   }
 
   /// Current show update dialog state
-  bool get showUpdateDialog => _settingsBox.get('showUpdateDialog', defaultValue: true);
-  
+  bool get showUpdateDialog =>
+      _settingsBox.get('showUpdateDialog', defaultValue: true);
+
   /// Set show update dialog state
   Future<void> setShowUpdateDialog(bool value) async {
     await _ensureInitialized();
     await _settingsBox.put('showUpdateDialog', value);
     _settingsController.add(null); // Notify listeners
+  }
+
+  /// Gets the appropriate server preference key based on content type
+  String getServerPreferenceKey(Contentclass content) {
+    return content.genres.contains("Animation")
+        ? 'preferredAnimeServer'
+        : 'preferredServer';
+  }
+
+  /// Saves the preferred server based on content type
+  Future<void> savePreferredServer(
+      Contentclass content, String serverName) async {
+    try {
+      await init();
+      final preferenceKey = getServerPreferenceKey(content);
+      await _settingsBox.put(preferenceKey, serverName);
+
+      debugPrint(
+          'Saved preferred ${preferenceKey == 'preferredAnimeServer' ? "anime" : "regular"} server: $serverName');
+    } catch (e) {
+      debugPrint('Error saving preferred server: $e');
+    }
+  }
+
+  /// Gets the preferred server based on content type
+  Future<String?> getPreferredServer(Contentclass content) async {
+    await init();
+    final preferenceKey = getServerPreferenceKey(content);
+    return _settingsBox.get(preferenceKey);
+  }
+
+  /// Gets any setting with default value
+  Future<T> getSetting<T>(String key, {T? defaultValue}) async {
+    await init();
+    return _settingsBox.get(key, defaultValue: defaultValue) as T;
+  }
+
+  /// Saves any setting
+  Future<void> saveSetting(String key, dynamic value) async {
+    await init();
+    await _settingsBox.put(key, value);
   }
 }

@@ -32,9 +32,10 @@ class M3U8DownloaderService {
   static const int _completionNotificationId = _baseNotificationId + 1;
   static const int _errorNotificationId = _baseNotificationId + 2;
 
-  static final M3U8DownloaderService _instance = M3U8DownloaderService._internal();
+  static final M3U8DownloaderService _instance =
+      M3U8DownloaderService._internal();
   factory M3U8DownloaderService() => _instance;
-  
+
   // Private constructor with initialization
   M3U8DownloaderService._internal() {
     _initNotifications();
@@ -47,7 +48,8 @@ class M3U8DownloaderService {
   bool _isActive = false;
   String? _activeDownloadId;
   Map<String, List<int>> _downloadProgress = {};
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   Contentclass? _currentContent;
   String? _currentQuality;
   int? _currentEpisode;
@@ -102,7 +104,6 @@ class M3U8DownloaderService {
   int _totalExpectedBytes = 0;
   int _previousTotalBytes = 0;
 
-
   // Remove duplicate constructor
   // M3U8DownloaderService({
   //   void Function(double)? onProgress,
@@ -144,19 +145,22 @@ class M3U8DownloaderService {
       }
 
       // Initialize notifications with basic settings
-      const androidSettings = AndroidInitializationSettings('@mipmap/launcher_icon');
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/launcher_icon');
       const iosSettings = DarwinInitializationSettings();
-      
+
       await _notifications.initialize(
-        const InitializationSettings(android: androidSettings, iOS: iosSettings),
+        const InitializationSettings(
+            android: androidSettings, iOS: iosSettings),
         onDidReceiveNotificationResponse: (response) {
           debugPrint('Notification clicked: ${response.payload}');
         },
       );
 
       // Create notification channels
-      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin =
+          _notifications.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
 
       if (androidPlugin != null) {
         await androidPlugin.createNotificationChannel(
@@ -185,10 +189,12 @@ class M3U8DownloaderService {
     }
   }
 
-  Future<void> _showProgressNotification(String title, double progress, {bool ongoing = true, bool isPaused = false}) async {
+  Future<void> _showProgressNotification(String title, double progress,
+      {bool ongoing = true, bool isPaused = false}) async {
     try {
       final androidDetails = AndroidNotificationDetails(
-        'downloads', 'Downloads',
+        'downloads',
+        'Downloads',
         channelDescription: 'Shows download progress',
         importance: Importance.low,
         priority: Priority.low,
@@ -217,7 +223,7 @@ class M3U8DownloaderService {
   Future<void> _showCompleteNotification(String title, String filePath) async {
     // Update progress notification to show completion
     await _showProgressNotification(
-      title, 
+      title,
       1.0,
       ongoing: false,
     );
@@ -248,7 +254,7 @@ class M3U8DownloaderService {
     try {
       if (Platform.isAndroid) {
         final deviceInfo = await DeviceInfoPlugin().androidInfo;
-        
+
         if (deviceInfo.version.sdkInt >= 30) {
           // Android 11 (API 30) and above
           final status = await Permission.manageExternalStorage.request();
@@ -293,22 +299,24 @@ class M3U8DownloaderService {
         final content = response.data as String;
         if (content.contains('#EXTM3U')) {
           final segments = _parseM3U8(content, url);
-          
+
           // Better total size estimation
           if (segments.isNotEmpty) {
             try {
               // Sample first few segments for better size estimation
               final sampleSize = segments.length > 3 ? 3 : segments.length;
               int totalSampleSize = 0;
-              
+
               for (var i = 0; i < sampleSize; i++) {
                 final response = await _dio.head(segments[i]);
-                totalSampleSize += int.parse(response.headers.value('content-length') ?? '0');
+                totalSampleSize +=
+                    int.parse(response.headers.value('content-length') ?? '0');
               }
-              
+
               // Calculate average segment size and estimate total
               final averageSegmentSize = totalSampleSize / sampleSize;
-              _totalExpectedBytes = (averageSegmentSize * segments.length).round();
+              _totalExpectedBytes =
+                  (averageSegmentSize * segments.length).round();
               _estimatedTotalBytes = _totalExpectedBytes;
               _totalSegments = segments.length;
             } catch (e) {
@@ -326,22 +334,27 @@ class M3U8DownloaderService {
     }
   }
 
-
   List<String> _parseM3U8(String content, String baseUrl) {
     final lines = content.split('\n');
     final List<String> segments = [];
     final baseUri = Uri.parse(baseUrl);
     for (var i = 0; i < lines.length; i++) {
       final line = lines[i].trim();
-      
+
       // Handle different segment formats
-      if (line.endsWith('.ts') || 
+      if (line.endsWith('.ts') ||
+          line.endsWith('.html') ||
+          line.endsWith('.jpg') ||
+          line.endsWith('.png') ||
+          line.endsWith('.js') ||
+          line.endsWith('.css') ||
+          line.endsWith('.webp') ||
+          line.endsWith("ico") ||
           line.endsWith('.mp4') ||
-          line.startsWith('https')||
-          line.startsWith('http')|| 
+          line.startsWith('https') ||
+          line.startsWith('http') ||
           line.contains('.ts?') ||
           line.contains('.mp4?')) {
-        
         if (line.startsWith('http') || line.startsWith('https')) {
           segments.add(line);
         } else {
@@ -365,14 +378,15 @@ class M3U8DownloaderService {
     return tempDir.path;
   }
 
-  Future<void> _downloadSegment(String url, String savePath, {int retries = 3}) async {
+  Future<void> _downloadSegment(String url, String savePath,
+      {int retries = 3}) async {
     if (_isCancelled) return;
 
     for (int attempt = 0; attempt < retries; attempt++) {
       try {
         final tempPath = await _getTempPath();
         final segmentFile = File('$tempPath/${savePath.split('/').last}');
-        
+
         final parent = segmentFile.parent;
         if (!await parent.exists()) {
           await parent.create(recursive: true);
@@ -411,7 +425,7 @@ class M3U8DownloaderService {
             if (_isCancelled || _isPaused) return;
 
             final now = DateTime.now();
-            
+
             // Initialize if first update
             if (_lastSpeedUpdate == null) {
               _lastSpeedUpdate = now;
@@ -421,7 +435,8 @@ class M3U8DownloaderService {
 
             // Update total bytes downloaded
             final newBytes = received - (_lastBytesDownloaded ?? 0);
-            if (newBytes >= 0) { // Only update if we have positive progress
+            if (newBytes >= 0) {
+              // Only update if we have positive progress
               _totalBytesDownloaded += newBytes;
             }
             _lastBytesDownloaded = received;
@@ -434,18 +449,23 @@ class M3U8DownloaderService {
             // Update speed and time every 500ms
             if (now.difference(_lastSpeedUpdate!).inMilliseconds >= 500) {
               final duration = now.difference(_lastSpeedUpdate!).inSeconds;
-              
+
               if (duration > 0) {
                 // Calculate speed in MB/s
-                final bytesPerSecond = (_totalBytesDownloaded - _previousTotalBytes) / duration;
-                _currentSpeed = Math.max(0, bytesPerSecond / (1024 * 1024)); // Ensure positive speed
+                final bytesPerSecond =
+                    (_totalBytesDownloaded - _previousTotalBytes) / duration;
+                _currentSpeed = Math.max(
+                    0, bytesPerSecond / (1024 * 1024)); // Ensure positive speed
 
                 // Calculate time remaining based on total expected size
                 if (_totalExpectedBytes > 0 && _currentSpeed > 0) {
-                  final remainingBytes = _totalExpectedBytes - _totalBytesDownloaded;
+                  final remainingBytes =
+                      _totalExpectedBytes - _totalBytesDownloaded;
                   if (remainingBytes > 0) {
-                    final timeRemainingSeconds = remainingBytes / (bytesPerSecond);
-                    _currentTimeRemaining = Duration(seconds: timeRemainingSeconds.round());
+                    final timeRemainingSeconds =
+                        remainingBytes / (bytesPerSecond);
+                    _currentTimeRemaining =
+                        Duration(seconds: timeRemainingSeconds.round());
                   }
                 }
 
@@ -457,7 +477,8 @@ class M3U8DownloaderService {
               if (_currentContent != null) {
                 DownloadsProvider.instance.updateProgress(
                   _currentContent!.id,
-                  overallProgress.clamp(0.0, 1.0), // Ensure progress is between 0 and 1
+                  overallProgress.clamp(
+                      0.0, 1.0), // Ensure progress is between 0 and 1
                   'downloading',
                   _currentContent!.title,
                   _currentContent!.poster,
@@ -479,7 +500,7 @@ class M3U8DownloaderService {
 
         if (response.statusCode == 200 && response.data != null) {
           await segmentFile.writeAsBytes(response.data);
-          
+
           if (await segmentFile.exists() && await segmentFile.length() > 0) {
             _currentSegment++;
             return;
@@ -498,14 +519,14 @@ class M3U8DownloaderService {
   }
 
   Future<String> getDownloadPath(String filename, String title) async {
-    try {      
+    try {
       final basePath = '${SettingsService.instance.downloadPath}';
       final directory = Directory(basePath);
-      
+
       // Create directories recursively with proper permissions
       if (!await directory.exists()) {
         await directory.create(recursive: true);
-        
+
         // Set directory permissions
         if (Platform.isAndroid) {
           try {
@@ -515,12 +536,12 @@ class M3U8DownloaderService {
           }
         }
       }
-      
+
       // Ensure the path exists and is writable
       if (!await directory.exists()) {
         throw 'Failed to create download directory';
       }
-      
+
       final filePath = '${directory.path}/$filename';
       return filePath;
     } catch (e) {
@@ -533,36 +554,38 @@ class M3U8DownloaderService {
       if (Platform.isAndroid) {
         final deviceInfo = await DeviceInfoPlugin().androidInfo;
         bool hasPermission = false;
-        
+
         if (deviceInfo.version.sdkInt >= 30) {
           // Android 11+ needs MANAGE_EXTERNAL_STORAGE
           hasPermission = await Permission.manageExternalStorage.isGranted;
           if (!hasPermission) {
             // Show explanation dialog
             final shouldRequest = await showDialog<bool>(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) => AlertDialog(
-                title: const Text('Storage Permission Required'),
-                content: const Text(
-                  'MovieDex needs storage access to download and save videos. '
-                  'Please grant storage permission in the next screen.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Storage Permission Required'),
+                    content: const Text(
+                      'MovieDex needs storage access to download and save videos. '
+                      'Please grant storage permission in the next screen.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Continue'),
+                      ),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Continue'),
-                  ),
-                ],
-              ),
-            ) ?? false;
+                ) ??
+                false;
 
             if (shouldRequest) {
-              hasPermission = await Permission.manageExternalStorage.request().isGranted;
+              hasPermission =
+                  await Permission.manageExternalStorage.request().isGranted;
             }
           }
         } else {
@@ -590,7 +613,7 @@ class M3U8DownloaderService {
   }
 
   Future<String> startDownload(
-    BuildContext context,  // Add context parameter
+    BuildContext context, // Add context parameter
     String m3u8Url,
     String title,
     Contentclass content,
@@ -599,7 +622,7 @@ class M3U8DownloaderService {
     int? seasonNumber,
   }) async {
     debugPrint('Starting download: $title, URL: $m3u8Url');
-    
+
     if (_isActive) {
       debugPrint('Download already in progress');
       throw 'A download is already in progress';
@@ -611,7 +634,7 @@ class M3U8DownloaderService {
       if (!await baseDir.exists()) {
         await baseDir.create(recursive: true);
       }
-      
+
       // Verify content data
       if (content.title.isEmpty) {
         throw 'Invalid content data';
@@ -634,15 +657,17 @@ class M3U8DownloaderService {
       _currentQuality = quality;
       _currentEpisode = episodeNumber;
       _currentSeason = seasonNumber;
-      _activeDownloadId = '${content.id}_${DateTime.now().millisecondsSinceEpoch}';
+      _activeDownloadId =
+          '${content.id}_${DateTime.now().millisecondsSinceEpoch}';
 
       // Create download paths
-      final fileName = '${title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${quality}.mp4';
+      final fileName =
+          '${title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${quality}.mp4';
       final downloadPath = await getDownloadPath(fileName, title);
       final downloadDir = Directory(downloadPath).parent;
-      
+
       debugPrint('Download path: $downloadPath');
-      
+
       if (!await downloadDir.exists()) {
         await downloadDir.create(recursive: true);
       }
@@ -663,8 +688,9 @@ class M3U8DownloaderService {
 
       // Fetch M3U8 segments
       debugPrint('Fetching M3U8 playlist');
-      final downloadId = '${content.id}_${episodeNumber ?? 0}_${seasonNumber ?? 0}';
-      
+      final downloadId =
+          '${content.id}_${episodeNumber ?? 0}_${seasonNumber ?? 0}';
+
       // Get segments list if not already fetched
       if (!_segmentsList.containsKey(downloadId)) {
         _segmentsList[downloadId] = await _fetchM3U8(m3u8Url);
@@ -708,7 +734,7 @@ class M3U8DownloaderService {
 
         final segment = segments[i];
         final segmentPath = '${downloadDir.path}/segment_$i.ts';
-        
+
         try {
           await _downloadSegment(segment, segmentPath);
           _lastDownloadedSegment[downloadId] = i + 1;
@@ -745,7 +771,7 @@ class M3U8DownloaderService {
 
       // Show completion
       await _showCompleteNotification(title, outputPath);
-      
+
       DownloadsProvider.instance.updateProgress(
         content.id,
         1.0,
@@ -754,23 +780,22 @@ class M3U8DownloaderService {
         content.poster,
         quality,
       );
-      
+
       DownloadsProvider.instance.removeDownload(content.id);
-      
+
       debugPrint('Download completed successfully');
-      
+
       _isActive = false;
       _activeDownloadId = null;
       return outputPath;
-
     } catch (e, stack) {
       debugPrint('Download error: $e');
       debugPrint('Stack trace: $stack');
-      
+
       _isActive = false;
       _activeDownloadId = null;
       _handleDownloadError(_currentContent!, quality, title, e);
-      
+
       rethrow;
     } finally {
       if (_isCancelled) {
@@ -781,7 +806,8 @@ class M3U8DownloaderService {
     }
   }
 
-  void _handleDownloadError(Contentclass content, String quality, String title, dynamic error) {
+  void _handleDownloadError(
+      Contentclass content, String quality, String title, dynamic error) {
     try {
       // Show error notification
       _notifications.show(
@@ -809,7 +835,7 @@ class M3U8DownloaderService {
         quality,
       );
       DownloadsProvider.instance.removeDownload(content.id);
-      
+
       // Notify error callback
       onError?.call('Download failed: $error');
     } catch (e) {
@@ -817,15 +843,16 @@ class M3U8DownloaderService {
     }
   }
 
-  Future<void> _combineSegments(String dirPath, String outputPath, int count) async {
+  Future<void> _combineSegments(
+      String dirPath, String outputPath, int count) async {
     try {
       final tempPath = await _getTempPath();
       final tempOutput = File('$tempPath/temp_output.mp4');
-      
+
       if (await tempOutput.exists()) {
         await tempOutput.delete();
       }
-      
+
       final sink = await tempOutput.open(mode: FileMode.writeOnly);
       var combinedCount = 0;
 
@@ -863,8 +890,10 @@ class M3U8DownloaderService {
 
       await sink.flush();
       await sink.close();
-      
-      if (combinedCount != count || !await tempOutput.exists() || (await tempOutput.length()) == 0) {
+
+      if (combinedCount != count ||
+          !await tempOutput.exists() ||
+          (await tempOutput.length()) == 0) {
         throw 'Failed to merge all segments';
       }
 
@@ -873,7 +902,7 @@ class M3U8DownloaderService {
       if (await finalOutput.exists()) {
         await finalOutput.delete();
       }
-      
+
       final downloadDir = finalOutput.parent;
       if (!await downloadDir.exists()) {
         await downloadDir.create(recursive: true);
@@ -881,10 +910,9 @@ class M3U8DownloaderService {
 
       await tempOutput.copy(outputPath);
       await tempOutput.delete();
-      
+
       // Clean up temp directory
       await _cleanupTempDir();
-
     } catch (e) {
       debugPrint('Merge error: $e');
       onError?.call('Failed to merge segments: $e');
@@ -896,7 +924,8 @@ class M3U8DownloaderService {
     try {
       final dir = Directory(dirPath);
       if (await dir.exists()) {
-        final files = await dir.list().where((f) => f.path.endsWith('.ts')).toList();
+        final files =
+            await dir.list().where((f) => f.path.endsWith('.ts')).toList();
         for (var file in files) {
           await file.delete();
         }
@@ -909,7 +938,8 @@ class M3U8DownloaderService {
   Future<void> _cleanupOnError() async {
     try {
       if (_currentContent != null) {
-        final dir = Directory('${SettingsService.instance.downloadPath}/${_currentContent!.title}');
+        final dir = Directory(
+            '${SettingsService.instance.downloadPath}/${_currentContent!.title}');
         if (await dir.exists()) {
           await dir.delete(recursive: true);
         }
@@ -945,9 +975,8 @@ class M3U8DownloaderService {
       // Clean partial downloads if any
       if (_currentContent != null) {
         final downloadPath = await getDownloadPath(
-          '${_currentContent!.title}_${_currentQuality ?? ""}',
-          _currentContent!.title
-        );
+            '${_currentContent!.title}_${_currentQuality ?? ""}',
+            _currentContent!.title);
         final downloadDir = Directory(downloadPath).parent;
         if (await downloadDir.exists()) {
           await downloadDir.delete(recursive: true);
@@ -960,11 +989,11 @@ class M3U8DownloaderService {
 
   void cancelDownload() {
     if (!_isActive) return;
-    
+
     _isCancelled = true;
     _isPaused = false;
     _isActive = false;
-    
+
     // Cancel all ongoing operations
     _recentSpeeds.clear();
     _currentSpeed = 0;
@@ -981,13 +1010,13 @@ class M3U8DownloaderService {
     // Update provider state and remove from active downloads
     if (_currentContent != null) {
       final contentId = _currentContent!.id;
-      
+
       // Remove from active downloads
       DownloadsProvider.instance.removeDownload(contentId);
-      
+
       // Remove from Hive storage if exists
       DownloadsManager.instance.removeDownload(contentId);
-      
+
       // Reset content reference
       _currentContent = null;
     }
@@ -1010,15 +1039,15 @@ class M3U8DownloaderService {
 
   void pauseDownload() {
     if (!_isActive || _isCancelled) return;
-    
+
     _isPaused = true;
-    
+
     // Save current download state
     if (_currentContent != null) {
-      final progress = _totalSegments > 0 
+      final progress = _totalSegments > 0
           ? (_currentSegment / _totalSegments).clamp(0.0, 1.0)
           : 0.0;
-          
+
       DownloadsProvider.instance.updateProgress(
         _currentContent!.id,
         progress,
@@ -1034,19 +1063,20 @@ class M3U8DownloaderService {
 
     // Save download state for resume
     if (_currentContent != null) {
-      final downloadId = '${_currentContent!.id}_${_currentEpisode ?? 0}_${_currentSeason ?? 0}';
+      final downloadId =
+          '${_currentContent!.id}_${_currentEpisode ?? 0}_${_currentSeason ?? 0}';
       _lastDownloadedSegment[downloadId] = _currentSegment;
     }
   }
 
   Future<void> resumeDownload() async {
     if (!_isActive || _isCancelled || _currentContent == null) return;
-    
+
     _isPaused = false;
-    
+
     // Notify provider about resume
     DownloadsProvider.instance.resumeDownload(_currentContent!.id);
-    
+
     try {
       // Restart download from last saved segment
       if (_lastContext != null && _lastUrl != null) {
@@ -1069,10 +1099,11 @@ class M3U8DownloaderService {
 
   void _updateProgress(Contentclass content, double progress) {
     onProgressCallback?.call(progress);
-    
+
     // Keep existing speed and time when updating progress
-    final currentProgress = DownloadsProvider.instance.getDownloadProgress(content.id);
-    
+    final currentProgress =
+        DownloadsProvider.instance.getDownloadProgress(content.id);
+
     DownloadsProvider.instance.updateProgress(
       content.id,
       progress,
@@ -1109,7 +1140,11 @@ class M3U8DownloaderService {
     _lastContext = context;
     _lastUrl = url;
     return startDownload(
-      context, url, title, content, quality,
+      context,
+      url,
+      title,
+      content,
+      quality,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber,
     );
@@ -1126,21 +1161,22 @@ class M3U8DownloaderService {
     _downloadStartTime ??= DateTime.now();
 
     final now = DateTime.now();
-    
+
     // Calculate speed using non-null _downloadStartTime
     if (now.difference(_downloadStartTime!).inMilliseconds >= 500) {
       // ...existing speed calculation code...
     }
 
     // Calculate progress
-    final progress = _totalSegments > 0 
+    final progress = _totalSegments > 0
         ? (_currentSegment / _totalSegments).clamp(0.0, 1.0)
         : 0.0;
 
     // Ensure we have valid values
-    final speed = _currentSpeed.isNaN || _currentSpeed < 0 ? 0.01 : _currentSpeed;
-    final timeRemaining = _currentTimeRemaining.inSeconds < 0 
-        ? Duration.zero 
+    final speed =
+        _currentSpeed.isNaN || _currentSpeed < 0 ? 0.01 : _currentSpeed;
+    final timeRemaining = _currentTimeRemaining.inSeconds < 0
+        ? Duration.zero
         : _currentTimeRemaining;
 
     DownloadsProvider.instance.updateProgress(

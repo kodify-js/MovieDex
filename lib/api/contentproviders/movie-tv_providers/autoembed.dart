@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/services/proxy_service.dart';
 import 'package:moviedex/utils/utils.dart';
 
 /// Handles stream extraction from AutoEmbed provider
@@ -27,21 +28,21 @@ class AutoEmbed {
   final String? name;
   bool isError = false;
 
-  AutoEmbed({
-    required this.id,
-    required this.type,
-    this.episodeNumber,
-    this.seasonNumber,
-    this.name = 'AutoEmbed (Multi Language <Use Vpn>)'
-  });
+  AutoEmbed(
+      {required this.id,
+      required this.type,
+      this.episodeNumber,
+      this.seasonNumber,
+      this.name = 'AutoEmbed (Multi Language <Use Vpn>)'});
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = _buildStreamUrl();
       print(baseUrl);
-      final response = await http.get(Uri.parse(baseUrl))
-        .timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(Uri.parse(baseUrl))
+          .timeout(const Duration(seconds: 5));
       isError = response.statusCode != 200;
       return await _parseStreams(response.body);
     } catch (e) {
@@ -52,8 +53,10 @@ class AutoEmbed {
 
   String _buildStreamUrl() {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
-    return 'https://simple-proxy.metalewis21.workers.dev/?destination=https://hin.autoembed.cc/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
+    final episodeSegment =
+        isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
+    final proxyUrl = ProxyService.instance.activeProxy;
+    return '${proxyUrl}https://hin.autoembed.cc/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
   }
 
   Future<List<StreamClass>> _parseStreams(String body) async {
@@ -66,11 +69,10 @@ class AutoEmbed {
         final sources = await _getSources(url);
         if (sources.isNotEmpty) {
           streams.add(StreamClass(
-            language: data['label'],
-            url: url,
-            sources: sources,
-            isError: isError
-          ));
+              language: data['label'],
+              url: url,
+              sources: sources,
+              isError: isError));
         }
       }
     }
@@ -79,19 +81,19 @@ class AutoEmbed {
   }
 
   bool _isValidStreamUrl(String url) {
-    return url.contains('stream') || 
-           url.contains('embed') || 
-           url.contains('.m3u8') || 
-           url.contains('player');
+    return url.contains('stream') ||
+        url.contains('embed') ||
+        url.contains('.m3u8') ||
+        url.contains('player');
   }
 
   Future<List<SourceClass>> _getSources(String url) async {
     try {
-      final response = await http.get(Uri.parse(url))
-        .timeout(const Duration(seconds: 5));
-      
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+
       // Extract quality options
-      final qualities = _parseQualities(response.body,url);
+      final qualities = _parseQualities(response.body, url);
       if (qualities.isEmpty) {
         return [];
       }
@@ -101,18 +103,19 @@ class AutoEmbed {
     }
   }
 
-  List<SourceClass> _parseQualities(String body,String url) {
-        try {
-        final data = body.split("./");
-        final result = data.where((url) => url.contains(".m3u8")).map((link) {
-          print('${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
-        return SourceClass(quality: link.split("/")[0], url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
-        }).toList();
-        isError = false;
-        return result;
-      } catch (e) {
-        isError = true;
-        throw Exception("Failed to load video: ${e.toString()}");
-      }
+  List<SourceClass> _parseQualities(String body, String url) {
+    try {
+      final data = body.split("./");
+      final result = data.where((url) => url.contains(".m3u8")).map((link) {
+        return SourceClass(
+            quality: link.split("/")[0],
+            url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
+      }).toList();
+      isError = false;
+      return result;
+    } catch (e) {
+      isError = true;
+      throw Exception("Failed to load video: ${e.toString()}");
+    }
   }
 }

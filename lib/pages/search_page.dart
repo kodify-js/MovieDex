@@ -16,7 +16,8 @@ class SearchPage extends StatefulWidget {
   State<SearchPage> createState() => _SearchPageState();
 }
 
-class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateMixin {
+class _SearchPageState extends State<SearchPage>
+    with SingleTickerProviderStateMixin {
   Api api = Api();
   bool isSearching = false;
   bool isSearched = false;
@@ -27,16 +28,20 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   String _errorMessage = '';
   late AnimationController _fadeController;
   final _scrollController = ScrollController();
+  final _focusNode = FocusNode(); // Add focus node to control keyboard focus
 
   void _handleTextFieldChange(String value) {
     const duration = Duration(milliseconds: 500);
     _debouncer.debounce(
       duration: duration,
       onDebounce: () {
-        setState(() {
-          searchQuery = value;
-          isSearched = true;
-        });
+        if (mounted) {
+          // Check mounted state before updating
+          setState(() {
+            searchQuery = value;
+            isSearched = true;
+          });
+        }
       },
     );
   }
@@ -48,15 +53,29 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
+    _fadeController.forward();
+
+    // Add focus node listener to handle focus changes properly
+    _focusNode.addListener(() {
+      if (mounted) {
+        setState(() {
+          isSearching = _focusNode.hasFocus;
+        });
+      }
+    });
+
     textEditingController.addListener(() {
       if (textEditingController.text.isNotEmpty) {
         if (textEditingController.text.toString() != searchQuery) {
           _handleTextFieldChange(textEditingController.text);
         }
       } else {
-        setState(() {
-          isSearched = false;
-        });
+        if (mounted) {
+          setState(() {
+            isSearched = false;
+            searchQuery = '';
+          });
+        }
       }
     });
   }
@@ -64,7 +83,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   @override
   void dispose() {
     _fadeController.dispose();
+    textEditingController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose(); // Clean up focus node
     super.dispose();
   }
 
@@ -79,20 +100,23 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         scaffoldBackgroundColor: const Color(0xFF141414),
       ),
       child: Scaffold(
-        body: Column(
-          children: [
-            _buildAppBar(),
-            Expanded(
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  _buildHeaderSection(),
-                  _buildContent(isMobile, crossAxisCount),
-                ],
+        body: FadeTransition(
+          opacity: _fadeController,
+          child: Column(
+            children: [
+              _buildAppBar(),
+              Expanded(
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    _buildHeaderSection(),
+                    _buildContent(isMobile, crossAxisCount),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -105,32 +129,66 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         top: MediaQuery.of(context).padding.top + 8,
         left: 16,
         right: 16,
-        bottom: 8,
+        bottom: 12, // Added more bottom padding
       ),
       child: _buildSearchField(),
     );
   }
 
   Widget _buildSearchField() {
-    return Container(
+    // Use AnimatedContainer for smooth transitions when focused/unfocused
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       height: UIConstants.searchBarHeight,
-      decoration: UIConstants.searchBarDecoration(context),
+      decoration: BoxDecoration(
+        color: isSearching ? Colors.grey[800] : Colors.grey[900],
+        borderRadius: BorderRadius.circular(isSearching ? 16 : 24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: isSearching ? 12 : 5,
+            offset: const Offset(0, 3),
+          )
+        ],
+      ),
       child: TextField(
         controller: textEditingController,
+        focusNode: _focusNode, // Use the focus node
         style: const TextStyle(
           color: Colors.white,
           fontSize: 16,
         ),
-        decoration: UIConstants.searchInputDecoration(
-          context: context,
-          controller: textEditingController,
-          onClear: () {
-            textEditingController.clear();
-            setState(() {
-              isSearched = false;
-              searchQuery = '';
-            });
-          },
+        decoration: InputDecoration(
+          hintText: 'Search movies and shows...',
+          hintStyle: TextStyle(color: Colors.grey[400]),
+          prefixIcon: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: EdgeInsets.only(
+              left: isSearching ? 12 : 16,
+              right: isSearching ? 8 : 12,
+            ),
+            child: Icon(
+              Icons.search,
+              color: isSearching
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey,
+            ),
+          ),
+          suffixIcon: textEditingController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  onPressed: () {
+                    textEditingController.clear();
+                    setState(() {
+                      isSearched = false;
+                      searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
         ),
       ),
     );
@@ -139,20 +197,37 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   Widget _buildHeaderSection() {
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: Text(
-            isSearched && searchQuery.isNotEmpty
-                ? 'Results for "$searchQuery"'
-                : "Trending Movies",
-            key: ValueKey(searchQuery),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+        padding:
+            const EdgeInsets.only(left: 20, top: 24, right: 20, bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Text(
+                isSearched && searchQuery.isNotEmpty
+                    ? 'Results for "$searchQuery"'
+                    : "Trending Movies",
+                key: ValueKey(searchQuery),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-          ),
+            if (!isSearched || searchQuery.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  "Discover popular movies from around the world",
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -161,7 +236,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   Widget _buildContent(bool isMobile, int crossAxisCount) {
     if (_isLoading) {
       return SliverPadding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         sliver: _buildLoadingGrid(isMobile, crossAxisCount),
       );
     }
@@ -173,7 +248,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       sliver: isSearched && searchQuery.isNotEmpty
           ? _buildSearchResults(isMobile, crossAxisCount)
           : _buildPopularContent(isMobile, crossAxisCount),
@@ -184,9 +259,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 2/3,
+        mainAxisSpacing: 20,
+        crossAxisSpacing: 20,
+        childAspectRatio: 0.65, // Slightly taller cards look more modern
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) => _buildShimmerItem(isMobile),
@@ -201,9 +276,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -225,15 +300,15 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
           const SizedBox(height: 16),
           Text(
             _errorMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 18, color: Colors.white70),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
             onPressed: () {
               setState(() {
                 _errorMessage = '';
@@ -241,7 +316,16 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
               });
               // Retry logic here
             },
-            child: const Text('Retry'),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),
@@ -269,11 +353,16 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.search_off, size: 48, color: Colors.grey),
+                  const Icon(Icons.search_off, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
                   Text(
                     'No results found for "$searchQuery"',
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: 18, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Try different keywords or check spelling',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
               ),
@@ -310,13 +399,14 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildContentGrid(List<Contentclass> data, bool isMobile, int crossAxisCount) {
+  Widget _buildContentGrid(
+      List<Contentclass> data, bool isMobile, int crossAxisCount) {
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 16,
-        childAspectRatio: 2/3,
+        mainAxisSpacing: 20,
+        crossAxisSpacing: 20,
+        childAspectRatio: 0.65, // Taller cards for better visibility
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) => _buildContentItem(data[index], isMobile),
@@ -344,11 +434,20 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
               ),
             );
           },
-          borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            decoration: UIConstants.cardDecoration(context),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(UIConstants.cardRadius),
+              borderRadius: BorderRadius.circular(16),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -374,18 +473,20 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       child: Container(
         decoration: BoxDecoration(
           borderRadius: const BorderRadius.vertical(
-            bottom: Radius.circular(UIConstants.cardRadius),
+            bottom: Radius.circular(16),
           ),
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
               Colors.transparent,
-              Colors.black.withOpacity(0.9),
+              Colors.black.withOpacity(0.8),
+              Colors.black,
             ],
+            stops: const [0.0, 0.7, 1.0],
           ),
         ),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -394,39 +495,40 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
               content.title,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 shadows: [
                   Shadow(
                     color: Colors.black,
                     offset: Offset(0, 1),
-                    blurRadius: 2,
+                    blurRadius: 3,
                   ),
                 ],
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            if (content.rating != null) ...[
-              const SizedBox(height: 4),
+            const SizedBox(height: 6),
+            if (content.rating != null)
               Row(
                 children: [
                   const Icon(
                     Icons.star_rounded,
                     color: Colors.amber,
-                    size: 16,
+                    size: 18,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     content.rating!.toStringAsFixed(1),
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 12,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                  const SizedBox(width: 8),
                 ],
               ),
-            ],
           ],
         ),
       ),

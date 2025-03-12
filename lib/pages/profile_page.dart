@@ -7,7 +7,7 @@ import 'package:moviedex/api/models/list_item_model.dart';
 import 'package:moviedex/models/download_state_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/settings_page.dart';
-import 'package:moviedex/pages/auth/login_page.dart';  // Add this import
+import 'package:moviedex/pages/auth/login_page.dart'; // Add this import
 import 'package:moviedex/pages/auth/signup_page.dart'; // Add this import
 import 'package:moviedex/models/downloads_manager.dart';
 import 'package:moviedex/services/m3u8_downloader_service.dart';
@@ -28,8 +28,8 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClientMixin {
-  
+class _ProfilePageState extends State<ProfilePage>
+    with AutomaticKeepAliveClientMixin {
   // Add StreamController for list updates
   final _listUpdateController = StreamController<void>.broadcast();
   final _watchHistoryController = StreamController<void>.broadcast();
@@ -53,7 +53,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
       WatchHistoryService.instance.syncWithAppwrite();
     });
     await ListService.instance.init().then((_) {
-      ListService.instance.syncWithAppwrite();  
+      ListService.instance.syncWithAppwrite();
     });
     await _initSettings();
 
@@ -85,10 +85,10 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   Future<void> _exitIncognitoMode() async {
     final settingsService = SettingsService.instance;
     await settingsService.setIncognitoMode(false);
-    
+
     // Update local state
     setState(() => _isIncognito = false);
-    
+
     // Refresh lists
     await _handleRefresh();
   }
@@ -103,7 +103,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   Future<void> _handleWatchHistoryItemTap(ListItem item) async {
     try {
       final data = await Api().getDetails(id: item.contentId, type: item.type);
-      
+
       if (mounted) {
         // Open custom box for item
         final storage = await Hive.openBox(data.title);
@@ -135,7 +135,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
 
   void _checkPendingDownloads() async {
     final pendingDownloads = DownloadsManager.instance.getPendingDownloads();
-    
+
     for (var state in pendingDownloads) {
       if (state.status == 'error' || state.status == 'paused') {
         _showResumeDialog(state);
@@ -147,7 +147,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(state.status == 'error' ? 'Download Failed' : 'Download Paused'),
+        title: Text(
+            state.status == 'error' ? 'Download Failed' : 'Download Paused'),
         content: Text('Would you like to resume the download?'),
         actions: [
           TextButton(
@@ -200,7 +201,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
               IconButton(
                 icon: const Icon(Icons.settings_outlined),
                 onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(builder: ((context) => const SettingsPage())));
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: ((context) => const SettingsPage())));
                 },
                 tooltip: 'Settings',
                 color: Colors.white,
@@ -241,7 +243,9 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                               Icons.download_done_rounded,
                               () {},
                               items: [], // Empty list to show empty state
-                              children: const [DownloadsList()], // Add DownloadsList as a child
+                              children: const [
+                                DownloadsList()
+                              ], // Add DownloadsList as a child
                             ),
                           ],
                         ),
@@ -250,8 +254,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                   ],
                 ),
               ),
-              if (_isIncognito)
-                _buildIncognitoBanner(),
+              if (_isIncognito) _buildIncognitoBanner(),
             ],
           ),
         );
@@ -353,11 +356,14 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                       ),
                       child: CircleAvatar(
                         radius: 50,
-                        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.2),
                         child: Text(
-                          user.name.substring(0, 1).toUpperCase() ?? 
-                          user.email?.substring(0, 1).toUpperCase() ?? 
-                          'U',
+                          user.name.substring(0, 1).toUpperCase() ??
+                              user.email.substring(0, 1).toUpperCase() ??
+                              'U',
                           style: const TextStyle(
                             fontSize: 40,
                             fontWeight: FontWeight.bold,
@@ -425,7 +431,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                         Positioned(
                           bottom: 0,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.black26,
                               borderRadius: BorderRadius.circular(12),
@@ -440,7 +447,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      "Login to sync across all devices",  // Updated text
+                      "Login to sync across all devices", // Updated text
                       style: TextStyle(
                         fontSize: 18,
                         color: Colors.white.withOpacity(0.8),
@@ -455,7 +462,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                              MaterialPageRoute(
+                                  builder: (context) => const LoginPage()),
                             );
                           },
                           style: ElevatedButton.styleFrom(
@@ -493,7 +501,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                           onPressed: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const SignupPage()),
+                              MaterialPageRoute(
+                                  builder: (context) => const SignupPage()),
                             );
                           },
                           style: TextButton.styleFrom(
@@ -541,10 +550,10 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
       await AppwriteService.instance.deleteCurrentSession();
       if (mounted) {
         setState(() {
-        ErrorHandlers.showSuccessSnackbar(
-          context,
-          'Successfully logged out',
-        );
+          ErrorHandlers.showSuccessSnackbar(
+            context,
+            'Successfully logged out',
+          );
         });
       }
     } catch (e) {
@@ -555,8 +564,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
   }
 
   Widget _buildSection(
-    String title, 
-    IconData icon, 
+    String title,
+    IconData icon,
     VoidCallback onTap, {
     List<Map>? items,
     List<Widget>? children, // Add children parameter
@@ -597,8 +606,10 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                     ),
                     child: ListTile(
                       leading: Icon(icon, color: Colors.white),
-                      title: Text(title, style: const TextStyle(color: Colors.white)),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.white),
+                      title: Text(title,
+                          style: const TextStyle(color: Colors.white)),
+                      trailing:
+                          const Icon(Icons.chevron_right, color: Colors.white),
                       onTap: onTap,
                     ),
                   ),
@@ -612,7 +623,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                       itemCount: items.length,
                       itemBuilder: (context, index) {
                         return GestureDetector(
-                          onTap: () => onItemTap?.call(index), // Add tap handler
+                          onTap: () =>
+                              onItemTap?.call(index), // Add tap handler
                           onLongPress: () => onLongPressItem?.call(index),
                           child: Container(
                             width: 160, // Adjusted width
@@ -662,7 +674,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                     ),
                   )
                 else if (children != null)
-                  ...children  // Add children widgets if provided
+                  ...children // Add children widgets if provided
                 else
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -696,7 +708,7 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
 
   Widget _buildWatchHistory() {
     final watchHistory = WatchHistoryService.instance.getWatchHistory();
-    
+
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: Container(
@@ -712,13 +724,16 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
               ),
             );
           },
-          items: watchHistory.map((item) => {
-            'title': item.title,
-            'image': item.poster,
-            'id': item.contentId,
-            'type': item.type,
-          }).toList(),
-          onLongPressItem: (index) => _showHistoryItemOptions(watchHistory[index]),
+          items: watchHistory
+              .map((item) => {
+                    'title': item.title,
+                    'image': item.poster,
+                    'id': item.contentId,
+                    'type': item.type,
+                  })
+              .toList(),
+          onLongPressItem: (index) =>
+              _showHistoryItemOptions(watchHistory[index]),
           onHeaderLongPress: () => _showClearHistoryDialog(),
           onItemTap: (index) => _handleWatchHistoryItemTap(watchHistory[index]),
         ),
@@ -739,9 +754,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
               title: const Text('Remove from History'),
               onTap: () async {
                 Navigator.pop(context);
-                await WatchHistoryService.instance.removeFromHistory(
-                  item.contentId.toString()
-                );
+                await WatchHistoryService.instance
+                    .removeFromHistory(item.contentId.toString());
                 _watchHistoryController.add(null); // Refresh list
               },
             ),
@@ -781,10 +795,9 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear Watch History?'),
-        content: const Text(
-          'This will remove all items from your watch history. '
-          'This action cannot be undone.'
-        ),
+        content:
+            const Text('This will remove all items from your watch history. '
+                'This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -838,7 +851,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ListTile(
-                    leading: const Icon(Icons.playlist_add_check_rounded, color: Colors.white),
+                    leading: const Icon(Icons.playlist_add_check_rounded,
+                        color: Colors.white),
                     title: const Text(
                       "My List",
                       style: TextStyle(
@@ -847,7 +861,8 @@ class _ProfilePageState extends State<ProfilePage> with AutomaticKeepAliveClient
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white),
+                    trailing:
+                        const Icon(Icons.chevron_right, color: Colors.white),
                     onTap: () {
                       Navigator.push(
                         context,

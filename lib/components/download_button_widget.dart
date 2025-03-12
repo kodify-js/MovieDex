@@ -35,16 +35,22 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       child: TextButton(
         onPressed: null,
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Theme.of(context).colorScheme.primary),
-          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-        ),
+            backgroundColor:
+                WidgetStateProperty.all(Theme.of(context).colorScheme.primary),
+            padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(vertical: 12)),
+            shape: WidgetStateProperty.all(RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5)))),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.check, color: Colors.white),
             SizedBox(width: 8),
-            Text("Downloaded", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text("Downloaded",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -53,7 +59,7 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
 
   Widget _buildProgressButton(DownloadProgress progress) {
     const buttonHeight = 64.0;
-    
+
     // Show initial button if cancelled or error
     if (progress.status == 'cancelled' || progress.status == 'error') {
       return _buildInitialButton();
@@ -76,10 +82,12 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
           }
         },
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-          padding: MaterialStateProperty.all(EdgeInsets.zero),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
-          minimumSize: MaterialStateProperty.all(const Size.fromHeight(buttonHeight)),
+          backgroundColor: WidgetStateProperty.all(Colors.grey[800]),
+          padding: WidgetStateProperty.all(EdgeInsets.zero),
+          shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(5))),
+          minimumSize:
+              WidgetStateProperty.all(const Size.fromHeight(buttonHeight)),
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -95,7 +103,10 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
                       heightFactor: 1.0,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.3),
                         ),
                       ),
                     ),
@@ -113,15 +124,16 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          progress.isPaused ? 'Resume Download'
-                          : "Downloading ${FormatUtils.formatProgress(progress.progress)}",
+                          progress.isPaused
+                              ? 'Resume Download'
+                              : "Downloading ${FormatUtils.formatProgress(progress.progress)}",
                           style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold
-                          ),
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold),
                         ),
-                        if (!progress.isPaused && progress.status == 'downloading')
+                        if (!progress.isPaused &&
+                            progress.status == 'downloading')
                           Text(
                             '${FormatUtils.formatDownloadSpeed(progress.speed ?? progress.lastSpeed)} • '
                             '${FormatUtils.formatTimeLeft(progress.timeRemaining ?? progress.lastTimeRemaining)}',
@@ -168,35 +180,38 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
     return SizedBox(
       width: double.infinity,
       child: TextButton(
-        onPressed: widget.isLoadingStream ? null : () async {
-          try {
-            // Update UI immediately to show preparing state
-            _downloadProvider.updateProgress(
-              widget.data.id,
-              0.0,
-              'preparing',
-              widget.data.title,
-              widget.data.poster,
-              'Auto',
-            );
-            
-            // Start download
-            await widget.onDownloadStarted();
-          } catch (e) {
-            // Clear progress on error
-            _downloadProvider.removeDownload(widget.data.id);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Download error: $e')),
-              );
-            }
-          }
-        },
+        onPressed: widget.isLoadingStream
+            ? null
+            : () async {
+                try {
+                  // Update UI immediately to show preparing state
+                  _downloadProvider.updateProgress(
+                    widget.data.id,
+                    0.0,
+                    'preparing',
+                    widget.data.title,
+                    widget.data.poster,
+                    'Auto',
+                  );
+
+                  // Start download
+                  await widget.onDownloadStarted();
+                } catch (e) {
+                  // Clear progress on error
+                  _downloadProvider.removeDownload(widget.data.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Download error: $e')),
+                    );
+                  }
+                }
+              },
         style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.grey[800]),
-          padding: MaterialStateProperty.all(const EdgeInsets.symmetric(vertical: 12)),
-          shape: MaterialStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)))
-        ),
+            backgroundColor: WidgetStateProperty.all(Colors.grey[800]),
+            padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(vertical: 12)),
+            shape: WidgetStateProperty.all(RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(5)))),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -215,10 +230,9 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
             const Text(
               "Download",
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold
-              ),
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -231,7 +245,8 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Cancel Download?'),
-        content: const Text('This will stop the current download. You can start it again later.'),
+        content: const Text(
+            'This will stop the current download. You can start it again later.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -269,13 +284,14 @@ class _DownloadButtonWidgetState extends State<DownloadButtonWidget> {
         _downloadProvider.getDownloadProgressNotifier(widget.data.id),
       ]),
       builder: (context, _) {
-        final downloadProgress = _downloadProvider.getDownloadProgress(widget.data.id);
-        
+        final downloadProgress =
+            _downloadProvider.getDownloadProgress(widget.data.id);
+
         // Show completed state if downloaded
         if (_isDownloaded()) {
           return _buildCompleteButton();
         }
-        
+
         // Show progress if download is active
         if (downloadProgress != null) {
           return _buildProgressButton(downloadProgress);

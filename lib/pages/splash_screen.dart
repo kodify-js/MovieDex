@@ -10,7 +10,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _isNavigating = false;
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
@@ -54,13 +55,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _initializeAndCheck() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    
+
     try {
       await SettingsService.instance.init();
       final showUpdateDialog = SettingsService.instance.showUpdateDialog;
       final update = await UpdateService.instance.checkForUpdate();
       final latestRelease = await UpdateService.instance.getLatestRelease();
-      
+
       if (!mounted) return;
 
       if (update && showUpdateDialog && latestRelease != null) {
@@ -76,10 +77,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _showUpdateDialog(Map<String, dynamic> update) async {
     if (!mounted) return;
-    
+
     final currentVersion = _version;
-    final newVersion = update['tag_name']?.toString().replaceAll("v", "").split("-")[0] ?? '';
-    final hasChangelog = update['body']?.toString()?.isNotEmpty ?? false;
+    final newVersion =
+        update['tag_name']?.toString().replaceAll("v", "").split("-")[0] ?? '';
+    final hasChangelog = update['body']?.toString().isNotEmpty ?? false;
 
     await showDialog(
       context: context,
@@ -131,7 +133,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
   }
 
-  Future<void> _handleUpdate(Map<String, dynamic> update, BuildContext context) async {
+  Future<void> _handleUpdate(
+      Map<String, dynamic> update, BuildContext context) async {
     try {
       // Show progress dialog
       showDialog(
@@ -163,11 +166,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         const SnackBar(content: Text('Update downloaded. Installing...')),
       );
     } catch (e) {
-      
       if (!mounted) return;
       Navigator.pop(context); // Close progress dialog
       Navigator.pop(context); // Close update dialog
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Update failed: ${e.toString()}'),
@@ -194,7 +196,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             end: Alignment.bottomCenter,
             colors: [
               Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              Theme.of(context).colorScheme.background,
+              Theme.of(context).colorScheme.surface,
             ],
           ),
         ),
@@ -230,12 +232,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.2),
                                   blurRadius: 30,
                                   spreadRadius: 10,
                                 ),
                                 BoxShadow(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.1),
                                   blurRadius: 60,
                                   spreadRadius: 20,
                                 ),
@@ -243,11 +251,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             ),
                             child: ClipOval(
                               child: BackdropFilter(
-                                filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                filter:
+                                    ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                                 child: Container(
                                   padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surface.withOpacity(0.1),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .surface
+                                        .withOpacity(0.1),
                                   ),
                                   child: Image.asset(
                                     'assets/images/icon-bg.png',
@@ -261,19 +273,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                           const SizedBox(height: 40),
                           Text(
                             'MovieDex',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Your Ultimate Movie Companion',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onBackground.withOpacity(0.7),
-                              letterSpacing: 0.5,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.7),
+                                  letterSpacing: 0.5,
+                                ),
                           ),
                           const SizedBox(height: 40),
                           Container(
@@ -283,7 +304,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withOpacity(0.2),
                                 width: 2,
                               ),
                             ),
@@ -309,7 +333,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 child: Text(
                   'Version $_version',
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.onBackground.withOpacity(0.5),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.5),
                     fontSize: 12,
                   ),
                 ),

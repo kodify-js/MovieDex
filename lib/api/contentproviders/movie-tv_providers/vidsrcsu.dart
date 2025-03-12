@@ -25,65 +25,62 @@ class VidSrcSu {
   bool isError = false;
   String baseUrl = 'https://VidSrc.su';
   String? name;
-  VidSrcSu({
-    required this.id,
-    required this.type,
-    this.name = 'VidSrc.su',
-    this.episodeNumber,
-    this.seasonNumber
-  });
+  VidSrcSu(
+      {required this.id,
+      required this.type,
+      this.name = 'VidSrc.su',
+      this.episodeNumber,
+      this.seasonNumber});
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = await _buildStreamUrl();
-      final response = await http.get(
-        Uri.parse(baseUrl),
-        headers: {"User-Agent": "Mozilla/5.0",  
-    "Accept": "text/html"}      
-      ).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse(baseUrl), headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "text/html"
+      }).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');
       }
       final data = response.body;
       // get all the links from the page
-      final links = RegExp(r"url: '([^']+)'").allMatches(data).map((e) => e.group(1)).where((item)=>item!.contains(".m3u8")).toList();
+      final links = RegExp(r"url: '([^']+)'")
+          .allMatches(data)
+          .map((e) => e.group(1))
+          .where((item) => item!.contains(".m3u8"))
+          .toList();
       if (links.isEmpty) throw "No valid stream found";
       List<StreamClass> streams = [];
       int i = 0;
-      for (var link in links){
-        if(!link!.contains(".m3u8")) continue;
+      for (var link in links) {
+        if (!link!.contains(".m3u8")) continue;
         i++;
         final sources = await _getSources(url: link);
-        streams.add(
-          StreamClass(
+        if (sources.isEmpty) {
+          isError = true;
+          continue;
+        }
+        streams.add(StreamClass(
             language: 'original $i',
             url: link,
             sources: sources,
-            isError: isError
-          )
-        );
-
+            isError: isError));
       }
       return streams;
-      
     } catch (e) {
       print('Stream error: $e');
       isError = true;
       return [
-        StreamClass(
-          language: 'original',
-          url: '',
-          sources: [],
-          isError: true
-        )
+        StreamClass(language: 'original', url: '', sources: [], isError: true)
       ];
     }
   }
 
   Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
+    final episodeSegment =
+        isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
 
     return '$baseUrl/embed/${isMovie ? 'movie' : 'tv'}/$id$episodeSegment';
   }
@@ -95,8 +92,8 @@ class VidSrcSu {
         return [SourceClass(quality: "Auto", url: url)];
       }
 
-      final response = await http.get(Uri.parse(url))
-        .timeout(const Duration(seconds: 5));
+      final response =
+          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
       final sources = _parseM3U8Playlist(response.body, url);
       if (sources.isEmpty) throw "No valid sources found";
       isError = false;
@@ -114,7 +111,9 @@ class VidSrcSu {
       if (lines[i].contains('#EXT-X-STREAM-INF')) {
         final quality = _extractQuality(lines[i]);
         if (quality != null && i + 1 < lines.length) {
-          final streamUrl = lines[i + 1].contains("./")?_resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl):lines[i+1];
+          final streamUrl = lines[i + 1].contains("./")
+              ? _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl)
+              : lines[i + 1];
           sources.add(SourceClass(quality: quality, url: streamUrl));
         }
       }

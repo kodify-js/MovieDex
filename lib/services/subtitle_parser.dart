@@ -35,7 +35,7 @@ class SubtitleParser {
         i++;
       }
       if (i >= lines.length) break;
-      
+
       // Skip subtitle number
       i++;
       if (i >= lines.length) break;
@@ -67,13 +67,13 @@ class SubtitleParser {
         ));
       }
     }
-
     return entries;
   }
 
   static List<SubtitleEntry> parseVtt(String data) {
     // Remove WEBVTT header
     final content = data.replaceFirst(RegExp(r'^WEBVTT\n'), '');
+    print(content);
     return parseSrt(content);
   }
 }
