@@ -173,6 +173,10 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
           if (_stream.first.subtitles != null &&
               _stream.first.subtitles!.isNotEmpty) {
             subtitles = _stream.first.subtitles;
+          }else{
+            getSubtitles(
+                episode: contentProvider.episodeNumber,
+                season: contentProvider.seasonNumber);
           }
           isLoading = false;
         });
