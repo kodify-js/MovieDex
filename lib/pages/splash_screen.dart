@@ -3,6 +3,9 @@ import 'package:moviedex/services/update_service.dart';
 import 'dart:ui' as ui;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:moviedex/services/settings_service.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -88,33 +91,69 @@ class _SplashScreenState extends State<SplashScreen>
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text('Update Available'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('A new version of MovieDex is available!'),
-            const SizedBox(height: 8),
-            Text(
-              'Current version: $currentVersion\nNew version: $newVersion',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            if (hasChangelog) ...[
-              const SizedBox(height: 16),
-              const Text('What\'s new:'),
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('A new version of MovieDex is available!'),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.grey[850],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  update['body']?.toString() ?? '',
-                  style: TextStyle(fontSize: 14),
-                ),
+              Text(
+                'Current version: $currentVersion\nNew version: $newVersion',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
+              if (hasChangelog) ...[
+                const SizedBox(height: 16),
+                const Text('What\'s new:'),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[850],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Markdown(
+                      data: update['body']?.toString() ?? '',
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(fontSize: 14, color: Colors.white),
+                        strong: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        h1: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        h2: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        a: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                        listBullet: const TextStyle(color: Colors.white),
+                      ),
+                      onTapLink: (text, href, title) {
+                        if (href != null) {
+                          launchUrl(Uri.parse(href),
+                              mode: LaunchMode.externalApplication);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(
@@ -152,19 +191,83 @@ class _SplashScreenState extends State<SplashScreen>
         ),
       );
 
-      await UpdateService.instance.downloadAndInstallUpdate(
-        update['assets'].first['browser_download_url'],
-        update['tag_name']?.toString() ?? '',
-      );
+      final downloadUrl = update['assets'].first['browser_download_url'];
+      final tagName = update['tag_name']?.toString() ?? '';
 
-      if (!mounted) return;
-      Navigator.pop(context); // Close progress dialog
-      Navigator.pop(context); // Close update dialog
+      // Check if this is an update that might cause package conflicts
+      bool isConflictPossible = false;
+      try {
+        PackageInfo packageInfo = await PackageInfo.fromPlatform();
+        final String currentVersion = packageInfo.version;
+        final String currentBuildNumber = packageInfo.buildNumber;
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Update downloaded. Installing...')),
-      );
+        // Major version change might indicate package structure changes
+        List<int> currentVersionParts =
+            currentVersion.split('.').map(int.parse).toList();
+        String newVersionCleaned = tagName.replaceAll('v', '').split('-')[0];
+        List<int> newVersionParts =
+            newVersionCleaned.split('.').map(int.parse).toList();
+
+        // Check if major or minor version changed
+        if (newVersionParts[0] > currentVersionParts[0] ||
+            (newVersionParts[0] == currentVersionParts[0] &&
+                newVersionParts[1] > currentVersionParts[1])) {
+          isConflictPossible = true;
+        }
+      } catch (e) {
+        // If we can't determine, assume conflict is possible
+        isConflictPossible = true;
+      }
+
+      if (isConflictPossible && Platform.isAndroid) {
+        // On Android, suggest uninstall and reinstall for major updates
+        if (!mounted) return;
+        Navigator.pop(context); // Close progress dialog
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Update Method'),
+            content: const Text(
+                'This update might conflict with your existing app. Would you like to:'),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  // Try direct update anyway
+                  Navigator.pop(context);
+                  await _proceedWithDirectUpdate(downloadUrl, tagName);
+                },
+                child: const Text('Try Direct Update'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  // Open browser for manual download
+                  final Uri url = Uri.parse(downloadUrl);
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+
+                  if (!mounted) return;
+                  Navigator.pop(context); // Close update dialog
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Please uninstall the current app before installing the new version'),
+                      duration: Duration(seconds: 8),
+                    ),
+                  );
+                  _navigateToHome();
+                },
+                child: const Text('Manual Download'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Direct update for iOS or non-major Android updates
+        await _proceedWithDirectUpdate(downloadUrl, tagName);
+      }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close progress dialog
@@ -178,6 +281,23 @@ class _SplashScreenState extends State<SplashScreen>
       );
       _navigateToHome();
     }
+  }
+
+  Future<void> _proceedWithDirectUpdate(
+      String downloadUrl, String tagName) async {
+    await UpdateService.instance.downloadAndInstallUpdate(
+      downloadUrl,
+      tagName,
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close progress dialog
+    Navigator.pop(context); // Close update dialog
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Update downloaded. Installing...')),
+    );
   }
 
   void _navigateToHome() {

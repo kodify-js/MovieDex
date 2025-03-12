@@ -14,6 +14,7 @@ import 'package:moviedex/services/proxy_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:moviedex/services/update_service.dart';
 import 'dart:io';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -52,6 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _isProxyValid = false;
   bool _showUpdateDialog = true;
   bool _isCheckingForUpdates = false;
+  bool _isCheckingUpdate = false; // Add this variable
   String? _latestVersion;
   Map<String, dynamic>? _latestRelease;
 
@@ -65,7 +67,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _fetchGitHubInfo();
     _loadCacheInfo();
     _loadSettings();
-    
+
     // Add listener for login state changes
     AppwriteService.instance.isLoggedIn().then((isLoggedIn) {
       if (!isLoggedIn) {
@@ -79,7 +81,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _initializeSettings() async {
     final settingsService = SettingsService.instance;
     await settingsService.init();
-    
+
     // Get initial state from SettingsService
     setState(() {
       _incognitoMode = settingsService.isIncognito;
@@ -100,12 +102,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _initSettings() async {
     _settingsBox = await Hive.openBox('settings');
     setState(() {
-      _defaultQuality = _settingsBox.get('defaultQuality', defaultValue: 'Auto');
+      _defaultQuality =
+          _settingsBox.get('defaultQuality', defaultValue: 'Auto');
       _useCustomProxy = _settingsBox.get('useCustomProxy', defaultValue: false);
       _proxyController.text = _settingsBox.get('proxyUrl', defaultValue: '');
       _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
       _selectedTheme = _settingsBox.get('theme', defaultValue: 'system');
-      _selectedAccentColor = _settingsBox.get('accentColor', defaultValue: 'blue');
+      _selectedAccentColor =
+          _settingsBox.get('accentColor', defaultValue: 'blue');
       _syncEnabled = _settingsBox.get('syncEnabled', defaultValue: true);
       _incognitoMode = _settingsBox.get('incognitoMode', defaultValue: false);
     });
@@ -129,7 +133,8 @@ class _SettingsPageState extends State<SettingsPage> {
         headers: {'Accept': 'application/vnd.github.v3+json'},
       );
 
-      if (repoResponse.statusCode == 200 && maintainerResponse.statusCode == 200) {
+      if (repoResponse.statusCode == 200 &&
+          maintainerResponse.statusCode == 200) {
         setState(() {
           _repoInfo = json.decode(repoResponse.body);
           _maintainerInfo = json.decode(maintainerResponse.body);
@@ -144,13 +149,12 @@ class _SettingsPageState extends State<SettingsPage> {
     final size = await _cacheService.getCacheSize();
     setState(() {
       _cacheSize = size;
-      _cacheValidity = _settingsBox.get(
-        'cacheValidity', 
-        defaultValue: const Duration(days: 1).inMinutes
-      ).toInt().minutes;
+      _cacheValidity = _settingsBox
+          .get('cacheValidity', defaultValue: const Duration(days: 1).inMinutes)
+          .toInt()
+          .minutes;
     });
   }
-
 
   @override
   void dispose() {
@@ -202,12 +206,16 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _isCheckingForUpdates = true);
     try {
       final updateAvailable = await UpdateService.instance.checkForUpdate();
-      
+
       if (!mounted) return;
 
       if (updateAvailable) {
         _latestRelease = await UpdateService.instance.getLatestRelease();
-        _latestVersion = _latestRelease!['tag_name'].toString().replaceAll('v', '').split('-').first;
+        _latestVersion = _latestRelease!['tag_name']
+            .toString()
+            .replaceAll('v', '')
+            .split('-')
+            .first;
         _showUpdateAvailableDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -232,18 +240,47 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Update Available'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Version $_latestVersion is available'),
-            const SizedBox(height: 16),
-            if (_latestRelease != null && _latestRelease!['body'] != null)
-              Text(
-                'What\'s New:\n${_latestRelease!['body']}',
-                style: const TextStyle(fontSize: 14),
-              ),
-          ],
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Version $_latestVersion is available'),
+              const SizedBox(height: 16),
+              if (_latestRelease != null && _latestRelease!['body'] != null)
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Markdown(
+                      data: _latestRelease!['body'] ??
+                          'No release notes available',
+                      styleSheet: MarkdownStyleSheet(
+                        p: TextStyle(
+                            color:
+                                Theme.of(context).textTheme.bodyMedium?.color),
+                        strong: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                        ),
+                        h1: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.titleLarge?.color,
+                        ),
+                        h2: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).textTheme.titleMedium?.color,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -264,13 +301,37 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showWhatsNew() {
     if (_latestRelease == null) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('What\'s New in $_latestVersion'),
-        content: SingleChildScrollView(
-          child: Text(_latestRelease!['body'] ?? 'No release notes available'),
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          width: double.maxFinite,
+          child: Markdown(
+            data: _latestRelease!['body'] ?? 'No release notes available',
+            styleSheet: MarkdownStyleSheet(
+              p: TextStyle(
+                  color: Theme.of(context).textTheme.bodyMedium?.color),
+              strong: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+              h1: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.titleLarge?.color,
+              ),
+              h2: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.titleMedium?.color,
+              ),
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -284,7 +345,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildSettingSection(String title, List<Widget> children) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       decoration: BoxDecoration(
@@ -361,7 +422,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -379,12 +441,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-        
           if (_maintainerInfo != null) ...[
             const SizedBox(height: 8),
             _buildMaintainerInfo(),
           ],
-
           if (_repoInfo != null) ...[
             const SizedBox(height: 24),
             Container(
@@ -424,7 +484,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ],
-
           const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -439,7 +498,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildActionButton(
                   'Report Issue',
                   Icons.bug_report_outlined,
-                  () => _launchUrl('https://github.com/$_repoOwner/$_repoName/issues'),
+                  () => _launchUrl(
+                      'https://github.com/$_repoOwner/$_repoName/issues'),
                 ),
               ],
             ),
@@ -458,7 +518,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildGitHubStat(IconData icon, String count, String label, Color color) {
+  Widget _buildGitHubStat(
+      IconData icon, String count, String label, Color color) {
     return Column(
       children: [
         Container(
@@ -537,7 +598,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildMaintainerInfo() {
     if (_maintainerInfo == null) return const SizedBox();
-    
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -622,7 +683,8 @@ class _SettingsPageState extends State<SettingsPage> {
       'Downloads',
       [
         ListTile(
-          title: Text('Download Location', style: Theme.of(context).textTheme.bodyLarge),
+          title: Text('Download Location',
+              style: Theme.of(context).textTheme.bodyLarge),
           subtitle: Text(
             SettingsService.instance.downloadPath,
             style: Theme.of(context).textTheme.bodyMedium,
@@ -685,12 +747,10 @@ class _SettingsPageState extends State<SettingsPage> {
             'Video Player',
             [
               SwitchListTile(
-                title: Text('Auto Play Next Episode', 
-                  style: Theme.of(context).textTheme.bodyLarge),
-                subtitle: Text(
-                  'Automatically play next episode in series',
-                  style: Theme.of(context).textTheme.bodyMedium
-                ),
+                title: Text('Auto Play Next Episode',
+                    style: Theme.of(context).textTheme.bodyLarge),
+                subtitle: Text('Automatically play next episode in series',
+                    style: Theme.of(context).textTheme.bodyMedium),
                 value: _autoPlayNext,
                 onChanged: (value) {
                   setState(() => _autoPlayNext = value);
@@ -698,10 +758,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
               ListTile(
-                title: Text('Default Quality', 
-                  style: Theme.of(context).textTheme.bodyLarge),
+                title: Text('Default Quality',
+                    style: Theme.of(context).textTheme.bodyLarge),
                 subtitle: Text(_defaultQuality,
-                  style: Theme.of(context).textTheme.bodyMedium),
+                    style: Theme.of(context).textTheme.bodyMedium),
                 onTap: () => _showQualitySelector(),
               ),
             ],
@@ -716,21 +776,23 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAppearanceSection() {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
     return _buildSettingSection(
       'Appearance',
       [
         SwitchListTile(
-          title: Text('AMOLED Dark Mode', style: Theme.of(context).textTheme.bodyLarge),
+          title: Text('AMOLED Dark Mode',
+              style: Theme.of(context).textTheme.bodyLarge),
           subtitle: Text('Pure black dark mode for OLED displays',
-            style: Theme.of(context).textTheme.bodyMedium),
+              style: Theme.of(context).textTheme.bodyMedium),
           value: themeProvider.amoledMode,
           onChanged: (value) => themeProvider.setAmoledMode(value),
         ),
         ListTile(
-          title: Text('Theme Color', style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text('Choose your preferred color', 
-            style: Theme.of(context).textTheme.bodyMedium),
+          title:
+              Text('Theme Color', style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text('Choose your preferred color',
+              style: Theme.of(context).textTheme.bodyMedium),
           trailing: Container(
             width: 24,
             height: 24,
@@ -748,10 +810,8 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           title: Text('Font', style: Theme.of(context).textTheme.bodyLarge),
           subtitle: Text(
-            _fonts.firstWhere(
-              (f) => f['name'] == themeProvider.fontFamily, 
-              orElse: () => _fonts.first
-            )['displayName']!,
+            _fonts.firstWhere((f) => f['name'] == themeProvider.fontFamily,
+                orElse: () => _fonts.first)['displayName']!,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           onTap: _showFontSelector,
@@ -786,25 +846,25 @@ class _SettingsPageState extends State<SettingsPage> {
                 runSpacing: 8,
                 children: [
                   ...predefinedColors.map((color) => InkWell(
-                    onTap: () {
-                      themeProvider.setAccentColor(color);
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      width: 45,
-                      height: 45,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: themeProvider.accentColor == color 
-                              ? Colors.white 
-                              : Colors.transparent,
-                          width: 2,
+                        onTap: () {
+                          themeProvider.setAccentColor(color);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 45,
+                          height: 45,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: themeProvider.accentColor == color
+                                  ? Colors.white
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  )),
+                      )),
                 ],
               ),
               const Padding(
@@ -833,24 +893,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showQualitySelector() {
     final qualities = ['Auto', '1080p', '720p', '480p', '360p'];
-    
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
         color: Theme.of(context).colorScheme.surface,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: qualities.map((quality) => ListTile(
-            title: Text(quality, 
-              style: const TextStyle(color: Colors.white)),
-            selected: _defaultQuality == quality,
-            selectedTileColor: Colors.white.withOpacity(0.1),
-            onTap: () {
-              setState(() => _defaultQuality = quality);
-              _saveSetting('defaultQuality', quality);
-              Navigator.pop(context);
-            },
-          )).toList(),
+          children: qualities
+              .map((quality) => ListTile(
+                    title: Text(quality,
+                        style: const TextStyle(color: Colors.white)),
+                    selected: _defaultQuality == quality,
+                    selectedTileColor: Colors.white.withOpacity(0.1),
+                    onTap: () {
+                      setState(() => _defaultQuality = quality);
+                      _saveSetting('defaultQuality', quality);
+                      Navigator.pop(context);
+                    },
+                  ))
+              .toList(),
         ),
       ),
     );
@@ -858,7 +920,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showFontSelector() {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -884,7 +946,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 itemBuilder: (context, index) {
                   final font = _fonts[index];
                   final isSelected = themeProvider.fontFamily == font['name'];
-                  
+
                   return ListTile(
                     title: Text(
                       font['displayName']!,
@@ -903,9 +965,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     selected: isSelected,
                     selectedTileColor: Colors.white.withOpacity(0.1),
-                    trailing: isSelected 
-                      ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
-                      : null,
+                    trailing: isSelected
+                        ? Icon(Icons.check,
+                            color: Theme.of(context).colorScheme.primary)
+                        : null,
                     onTap: () {
                       themeProvider.setFontFamily(font['name']!);
                       Navigator.pop(context);
@@ -924,7 +987,8 @@ class _SettingsPageState extends State<SettingsPage> {
     String formatSize(int bytes) {
       if (bytes < 1024) return '$bytes B';
       if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-      if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+      if (bytes < 1024 * 1024 * 1024)
+        return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
       return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
     }
 
@@ -932,7 +996,8 @@ class _SettingsPageState extends State<SettingsPage> {
       'Cache',
       [
         ListTile(
-          title: Text('Cache Size', style: Theme.of(context).textTheme.bodyLarge),
+          title:
+              Text('Cache Size', style: Theme.of(context).textTheme.bodyLarge),
           subtitle: Text(
             formatSize(_cacheSize),
             style: Theme.of(context).textTheme.bodyMedium,
@@ -989,19 +1054,23 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             Divider(color: Colors.white.withOpacity(0.1)),
-            ...durations.map((option) => ListTile(
-              title: Text(
-                option['label'] as String,
-                style: const TextStyle(color: Colors.white),
-              ),
-              selected: _cacheValidity == option['duration'],
-              selectedTileColor: Colors.white.withOpacity(0.1),
-              onTap: () {
-                setState(() => _cacheValidity = option['duration'] as Duration);
-                _settingsBox.put('cacheValidity', _cacheValidity.inMinutes);
-                Navigator.pop(context);
-              },
-            )).toList(),
+            ...durations
+                .map((option) => ListTile(
+                      title: Text(
+                        option['label'] as String,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      selected: _cacheValidity == option['duration'],
+                      selectedTileColor: Colors.white.withOpacity(0.1),
+                      onTap: () {
+                        setState(() =>
+                            _cacheValidity = option['duration'] as Duration);
+                        _settingsBox.put(
+                            'cacheValidity', _cacheValidity.inMinutes);
+                        Navigator.pop(context);
+                      },
+                    ))
+                .toList(),
           ],
         ),
       ),
@@ -1010,28 +1079,27 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildPrivacySection() {
     final settingsService = SettingsService.instance;
-    
+
     return FutureBuilder<bool>(
       future: AppwriteService.instance.isLoggedIn(),
       builder: (context, snapshot) {
         final bool isUserLoggedIn = snapshot.data ?? false;
-        
+
         return _buildSettingSection(
           'Privacy & Data',
           [
             SwitchListTile(
-              title: Text('Sync Data', 
-                style: Theme.of(context).textTheme.bodyLarge),
+              title: Text('Sync Data',
+                  style: Theme.of(context).textTheme.bodyLarge),
               subtitle: Text(
-                _incognitoMode
-                    ? 'Sync is disabled in incognito mode'
-                    : isUserLoggedIn 
-                        ? 'Sync your watch history and preferences across devices'
-                        : 'Login required to enable sync',
-                style: Theme.of(context).textTheme.bodyMedium
-              ),
+                  _incognitoMode
+                      ? 'Sync is disabled in incognito mode'
+                      : isUserLoggedIn
+                          ? 'Sync your watch history and preferences across devices'
+                          : 'Login required to enable sync',
+                  style: Theme.of(context).textTheme.bodyMedium),
               value: isUserLoggedIn && _syncEnabled && !_incognitoMode,
-              onChanged: isUserLoggedIn && !_incognitoMode 
+              onChanged: isUserLoggedIn && !_incognitoMode
                   ? (value) async {
                       await settingsService.setSyncEnabled(value);
                       setState(() => _syncEnabled = value);
@@ -1039,12 +1107,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   : null,
             ),
             SwitchListTile(
-              title: Text('Incognito Mode', 
-                style: Theme.of(context).textTheme.bodyLarge),
-              subtitle: Text(
-                'Browse without saving history or preferences',
-                style: Theme.of(context).textTheme.bodyMedium
-              ),
+              title: Text('Incognito Mode',
+                  style: Theme.of(context).textTheme.bodyLarge),
+              subtitle: Text('Browse without saving history or preferences',
+                  style: Theme.of(context).textTheme.bodyMedium),
               value: settingsService.isIncognito,
               onChanged: (value) async {
                 await settingsService.setIncognitoMode(value);
@@ -1057,10 +1123,9 @@ class _SettingsPageState extends State<SettingsPage> {
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: Text('Clear All Local Data',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.red,
-                  )
-                ),
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.red,
+                        )),
                 onTap: () => _showClearDataConfirmation(),
               ),
           ],
@@ -1080,14 +1145,12 @@ class _SettingsPageState extends State<SettingsPage> {
             const Text('Incognito Mode'),
           ],
         ),
-        content: const Text(
-          'While in incognito mode:\n'
-          '• Watch history won\'t be saved\n'
-          '• Preferences won\'t be stored\n'
-          '• Data won\'t be synced\n'
-          '• My List will be temporarily disabled\n\n'
-          'This will apply until you disable incognito mode.'
-        ),
+        content: const Text('While in incognito mode:\n'
+            '• Watch history won\'t be saved\n'
+            '• Preferences won\'t be stored\n'
+            '• Data won\'t be synced\n'
+            '• My List will be temporarily disabled\n\n'
+            'This will apply until you disable incognito mode.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1103,13 +1166,11 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear All Local Data?'),
-        content: const Text(
-          'This will permanently delete all your:\n'
-          '• Watch history\n'
-          '• Preferences\n'
-          '• Saved settings\n\n'
-          'This action cannot be undone.'
-        ),
+        content: const Text('This will permanently delete all your:\n'
+            '• Watch history\n'
+            '• Preferences\n'
+            '• Saved settings\n\n'
+            'This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1143,8 +1204,8 @@ class _SettingsPageState extends State<SettingsPage> {
       'Advanced',
       [
         SwitchListTile(
-          title: Text('Use Custom Proxy', 
-            style: Theme.of(context).textTheme.bodyLarge),
+          title: Text('Use Custom Proxy',
+              style: Theme.of(context).textTheme.bodyLarge),
           value: _useCustomProxy,
           onChanged: (value) async {
             if (!value || _proxyController.text.isEmpty) {
@@ -1170,7 +1231,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     labelStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
                     border: const OutlineInputBorder(),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white.withOpacity(0.3)),
+                      borderSide:
+                          BorderSide(color: Colors.white.withOpacity(0.3)),
                     ),
                     suffixIcon: _isValidatingProxy
                         ? const SizedBox(
@@ -1180,7 +1242,8 @@ class _SettingsPageState extends State<SettingsPage> {
                           )
                         : IconButton(
                             icon: const Icon(Icons.check_circle),
-                            onPressed: () => _validateAndSaveProxy(_proxyController.text),
+                            onPressed: () =>
+                                _validateAndSaveProxy(_proxyController.text),
                           ),
                   ),
                   onSubmitted: _validateAndSaveProxy,
@@ -1198,12 +1261,10 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         const Divider(),
         SwitchListTile(
-          title: Text('Show Update Dialog', 
-            style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text(
-            'Show dialog when updates are available',
-            style: Theme.of(context).textTheme.bodyMedium
-          ),
+          title: Text('Show Update Dialog',
+              style: Theme.of(context).textTheme.bodyLarge),
+          subtitle: Text('Show dialog when updates are available',
+              style: Theme.of(context).textTheme.bodyMedium),
           value: _showUpdateDialog,
           onChanged: (value) async {
             setState(() => _showUpdateDialog = value);
@@ -1212,20 +1273,20 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         ListTile(
           title: Text('Check for Updates',
-            style: Theme.of(context).textTheme.bodyLarge),
+              style: Theme.of(context).textTheme.bodyLarge),
           trailing: _isCheckingForUpdates
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.system_update),
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.system_update),
           onTap: _isCheckingForUpdates ? null : _checkForUpdates,
         ),
         if (_latestVersion != null)
           ListTile(
             title: Text('What\'s New',
-              style: Theme.of(context).textTheme.bodyLarge),
+                style: Theme.of(context).textTheme.bodyLarge),
             trailing: const Icon(Icons.new_releases),
             onTap: _showWhatsNew,
           ),
@@ -1240,5 +1301,251 @@ class _SettingsPageState extends State<SettingsPage> {
       _showUpdateDialog = settings.showUpdateDialog;
       // ...other settings loading...
     });
+  }
+
+  Future<void> _handleCheckForUpdates() async {
+    setState(() => _isCheckingUpdate = true);
+
+    try {
+      final update = await UpdateService.instance.checkForUpdate();
+      if (!mounted) return;
+      setState(() => _isCheckingUpdate = false);
+
+      if (update) {
+        final latestRelease = await UpdateService.instance.getLatestRelease();
+        if (latestRelease != null) {
+          await _showUpdateDetailsDialog(
+              latestRelease); // Rename this method call
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to get update information')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('You are already on the latest version')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isCheckingUpdate = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error checking for updates: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _showUpdateDetailsDialog(Map<String, dynamic> update) async {
+    // Renamed method
+    if (!mounted) return;
+
+    final currentVersion = _version;
+    final newVersion =
+        update['tag_name']?.toString().replaceAll("v", "").split("-")[0] ?? '';
+    final hasChangelog = update['body']?.toString().isNotEmpty ?? false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Update Available'),
+        content: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('A new version of MovieDex is available!'),
+              const SizedBox(height: 8),
+              Text(
+                'Current version: $currentVersion\nNew version: $newVersion',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (hasChangelog) ...[
+                const SizedBox(height: 16),
+                const Text('What\'s new:'),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[850],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Markdown(
+                      data: update['body']?.toString() ?? '',
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(fontSize: 14, color: Colors.white),
+                        strong: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                        h1: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                        h2: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                        a: const TextStyle(
+                            color: Colors.blue,
+                            decoration: TextDecoration.underline),
+                        listBullet: const TextStyle(color: Colors.white),
+                      ),
+                      onTapLink: (text, href, title) {
+                        if (href != null) {
+                          launchUrl(Uri.parse(href),
+                              mode: LaunchMode.externalApplication);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () => _handleUpdate(update, context),
+            child: const Text('Update Now'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleUpdate(
+      Map<String, dynamic> update, BuildContext context) async {
+    try {
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Downloading update...'),
+            ],
+          ),
+        ),
+      );
+
+      final downloadUrl = update['assets'].first['browser_download_url'];
+      final tagName = update['tag_name']?.toString() ?? '';
+
+      // Check if this is an update that might cause package conflicts
+      bool isConflictPossible = false;
+      try {
+        PackageInfo packageInfo = await PackageInfo.fromPlatform();
+        final String currentVersion = packageInfo.version;
+
+        // Major version change might indicate package structure changes
+        List<int> currentVersionParts =
+            currentVersion.split('.').map(int.parse).toList();
+        String newVersionCleaned = tagName.replaceAll('v', '').split('-')[0];
+        List<int> newVersionParts =
+            newVersionCleaned.split('.').map(int.parse).toList();
+
+        // Check if major or minor version changed
+        if (newVersionParts[0] > currentVersionParts[0] ||
+            (newVersionParts[0] == currentVersionParts[0] &&
+                newVersionParts[1] > currentVersionParts[1])) {
+          isConflictPossible = true;
+        }
+      } catch (e) {
+        // If we can't determine, assume conflict is possible
+        isConflictPossible = true;
+      }
+
+      if (isConflictPossible && Platform.isAndroid) {
+        // On Android, suggest uninstall and reinstall for major updates
+        if (!mounted) return;
+        Navigator.pop(context); // Close progress dialog
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Update Method'),
+            content: const Text(
+                'This update might conflict with your existing app. Would you like to:'),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  // Try direct update anyway
+                  Navigator.pop(context);
+                  await _proceedWithDirectUpdate(downloadUrl, tagName);
+                },
+                child: const Text('Try Direct Update'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  // Open browser for manual download
+                  final Uri url = Uri.parse(downloadUrl);
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+
+                  if (!mounted) return;
+                  Navigator.pop(context); // Close update dialog
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Please uninstall the current app before installing the new version'),
+                      duration: Duration(seconds: 8),
+                    ),
+                  );
+                },
+                child: const Text('Manual Download'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // Direct update for iOS or non-major Android updates
+        await _proceedWithDirectUpdate(downloadUrl, tagName);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close progress dialog
+      Navigator.pop(context); // Close update dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Update failed: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _proceedWithDirectUpdate(
+      String downloadUrl, String tagName) async {
+    await UpdateService.instance.downloadAndInstallUpdate(
+      downloadUrl,
+      tagName,
+    );
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close progress dialog
+    Navigator.pop(context); // Close update dialog
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Update downloaded. Installing...')),
+    );
   }
 }

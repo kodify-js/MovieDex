@@ -55,7 +55,7 @@ class SettingsService {
 
       // Initialize default values if not set
       if (!_settingsBox.containsKey('showUpdateDialog')) {
-        await _settingsBox.put('showUpdateDialog', true);
+        await _settingsBox.put('showUpdateDialog', false);
       }
     }
   }
