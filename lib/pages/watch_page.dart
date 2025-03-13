@@ -173,7 +173,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
           if (_stream.first.subtitles != null &&
               _stream.first.subtitles!.isNotEmpty) {
             subtitles = _stream.first.subtitles;
-          }else{
+          } else {
             getSubtitles(
                 episode: contentProvider.episodeNumber,
                 season: contentProvider.seasonNumber);
@@ -221,6 +221,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
             // Try to get stream from preferred server
             try {
               _stream = await contentProvider.providers[i].getStream();
+              _stream = _stream.where((element) => !element.isError).toList();
               if (_stream.isNotEmpty) {
                 preferredServerUsable = true;
               }
@@ -318,10 +319,23 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     });
 
     // Load preferred server index
-    await _loadPreferredServer();
-
-    // Get new stream
-    getStream();
+    _loadPreferredServer().then((_) {
+      if (_stream.isEmpty) {
+        getStream();
+      } else {
+        setState(() {
+          if (_stream.first.subtitles != null &&
+              _stream.first.subtitles!.isNotEmpty) {
+            subtitles = _stream.first.subtitles;
+          } else {
+            getSubtitles(
+                episode: contentProvider.episodeNumber,
+                season: contentProvider.seasonNumber);
+          }
+          isLoading = false;
+        });
+      }
+    });
   }
 
   void _handleServerChanged(int index) async {
@@ -332,8 +346,9 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     });
 
     try {
-      final stream = await contentProvider.providers[index].getStream();
-
+      List<StreamClass> stream =
+          await contentProvider.providers[index].getStream();
+      stream = stream.where((element) => !element.isError).toList();
       if (stream.isEmpty || stream.every((element) => element.isError)) {
         setState(() {
           isLoading = false;
