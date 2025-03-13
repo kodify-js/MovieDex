@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:appwrite/appwrite.dart';
+import 'package:moviedex/services/appwrite_service.dart';
 import 'dart:ui';
-import 'package:moviedex/services/firebase_service.dart';
 import 'package:moviedex/utils/error_handlers.dart';
 
 class SignupPage extends StatefulWidget {
@@ -16,7 +17,6 @@ class _SignupPageState extends State<SignupPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _firebaseService = FirebaseService();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptTerms = false;
@@ -37,10 +37,10 @@ class _SignupPageState extends State<SignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      await _firebaseService.signUp(
+      await AppwriteService.instance.createUser(
         email: _emailController.text,
         password: _passwordController.text,
-        username: _usernameController.text,
+        name: _usernameController.text,
       );
       
       if (mounted) {
@@ -49,6 +49,10 @@ class _SignupPageState extends State<SignupPage> {
           'Account created successfully! Please log in.',
         );
         Navigator.pop(context);
+      }
+    } on AppwriteException catch (e) {
+      if (mounted) {
+        ErrorHandlers.showErrorSnackbar(context, e.message ?? 'Sign up failed');
       }
     } catch (e) {
       if (mounted) {

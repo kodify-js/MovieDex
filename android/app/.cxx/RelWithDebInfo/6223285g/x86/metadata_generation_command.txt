@@ -1,0 +1,20 @@
+                        -HC:\Users\rajes\.shorebird\bin\cache\flutter\8c1a3ee6d9319bd5c202f73972a6d03bba335402\packages\flutter_tools\gradle\src\main\groovy
+-DCMAKE_SYSTEM_NAME=Android
+-DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+-DCMAKE_SYSTEM_VERSION=23
+-DANDROID_PLATFORM=android-23
+-DANDROID_ABI=x86
+-DCMAKE_ANDROID_ARCH_ABI=x86
+-DANDROID_NDK=C:\Users\rajes\AppData\Local\Android\sdk\ndk\27.0.12077973
+-DCMAKE_ANDROID_NDK=C:\Users\rajes\AppData\Local\Android\sdk\ndk\27.0.12077973
+-DCMAKE_TOOLCHAIN_FILE=C:\Users\rajes\AppData\Local\Android\sdk\ndk\27.0.12077973\build\cmake\android.toolchain.cmake
+-DCMAKE_MAKE_PROGRAM=C:\Users\rajes\AppData\Local\Android\sdk\cmake\3.22.1\bin\ninja.exe
+-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=E:\flutter\MovieDex-Flutter\build\app\intermediates\cxx\RelWithDebInfo\6223285g\obj\x86
+-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=E:\flutter\MovieDex-Flutter\build\app\intermediates\cxx\RelWithDebInfo\6223285g\obj\x86
+-DCMAKE_BUILD_TYPE=RelWithDebInfo
+-BE:\flutter\MovieDex-Flutter\android\app\.cxx\RelWithDebInfo\6223285g\x86
+-GNinja
+-Wno-dev
+--no-warn-unused-cli
+                        Build command args: []
+                        Version: 2

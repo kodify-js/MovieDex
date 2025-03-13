@@ -13,44 +13,36 @@ class Carousel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Get screen dimensions and layout info
     final mediaQuery = MediaQuery.of(context);
     final width = mediaQuery.size.width;
     final height = mediaQuery.size.height;
-    final padding = mediaQuery.padding;
-    final viewInsets = mediaQuery.viewInsets;
+    final isLandscape = width > height;
+    final isDesktop = width > 800;
     
-    // Calculate navigation dimensions
-    final sidebarWidth = width > 800 ? width<850 ? 265.0 : 200.0 : 0.0;
-    final bottomNavHeight = width <= 600 ? 70.0 : 0.0;
-    
-    // Calculate effective dimensions
+    // Adjust sidebar width and remove any extra spacing
+    final sidebarWidth = isDesktop ? 200.0 : 0.0;
     final effectiveWidth = width - sidebarWidth;
-    final effectiveHeight = height - bottomNavHeight - padding.top - padding.bottom;
     
-    // Calculate optimal carousel height
-    final carouselHeight = width > 800  // Desktop
-        ? effectiveHeight * 0.75
-            : effectiveHeight * (width > height ? 0.9 : 0.45);
-            
+    // Calculate height without padding
+    final effectiveHeight = isLandscape
+        ? height - mediaQuery.padding.top - kToolbarHeight
+        : height * 0.45;
+
     return Container(
       width: effectiveWidth,
-      height: carouselHeight,
-      child: ClipRRect( // Add clipping to prevent overflow
-        borderRadius: BorderRadius.circular(0),
-        child: ListView.builder(
-          itemCount: data.length,
-          controller: ScrollController(),
-          scrollDirection: Axis.horizontal,
-          physics: const PageScrollPhysics().applyTo(
-            const ClampingScrollPhysics(),
-          ),
-          itemBuilder: (context, index) => _buildCarouselItem(
-            context,
-            data[index],
-            effectiveWidth,
-            carouselHeight,
-          ),
+      height: effectiveHeight,
+      margin: EdgeInsets.zero, // Remove margins
+      padding: EdgeInsets.zero, // Remove padding
+      child: PageView.builder(
+        itemCount: data.length,
+        controller: PageController(viewportFraction: 1.0),
+        scrollDirection: Axis.horizontal,
+        physics: const PageScrollPhysics(),
+        itemBuilder: (context, index) => _buildCarouselItem(
+          context,
+          data[index],
+          effectiveWidth,
+          effectiveHeight,
         ),
       ),
     );
@@ -68,6 +60,8 @@ class Carousel extends StatelessWidget {
     return Container(
       width: width,
       height: height,
+      padding: EdgeInsets.zero, // Remove padding
+      margin: EdgeInsets.zero, // Remove margin
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -111,11 +105,12 @@ class Carousel extends StatelessWidget {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Padding(
+            child: Container(
+              width: width,
               padding: EdgeInsets.fromLTRB(
-                isDesktop ? 64 : 24,
+                isDesktop ? 48 : 16, // Reduced left padding
                 16,
-                isDesktop ? 64 : 24,
+                isDesktop ? 48 : 16,
                 isDesktop ? 48 : 32,
               ),
               child: Column(

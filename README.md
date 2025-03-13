@@ -74,16 +74,22 @@ flutter pub get
 const String apiKey = 'YOUR_TMDB_API_KEY';
 ```
 
-4. Firebase Setup:
-   - Create a new Firebase project
-   - Enable Authentication and Realtime Database
-   - Download `google-services.json` and place in `android/app/`
-   - Add Firebase configuration to your project:
-```bash
-flutter pub add firebase_core
-flutter pub add firebase_auth
-flutter pub add firebase_database
+4. Appwrite Setup:
+   - Create a new Appwrite project at [Appwrite Console](https://cloud.appwrite.io/)
+   - Create a new platform for Flutter in your project settings
+   - Update `lib/api/secrets.dart` with your Appwrite credentials:
+```dart
+// TMDB API Key
+const String apiKey = 'YOUR_TMDB_API_KEY';
+
+// Appwrite Credentials
+const projectId = "<YOUR Appwrite project Id>";
+const databaseId = "<YOUR Appwrite database Id>";
+const watchHistoryCollection = "<YOUR Appwrite  watchHistoryCollection Id>";
+const userListCollection = "<YOUR Appwrite userListCollection Id>";
+
 ```
+   - Create `lib/services/appwrite_service.dart`:
 
 5. Generate Hive Adapters:
 ```bash
@@ -97,23 +103,27 @@ flutter run
 
 ## Configuration
 
-### Firebase Setup Details
-1. Go to [Firebase Console](https://console.firebase.google.com/)
+### Appwrite Setup Details
+1. Go to [Appwrite Console](https://cloud.appwrite.io/)
 2. Create a new project
-3. Add Android app:
-   - Package name: `com.kodify.moviedex`
-   - Download `google-services.json`
+3. Add Flutter platform:
+   - Go to your project settings
+   - Click on 'Add Platform'
+   - Choose 'Flutter App'
+   - Add your app's package name (e.g., `com.kodify.moviedex`)
 4. Enable Authentication:
-   - Go to Authentication > Sign-in method
-   - Enable Email/Password
-5. Setup Realtime Database:
-   - Create database in test mode
-   - Set up rules for user data
+   - Go to Auth > Settings
+   - Enable Email/Password sign-in method
+5. Setup Database:
+   - Create a new database
+   - Create necessary collections (watchlist, user_preferences)
+   - Set up appropriate attributes and indexes
+   - Configure read/write permissions
 
 ### TMDB API Setup
 1. Create account on [TMDB](https://www.themoviedb.org/)
 2. Request an API key
-3. Create `secrets.dart`:
+3. open `secrets.dart`:
 ```dart
 const String apiKey = 'YOUR_API_KEY';
 ```
@@ -134,7 +144,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [TMDB](https://www.themoviedb.org/) for providing the movie database
 - [Flutter](https://flutter.dev/) for the amazing framework
-- [Firebase](https://firebase.google.com/) for backend services
+- [Appwrite](https://appwrite.io/) for backend services
 
 ## Support
 
@@ -155,32 +165,11 @@ samples, guidance on mobile development, and a full API reference.
 
 ### Contributors
 
-<!--
-
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/kodify-js">
-        <img src="https://github.com/kodify-js.png" width="100px;" alt=""/>
-        <br />
-        <sub><b>KodifyJs</b></sub>
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://github.com/aviralsharma954">
-        <img src="https://github.com/aviralsharma954.png" width="100px;" alt=""/>
-        <br />
-        <sub><b>Aviralsharma954</b></sub>
-      </a>
-    </td>
-    <!-- Add more contributors here -->
-  </tr>
-</table>
-
 
 <a href="https://github.com/Kodify-js/Moviedex/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=Kodify-js/Moviedex" />
 </a>
+
 
 ## Project Structure
 
@@ -201,7 +190,7 @@ lib/
 - `lib/api/contentproviders/` - Streaming source implementations
 - `lib/components/content_player.dart` - Video player component
 - `lib/services/watch_history_service.dart` - History tracking
-- `lib/services/firebase_service.dart` - Authentication
+- `lib/services/appwrite_service.dart` - Authentication
 - `lib/services/cache_service.dart` - Local caching
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed project structure and contribution guidelines.

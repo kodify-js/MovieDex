@@ -1,6 +1,6 @@
 /**
  * MovieDex - Open Source Movie & TV Show Streaming Application
- * https://github.com/kodify-js/MovieDex-Flutter
+ * https://github.com/kodify-js/MovieDex
  * 
  * Copyright (c) 2024 MovieDex Contributors
  * Licensed under MIT License
@@ -12,11 +12,8 @@
  * - Theme and UI management
  * - Navigation structure
  */
-
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/models/cache_model.dart';
-import 'package:moviedex/api/models/watch_history_model.dart';
 import 'package:moviedex/models/download_state_model.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/movie_page.dart';
@@ -24,7 +21,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:moviedex/pages/profile_page.dart';
 import 'package:moviedex/pages/tvshow_page.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
-import 'package:moviedex/services/downloads_manager.dart';
+import 'package:moviedex/models/downloads_manager.dart';
+import 'package:moviedex/services/analytics_service.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:provider/provider.dart';
 import 'package:moviedex/providers/theme_provider.dart';
@@ -33,25 +31,18 @@ import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/api/models/list_item_model.dart';
 import 'package:moviedex/pages/splash_screen.dart';
-import 'firebase_options.dart'; 
 import 'package:moviedex/components/responsive_navigation.dart';
 import 'package:moviedex/services/background_download_service.dart';
 import 'package:moviedex/services/update_service.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint('Firebase initialization error: $e');
-  }
 
   await Hive.initFlutter();
   _registerHiveAdapters();
   
+  // Initialize analytics first
+  await AnalyticsService.instance.init();
   // Initialize services in dependency order
   await ListService.instance.init();
   await WatchHistoryService.instance.init();
@@ -74,24 +65,20 @@ void _registerHiveAdapters() {
     Hive.registerAdapter(SeasonAdapter());
   }
   if (!Hive.isAdapterRegistered(4)) {
-    Hive.registerAdapter(WatchHistoryItemAdapter());
-  }
-  if (!Hive.isAdapterRegistered(5)) {
     Hive.registerAdapter(ListItemAdapter());
   }
-  if (!Hive.isAdapterRegistered(6)) {
+  if (!Hive.isAdapterRegistered(5)) {
     Hive.registerAdapter(DownloadItemAdapter());
   }
-  if(!Hive.isAdapterRegistered(7)){
+  if(!Hive.isAdapterRegistered(6)){
     Hive.registerAdapter(DownloadStateAdapter());
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   await UpdateService.instance.initialize();
-  await initializeServices();
+  await initializeServices();  
   
   runApp(const MyApp());
 }
@@ -104,8 +91,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
-  static FirebaseAnalyticsObserver observer = FirebaseAnalyticsObserver(analytics: analytics);
 
   @override
   void initState() {
@@ -130,7 +115,6 @@ class _MyAppState extends State<MyApp> {
             '/': (context) => const SplashScreen(),
             '/home': (context) => const HomePage(),
           },
-          navigatorObservers: [observer],
           onGenerateRoute: (settings) {
             if (settings.name?.contains('/movie') ?? false) {
               final id = int.parse(settings.name!.split('/')[2]);

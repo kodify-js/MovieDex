@@ -17,7 +17,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 /// Manages HTTP proxy configuration and validation
 class ProxyService {
   static ProxyService? _instance;
-  
+
   /// Returns singleton instance of ProxyService
   static ProxyService get instance {
     _instance ??= ProxyService._();
@@ -30,14 +30,16 @@ class ProxyService {
   String? get activeProxy {
     final settings = Hive.box('settings');
     final useCustomProxy = settings.get('useCustomProxy', defaultValue: false);
-    return useCustomProxy ? settings.get('proxyUrl') : null;
+    return useCustomProxy
+        ? settings.get('proxyUrl')
+        : "https://simple-proxy.metalewis21.workers.dev/?destination=";
   }
 
   /// Validates proxy URL by attempting a test connection
   Future<bool> validateProxy(String proxyUrl) async {
     try {
       final response = await http.get(
-        Uri.parse('https://www.google.com'),
+        Uri.parse('${proxyUrl}https://www.google.com'),
         headers: {'User-Agent': 'Mozilla/5.0'},
       ).timeout(const Duration(seconds: 5));
       return response.statusCode == 200;

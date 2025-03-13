@@ -22,14 +22,13 @@ class ListItemAdapter extends TypeAdapter<ListItem> {
       poster: fields[2] as String,
       type: fields[3] as String,
       addedAt: fields[4] as DateTime,
-      content: (fields[5] as Map?)?.cast<String, dynamic>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, ListItem obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.contentId)
       ..writeByte(1)
@@ -39,9 +38,7 @@ class ListItemAdapter extends TypeAdapter<ListItem> {
       ..writeByte(3)
       ..write(obj.type)
       ..writeByte(4)
-      ..write(obj.addedAt)
-      ..writeByte(5)
-      ..write(obj.content);
+      ..write(obj.addedAt);
   }
 
   @override

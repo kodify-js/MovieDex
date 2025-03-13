@@ -1,0 +1,1 @@
+E:\flutter\MovieDex-Flutter\build\app\intermediates\cxx\RelWithDebInfo\6223285g\obj\armeabi-v7a

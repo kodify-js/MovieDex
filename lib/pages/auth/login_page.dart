@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:moviedex/pages/auth/signup_page.dart';
-import 'package:moviedex/services/firebase_service.dart';
 import 'package:moviedex/utils/error_handlers.dart';
+import 'package:appwrite/appwrite.dart';
+import 'package:moviedex/services/appwrite_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,7 +16,6 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _firebaseService = FirebaseService();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
@@ -25,9 +25,9 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await _firebaseService.signIn(
-        email: _emailController.text,
-        password: _passwordController.text,
+      await AppwriteService.instance.createEmailSession(
+        _emailController.text,
+        _passwordController.text,
       );
       
       if (mounted) {
@@ -36,6 +36,10 @@ class _LoginPageState extends State<LoginPage> {
           'Welcome back!',
         );
         Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on AppwriteException catch (e) {
+      if (mounted) {
+        ErrorHandlers.showErrorSnackbar(context, e.message ?? 'Authentication failed');
       }
     } catch (e) {
       if (mounted) {
@@ -86,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
               setState(() => _isLoading = true);
               
               try {
-                await _firebaseService.resetPassword(email);
+                await AppwriteService.instance.resetPassword(email);
                 if (mounted) {
                   ErrorHandlers.showSuccessSnackbar(
                     context,

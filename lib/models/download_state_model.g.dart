@@ -25,13 +25,15 @@ class DownloadStateAdapter extends TypeAdapter<DownloadState> {
       lastSegmentIndex: fields[5] as int?,
       episodeNumber: fields[6] as int?,
       seasonNumber: fields[7] as int?,
+      speed: fields[8] as double,
+      timeLeft: fields[9] as double,
     );
   }
 
   @override
   void write(BinaryWriter writer, DownloadState obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.contentId)
       ..writeByte(1)
@@ -47,7 +49,11 @@ class DownloadStateAdapter extends TypeAdapter<DownloadState> {
       ..writeByte(6)
       ..write(obj.episodeNumber)
       ..writeByte(7)
-      ..write(obj.seasonNumber);
+      ..write(obj.seasonNumber)
+      ..writeByte(8)
+      ..write(obj.speed)
+      ..writeByte(9)
+      ..write(obj.timeLeft);
   }
 
   @override

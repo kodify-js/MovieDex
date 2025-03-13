@@ -20,44 +20,45 @@
 
 import 'dart:async';
 import 'dart:convert'; // Add this import for base64Encode
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/api/class/episode_class.dart';
+import 'package:moviedex/api/class/server_class.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/components/episode_list_player.dart';
+import 'package:moviedex/utils/utils.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 import 'package:moviedex/services/watch_history_service.dart';
 import 'package:moviedex/components/next_episode_button.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:moviedex/services/settings_service.dart';
-import 'package:vector_math/vector_math_64.dart' as vector;
 import 'package:zoom_widget/zoom_widget.dart';
+import '../api/class/subtitle_class.dart';
+import '../services/subtitle_service.dart';
 
 /// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
   /// Content metadata
   final Contentclass data;
-  
+
   /// Available video streams
   final List<StreamClass> streams;
-  
+
   /// Content type (movie/tv)
   final String contentType;
-  
+
   /// Current episode number for TV shows
   final int? currentEpisode;
-  
+
   /// Content title
   final String title;
-  
+
   /// Episode list for TV shows
   final List<Episode>? episodes;
-  
+
   /// Callback when episode is selected
   final Function(int)? onEpisodeSelected;
 
@@ -66,26 +67,38 @@ class ContentPlayer extends StatefulWidget {
   final bool hasNextEpisode;
   final bool hasPreviousEpisode;
 
+  final List<SubtitleClass>? subtitles;
+
+  final List<ServerClass> servers;
+  final Function(int)? onServerChanged;
+  final int currentServerIndex;
+
   const ContentPlayer({
-    super.key, 
+    super.key,
     required this.data,
-    required this.streams, 
-    required this.contentType, 
+    required this.streams,
+    required this.contentType,
     this.currentEpisode,
-    required this.title,  
+    required this.title,
     this.episodes,
-    this.onEpisodeSelected,  // Add this to constructor
+    this.onEpisodeSelected, // Add this to constructor
     this.onNextEpisode,
     this.onPreviousEpisode,
     this.hasNextEpisode = false,
     this.hasPreviousEpisode = false,
+    this.subtitles,
+    required this.servers,
+    this.onServerChanged,
+    required this.currentServerIndex,
   });
 
   @override
   State<ContentPlayer> createState() => _ContentPlayerState();
 }
 
-class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateMixin {
+class _ContentPlayerState extends State<ContentPlayer>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
+  // Add WidgetsBindingObserver mixin
   // Controller and state variables
   VideoPlayerController? _controller;
   Timer? _hideTimer;
@@ -102,7 +115,13 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   Duration? _position;
   var _progress = 0.0;
   var _bufferingProgress = 0.0;
-  List settingElements = ["Quality", "Language", "Speed"];
+  List settingElements = [
+    "Quality",
+    "Language",
+    "Speed",
+    "Subtitles",
+    "Servers"
+  ];
   bool _showForwardIndicator = false;
   bool _showRewindIndicator = false;
   late AnimationController _seekAnimationController;
@@ -146,35 +165,50 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   late AnimationController _seekRewindAnimationController;
   late Animation<double> _seekForwardRotation;
   late Animation<double> _seekRewindRotation;
-  
+
   //_settings
   late Box _settingsBox;
   bool _useCustomProxy = false;
   bool _autoPlayNext = true;
   bool _useHardwareDecoding = true;
   String _defaultQuality = 'Auto';
-  
+  String _preferredLanguage = 'original';
+  String _preferredServer = '';
+
   late Box? storage;
 
   // Add lock state
   bool _isLocked = false;
 
-  String getSourceOfQuality(StreamClass data){
-    final source = data.sources.where((source)=>source.quality==_currentQuality).toList();
-    if(source.isEmpty){
+  // Add new state variables
+  SubtitleClass? _currentSubtitle;
+  List<SubtitleEntry>? _subtitleEntries;
+  String? _currentSubtitleText;
+  bool _subtitlesEnabled = true;
+
+  String? _currentPlaybackUrl; // Track current playback URL for reinitializing
+
+  String getSourceOfQuality(StreamClass data) {
+    final source = data.sources
+        .where((source) => source.quality == _currentQuality)
+        .toList();
+    if (source.isEmpty) {
       _currentQuality = 'Auto';
       return data.url;
-    }else{
+    } else {
       return source[0].url;
     }
   }
 
   void _onControllerUpdate() async {
-    if (!mounted || _controller == null || !_controller!.value.isInitialized || _isDraggingSlider) return;
+    if (!mounted ||
+        _controller == null ||
+        !_controller!.value.isInitialized ||
+        _isDraggingSlider) return;
 
     final duration = _controller!.value.duration;
     final position = _controller!.value.position;
-    
+
     // Add to history when user starts watching (after 30 seconds)
     if (position.inSeconds == 30) {
       await WatchHistoryService.instance.addToHistory(widget.data);
@@ -186,8 +220,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _duration = duration;
         _position = position;
         _isPlaying = _controller!.value.isPlaying;
-        _isBuffering = _controller!.value.isBuffering;
-        
+
+        // Fix buffering detection - only consider it buffering if it's not playing but should be
+        _isBuffering = _controller!.value.isBuffering &&
+            !_controller!.value.isPlaying &&
+            _isPlaying;
+
         // Calculate progress only if duration is valid
         if (duration.inMilliseconds > 0) {
           _progress = position.inMilliseconds / duration.inMilliseconds;
@@ -202,18 +240,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       final bufferedEnd = _controller!.value.buffered.last.end;
       if (mounted && duration.inMilliseconds > 0) {
         setState(() {
-          _bufferingProgress = bufferedEnd.inMilliseconds / duration.inMilliseconds;
+          _bufferingProgress =
+              bufferedEnd.inMilliseconds / duration.inMilliseconds;
         });
       }
-    }
-
-    // Save to continue watching every 5 seconds
-    if (position.inSeconds % 5 == 0 && duration.inMilliseconds > 0) {
-      await WatchHistoryService.instance.updateContinueWatching(
-        widget.data,
-        position,
-        duration,
-      );
     }
   }
 
@@ -221,16 +251,66 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     await _settingsBox.put(key, value);
   }
 
-
-   Future<void> _initSettings() async {
+  Future<void> _initSettings() async {
     _settingsBox = await Hive.openBox('settings');
     _defaultQuality = _settingsBox.get('defaultQuality', defaultValue: 'Auto');
+    _preferredLanguage =
+        _settingsBox.get('preferredLanguage', defaultValue: 'original');
+    _preferredServer = _settingsBox.get('preferredServer', defaultValue: '');
     _useCustomProxy = _settingsBox.get('useCustomProxy', defaultValue: false);
     _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
-    _useHardwareDecoding = _settingsBox.get('useHardwareDecoding', defaultValue: true);
+    _useHardwareDecoding =
+        _settingsBox.get('useHardwareDecoding', defaultValue: true);
+
+    // Apply language preference if available
+    _tryUsePreferredLanguage();
+  }
+
+  void _tryUsePreferredLanguage() {
+    if (_preferredLanguage != 'original' && widget.streams.isNotEmpty) {
+      // Look for streams with preferred language
+      final preferredStreams = widget.streams
+          .where((stream) => stream.language == _preferredLanguage)
+          .toList();
+      if (preferredStreams.isNotEmpty) {
+        _currentLanguage = _preferredLanguage;
+      } else {
+        // Fallback to default language if preferred not available
+        _currentLanguage = widget.streams[0].language;
+      }
+    } else {
+      // Use first available language if no preference
+      _currentLanguage =
+          widget.streams.isNotEmpty ? widget.streams[0].language : 'original';
+    }
+  }
+
+  void _tryUsePreferredSubtitle() {
+    if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
+      final preferredSubtitleLanguage =
+          _settingsBox.get('preferredSubtitleLanguage', defaultValue: null);
+
+      if (preferredSubtitleLanguage != null) {
+        final preferredSubtitles = widget.subtitles!
+            .where((subtitle) => subtitle.language == preferredSubtitleLanguage)
+            .toList();
+        if (preferredSubtitles.isNotEmpty) {
+          _currentSubtitle = preferredSubtitles.first;
+        } else {
+          _currentSubtitle = widget.subtitles!.first;
+        }
+      } else {
+        _currentSubtitle = widget.subtitles!.first;
+      }
+
+      _loadSubtitles();
+    }
   }
 
   Future<void> _initializeVideoPlayer(String url) async {
+    // Store the current URL for possible reinitialization
+    _currentPlaybackUrl = url;
+
     final proxyService = ProxyService.instance;
     final proxyUrl = proxyService.activeProxy;
 
@@ -241,16 +321,28 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           Uri.parse(url),
           httpHeaders: {
             'User-Agent': 'Mozilla/5.0',
-            'Proxy-Authorization': 'Basic ${base64.encode(utf8.encode(proxyUrl))}', // Fixed base64Encode
+            'Proxy-Authorization':
+                'Basic ${base64.encode(utf8.encode(proxyUrl))}', // Fixed base64Encode
           },
+          // Add these options for better handling of background/foreground transitions
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: false,
+            allowBackgroundPlayback: false,
+          ),
         );
       } else {
         // Normal initialization without proxy
-        _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+        _controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: false,
+            allowBackgroundPlayback: false,
+          ),
+        );
       }
 
       await _controller?.initialize();
-      
+
       if (mounted) {
         setState(() {
           _isInitialized = true;
@@ -262,56 +354,173 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       }
     } catch (e) {
       debugPrint('Error initializing video player: $e');
-      // Show error dialog
+
       if (mounted) {
-                print(_currentQuality);
-          if(_currentQuality=='Auto'){
-        setState(() {
-          _controller?.dispose();        
-          // Initialize with new quality url using proxy if configured
-          final sources = widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].sources;
-          _currentQuality = sources[0].quality;
-          _initializeVideoPlayer(sources.where((e)=>e.quality==_currentQuality).toList()[0].url).then((_) {
-            _controller!.play();
-          });
-        _isSettingsVisible = false;
-        });
-        }else{
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Playback Error'),
-            content: Text('Failed to load video${proxyUrl != null ? ' using proxy' : ''}: $e'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        }
+        // Handle playback error by trying alternative sources
+        await _handlePlaybackError();
       }
     }
+  }
+
+  /// Handles playback errors by trying alternative sources in this order:
+  /// 1. Try different quality of same language
+  /// 2. Try different language if available
+  /// 3. Try different server if available
+  Future<void> _handlePlaybackError() async {
+    // Check if Auto quality and try specific quality instead
+    if (_currentQuality == 'Auto') {
+      final currentStream = widget.streams
+          .where((stream) => stream.language == _currentLanguage)
+          .toList();
+
+      if (currentStream.isNotEmpty && currentStream[0].sources.isNotEmpty) {
+        // Try first specific quality instead of Auto
+        final sourceToTry = currentStream[0].sources.first;
+        debugPrint(
+            'Trying specific quality: ${sourceToTry.quality} instead of Auto');
+
+        setState(() {
+          _isBuffering = true;
+          _currentQuality = sourceToTry.quality;
+        });
+
+        return _initializeVideoPlayer(sourceToTry.url)
+            .catchError((_) => _tryNextLanguageOrServer());
+      } else {
+        return _tryNextLanguageOrServer();
+      }
+    } else {
+      // Already using specific quality, try next language or server
+      return _tryNextLanguageOrServer();
+    }
+  }
+
+  /// Try next available language or server
+  Future<void> _tryNextLanguageOrServer() async {
+    // First try a different language if available
+    final availableLanguages = widget.streams
+        .map((stream) => stream.language)
+        .where((lang) => lang != _currentLanguage)
+        .toList();
+
+    if (availableLanguages.isNotEmpty) {
+      debugPrint('Trying next language: ${availableLanguages.first}');
+      // Find stream with this language
+      final nextLanguageStream = widget.streams
+          .firstWhere((stream) => stream.language == availableLanguages.first);
+
+      setState(() {
+        _isBuffering = true;
+        _currentLanguage = availableLanguages.first;
+        _currentQuality = 'Auto'; // Reset quality for new language
+      });
+
+      return _initializeVideoPlayer(nextLanguageStream.url)
+          .catchError((_) => _tryNextServer());
+    } else {
+      return _tryNextServer();
+    }
+  }
+
+  /// Try next available server
+  Future<void> _tryNextServer() async {
+    if (widget.servers.length > 1 && widget.onServerChanged != null) {
+      // Find next available server index
+      int nextServerIndex;
+      if (widget.currentServerIndex == 0) {
+        nextServerIndex =
+            (widget.currentServerIndex + 1) % widget.servers.length;
+      } else {
+        nextServerIndex = 0;
+      }
+      // Skip servers marked as unavailable
+      while (nextServerIndex != widget.currentServerIndex &&
+          widget.servers[nextServerIndex].status == ServerStatus.unavailable) {
+        nextServerIndex = (nextServerIndex + 1) % widget.servers.length;
+      }
+
+      if (nextServerIndex != widget.currentServerIndex) {
+        debugPrint(
+            'Trying next server: ${widget.servers[nextServerIndex].name}');
+
+        // Show a notification to the user
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Playback error. Trying server: ${widget.servers[nextServerIndex].name}'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Use the onServerChanged callback to switch to next server
+        widget.onServerChanged!(nextServerIndex);
+        return;
+      }
+    }
+
+    // If we've tried everything, show error dialog
+    _showPlaybackErrorDialog();
+  }
+
+  void _showPlaybackErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Playback Error'),
+        content: const Text(
+          'Unable to play this content with current settings. '
+          'Please try a different server, quality or check your connection.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    // Register observer for app lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
+
     WakelockPlus.enable();
     _initStorage();
     _initSettings().then((_) {
-      List<SourceClass> source = widget.streams[0].sources.where((e)=>e.quality==_defaultQuality.replaceAll("p", "")).toList();
-      if(source.isNotEmpty){
-        setState(() {
-          _currentQuality = _defaultQuality;
-        });
+      // Find stream matching preferred language
+      StreamClass streamToUse;
+      if (widget.streams.isNotEmpty) {
+        final preferredStreams = widget.streams
+            .where((stream) => stream.language == _currentLanguage)
+            .toList();
+        streamToUse = preferredStreams.isNotEmpty
+            ? preferredStreams.first
+            : widget.streams.first;
+
+        // Try to use preferred quality if available
+        List<SourceClass> sources = streamToUse.sources
+            .where((e) => e.quality == _defaultQuality.replaceAll("p", ""))
+            .toList();
+
+        if (sources.isNotEmpty) {
+          setState(() {
+            _currentQuality = _defaultQuality.replaceAll("p", "");
+          });
+          _initializeVideoPlayer(sources.first.url);
+        } else {
+          // Fallback to Auto quality
+          setState(() {
+            _currentQuality = 'Auto';
+          });
+          _initializeVideoPlayer(streamToUse.url);
+        }
       }
-      String videoUrl = _defaultQuality=='Auto'?widget.streams[0].url:source.isNotEmpty?source[0].url:widget.streams[0].url;
-      _currentLanguage = widget.streams[0].language;
-      
-      // Initialize video player with proxy support
-      _initializeVideoPlayer(videoUrl);
+
+      // Load preferred subtitle if available
+      _tryUsePreferredSubtitle();
     });
 
     _startHideTimer();
@@ -392,13 +601,24 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
     _startControlsTimer();
     _controller?.addListener(_onVideoProgress);
+
+    // Initialize subtitles if available
+    if (widget.subtitles != null && widget.subtitles!.isNotEmpty) {
+      _currentSubtitle = widget.subtitles!.first;
+      _loadSubtitles();
+    }
+
+    // Add subtitle update timer
+    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      _updateSubtitles();
+    });
   }
 
   Future<void> _initStorage() async {
     try {
       storage = await Hive.openBox(widget.data.title);
       if (!storage!.isOpen) return;
-      
+
       // Initialize episode info if not set
       if (!storage!.containsKey("season")) {
         await storage?.put("season", "S${widget.currentEpisode ?? 1}");
@@ -413,26 +633,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
   @override
   void dispose() {
-    WakelockPlus.disable();
-    // Update continue watching when exiting player
-    if (_controller != null && _controller!.value.isInitialized) {
-      final position = _controller!.value.position;
-      final duration = _controller!.value.duration;
-      
-      // Only add to continue watching if watched more than 1% and less than 95%
-      if (position.inSeconds > 0 && 
-          (position.inSeconds / duration.inSeconds) < 0.95) {
-        WatchHistoryService.instance.updateContinueWatching(
-          widget.data,
-          position,
-          duration,
-        );
-      } else if (position.inSeconds / duration.inSeconds >= 0.95) {
-        // Remove from continue watching if exists
-        WatchHistoryService.instance.removeFromContinueWatching(widget.data.id);
-      }
-    }
+    // Remove observer when disposing
+    WidgetsBinding.instance.removeObserver(this);
 
+    WakelockPlus.disable();
     // Add to history when finished watching
     if (_progress >= 0.9) {
       WatchHistoryService.instance.addToHistory(widget.data);
@@ -451,6 +655,56 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     super.dispose();
   }
 
+  // Add this method to handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App is back in foreground - reinitialize video if needed
+      if (_controller != null &&
+          _controller!.value.isInitialized &&
+          _currentPlaybackUrl != null) {
+        // Save current position and playing state before reinitializing
+        final currentPosition = _controller?.value.position;
+        final wasPlaying = _controller?.value.isPlaying ?? false;
+
+        // Dispose and recreate the controller to fix the black screen issue
+        _controller?.pause();
+        _controller?.dispose();
+        _controller = null;
+
+        // Small delay before reinitializing to ensure proper cleanup
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (!mounted) return;
+
+          setState(() {
+            _isBuffering = true;
+          });
+
+          _initializeVideoPlayer(_currentPlaybackUrl!).then((_) {
+            if (_controller != null &&
+                _controller!.value.isInitialized &&
+                currentPosition != null) {
+              _controller!.seekTo(currentPosition).then((_) {
+                if (wasPlaying) {
+                  _controller!.play();
+                }
+                setState(() {
+                  _isBuffering = false;
+                });
+              });
+            }
+          });
+        });
+      }
+    } else if (state == AppLifecycleState.inactive) {
+      // App is going to background or being interrupted
+      // Store current playback position for when we resume
+      if (_controller != null && _controller!.value.isInitialized) {
+        // Optionally pause video when going to background
+        // _controller!.pause();
+      }
+    }
+  }
 
   void _startHideTimer() {
     _hideTimer?.cancel();
@@ -538,12 +792,13 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       // Store current position before disposing
       final currentPosition = _controller?.value.position ?? Duration.zero;
       final wasPlaying = _controller?.value.isPlaying ?? false;
-      
+
       setState(() {
         _controller?.dispose();
         _currentQuality = quality;
         _saveSetting('defaultQuality', '${quality}p');
-        
+        _currentPlaybackUrl = url; // Update current URL
+
         // Initialize with new quality url using proxy if configured
         _initializeVideoPlayer(url).then((_) {
           if (_controller != null && _controller!.value.isInitialized) {
@@ -554,7 +809,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             });
           }
         });
-        
+
         _isSettingsVisible = false;
       });
     }
@@ -565,15 +820,17 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       // Store current position
       final currentPosition = _controller?.value.position ?? Duration.zero;
       final wasPlaying = _controller?.value.isPlaying ?? false;
-      
+      final newUrl =
+          _currentQuality == 'Auto' ? data.url : getSourceOfQuality(data);
+
       setState(() {
         _controller?.dispose();
         _currentLanguage = data.language;
-        
+        _saveSetting('preferredLanguage', data.language);
+        _currentPlaybackUrl = newUrl; // Update current URL
+
         // Initialize with new language url using proxy if configured
-        _initializeVideoPlayer(
-          _currentQuality == 'Auto' ? data.url : getSourceOfQuality(data)
-        ).then((_) {
+        _initializeVideoPlayer(newUrl).then((_) {
           if (_controller != null && _controller!.value.isInitialized) {
             _controller!.seekTo(currentPosition).then((_) {
               if (wasPlaying) {
@@ -582,7 +839,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             });
           }
         });
-        
+
         _isSettingsVisible = false;
       });
     }
@@ -594,6 +851,48 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       _controller?.setPlaybackSpeed(speed);
       _isSettingsVisible = false;
     });
+  }
+
+  void _selectSubtitle(SubtitleClass? subtitle) async {
+    setState(() {
+      _currentSubtitle = subtitle;
+      _currentSubtitleText = '';
+      _subtitleEntries = null;
+    });
+
+    if (subtitle != null) {
+      await _loadSubtitles();
+      _saveSetting('preferredSubtitleLanguage', subtitle.language);
+    }
+
+    _isSettingsVisible = false;
+  }
+
+  Future<void> _loadSubtitles() async {
+    if (_currentSubtitle != null) {
+      _subtitleEntries =
+          await SubtitleService.instance.loadSubtitles(_currentSubtitle!.url);
+    }
+  }
+
+  void _updateSubtitles() {
+    if (!mounted ||
+        _controller == null ||
+        !_controller!.value.isInitialized ||
+        _subtitleEntries == null) return;
+
+    final position = _controller!.value.position;
+    final entry = _subtitleEntries!.firstWhere(
+      (entry) => position >= entry.start && position <= entry.end,
+      orElse: () =>
+          SubtitleEntry(start: Duration.zero, end: Duration.zero, text: ''),
+    );
+
+    if (mounted && _subtitlesEnabled) {
+      setState(() {
+        _currentSubtitleText = entry.text;
+      });
+    }
   }
 
   void _handleTap() {
@@ -611,18 +910,17 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
-
   void _handleDoubleTapSeek(BuildContext context, TapDownDetails details) {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    
+
     final screenWidth = MediaQuery.of(context).size.width;
     final tapPosition = details.globalPosition.dx;
-    
+
     setState(() {
       _consecutiveTaps++;
       _isShowingSeekIndicator = true;
       _isCountrollesVisible = false;
-      
+
       if (tapPosition < screenWidth * 0.5) {
         // Left side - Rewind
         _showRewindIndicator = true;
@@ -651,7 +949,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
-
   void _seekRelative(int seconds) async {
     if (!_controller!.value.isInitialized) return;
 
@@ -676,7 +973,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _togglePlayPause() {
-    if (_isBuffering || _controller == null) return;
+    if (_controller == null) return;
+
     setState(() {
       if (_isPlaying) {
         _controller!.pause();
@@ -691,7 +989,6 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     });
   }
 
-
   void _handleProgressChanged(double value) {
     if (!_controller!.value.isInitialized) return;
 
@@ -700,16 +997,18 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       _dragProgress = value;
       _progress = value; // Update visual progress
       final duration = _controller!.value.duration;
-      _position = Duration(milliseconds: (duration.inMilliseconds * value).round());
+      _position =
+          Duration(milliseconds: (duration.inMilliseconds * value).round());
     });
   }
 
   void _handleProgressChangeEnd(double value) {
     if (!_controller!.value.isInitialized) return;
-    
+
     final duration = _controller!.value.duration;
-    final position = Duration(milliseconds: (duration.inMilliseconds * value).round());
-    
+    final position =
+        Duration(milliseconds: (duration.inMilliseconds * value).round());
+
     _controller!.seekTo(position).then((_) {
       setState(() {
         _isDraggingSlider = false;
@@ -717,18 +1016,18 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         _position = position;
       });
     });
-    
+
     _cancelAndRestartHideTimer();
   }
 
   Widget _buildSettingsMenu() {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 200),
-      right: _isSettingsVisible ? 0 : -250, // Changed from right to left
+      right: _isSettingsVisible ? 0 : -300, // Changed from right to left
       top: 0,
       bottom: 0,
       child: Container(
-        width: 250,
+        width: 300,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: const BorderRadius.only(
@@ -758,10 +1057,17 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                     onPressed: _handleSettingsBack,
                   ),
                   Text(
-                    _settingsPage == 'main' ? 'Settings' 
-                    : _settingsPage == 'quality' ? 'Quality' 
-                    : _settingsPage == 'language' ? 'Language'
-                    : 'Speed',
+                    _settingsPage == 'main'
+                        ? 'Settings'
+                        : _settingsPage == 'quality'
+                            ? 'Quality'
+                            : _settingsPage == 'language'
+                                ? 'Language'
+                                : _settingsPage == 'subtitles'
+                                    ? 'Subtitles'
+                                    : _settingsPage == 'servers'
+                                        ? 'Servers'
+                                        : 'Speed',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -775,60 +1081,179 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               child: SingleChildScrollView(
                 child: _settingsPage == 'main'
                     ? Column(
-                        children: settingElements.map((element) => 
-                          ListTile(
-                            onTap: () => _showSettingsOptions(element.toLowerCase()),
-                            title: Text(
-                              element,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  element == 'Quality' ? _currentQuality 
-                                  : element == 'Language' ? _currentLanguage
-                                  : _playbackSpeed == 1.0 ? 'Normal' : '${_playbackSpeed}x',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.7),
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.7)),
-                              ],
-                            ),
-                          ),
-                        ).toList(),
-                      )
-                    : Column(
-                        children: _settingsPage == 'quality'
-                            ? [
-                                _buildOptionTile('Auto', _currentQuality == 'Auto',() => _selectQuality('Auto', widget.streams.where((e)=>e.language==_currentLanguage).toList()[0].url)),
-                                ...widget.streams[0].sources
-                                    .where((source) => source.quality != 'Auto')
-                                    .map((source) => _buildOptionTile(
-                                        '${source.quality}p',
-                                        _currentQuality == source.quality,
-                                        () => _selectQuality(source.quality, source.url)))
-                              ]
-                            : _settingsPage == 'language'
-                            ? widget.streams
-                                .map((stream) => _buildOptionTile(
-                                    stream.language,
-                                    _currentLanguage == stream.language,
-                                    () => _selectLanguage(stream)))
-                                .toList()
-                            : _speedOptions.map((option) => ListTile(
-                                onTap: () => _selectSpeed(option['value']),
+                        children: settingElements
+                            .map(
+                              (element) => ListTile(
+                                onTap: () =>
+                                    _showSettingsOptions(element.toLowerCase()),
                                 title: Text(
-                                  option['label'],
+                                  element,
                                   style: const TextStyle(color: Colors.white),
                                 ),
-                                trailing: _playbackSpeed == option['value']
-                                    ? Icon(Icons.check, color: Theme.of(context).colorScheme.primary)
-                                    : null,
-                                selected: _playbackSpeed == option['value'],
-                                selectedTileColor: Colors.white.withOpacity(0.1),
-                              )).toList(),
+                                trailing: SizedBox(
+                                  width:
+                                      120, // Constrain width of trailing widget
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          element == 'Quality'
+                                              ? _currentQuality
+                                              : element == 'Language'
+                                                  ? _currentLanguage
+                                                  : element == 'Subtitles'
+                                                      ? (_currentSubtitle
+                                                              ?.label ??
+                                                          'Off')
+                                                      : element == 'Servers'
+                                                          ? (widget.servers
+                                                                  .isNotEmpty
+                                                              ? widget
+                                                                  .servers[widget
+                                                                      .currentServerIndex]
+                                                                  .name
+                                                              : 'Default')
+                                                          : _playbackSpeed ==
+                                                                  1.0
+                                                              ? 'Normal'
+                                                              : '${_playbackSpeed}x',
+                                          style: TextStyle(
+                                            color:
+                                                Colors.white.withOpacity(0.7),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(Icons.chevron_right,
+                                          color: Colors.white.withOpacity(0.7)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      )
+                    : Column(
+                        children: _settingsPage == 'servers' &&
+                                widget.servers.isNotEmpty
+                            ? widget.servers
+                                .asMap()
+                                .entries
+                                .map(
+                                  (entry) => ListTile(
+                                    onTap: entry.value.status !=
+                                            ServerStatus.unavailable
+                                        ? () {
+                                            if (widget.onServerChanged !=
+                                                null) {
+                                              widget
+                                                  .onServerChanged!(entry.key);
+                                              // Save preferred server with content-specific key
+                                              final preferenceKey = widget
+                                                      .data.genres
+                                                      .contains("Animation")
+                                                  ? 'preferredAnimeServer'
+                                                  : 'preferredServer';
+                                              _saveSetting(preferenceKey,
+                                                  entry.value.name);
+                                            }
+                                            setState(() =>
+                                                _isSettingsVisible = false);
+                                          }
+                                        : null,
+                                    title: Text(
+                                      entry.value.name,
+                                      style: TextStyle(
+                                        color: entry.value.status ==
+                                                ServerStatus.unavailable
+                                            ? Colors.grey
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (entry.value.status ==
+                                            ServerStatus.active)
+                                          Icon(
+                                            Icons.check_circle,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          )
+                                        else if (entry.value.status ==
+                                            ServerStatus.unavailable)
+                                          const Icon(
+                                            Icons.error,
+                                            color: Colors.red,
+                                          ),
+                                        if (entry.key ==
+                                            widget.currentServerIndex)
+                                          const SizedBox(width: 8),
+                                        if (entry.key ==
+                                            widget.currentServerIndex)
+                                          const Icon(
+                                            Icons.check,
+                                            color: Colors.white,
+                                          ),
+                                      ],
+                                    ),
+                                    enabled: entry.value.status !=
+                                        ServerStatus.unavailable,
+                                  ),
+                                )
+                                .toList()
+                            : _settingsPage == 'quality'
+                                ? _buildCurrentQualityOptions()
+                                : _settingsPage == 'language'
+                                    ? _buildCurrentLanguageOptions()
+                                    : _settingsPage == 'subtitles'
+                                        ? [
+                                            _buildOptionTile(
+                                              'Off',
+                                              _currentSubtitle == null,
+                                              () => _selectSubtitle(null),
+                                            ),
+                                            if (widget.subtitles != null)
+                                              ...widget.subtitles!.map(
+                                                  (subtitle) =>
+                                                      _buildOptionTile(
+                                                        subtitle.label ??
+                                                            subtitle.language,
+                                                        _currentSubtitle
+                                                                ?.language ==
+                                                            subtitle.language,
+                                                        () => _selectSubtitle(
+                                                            subtitle),
+                                                      )),
+                                          ]
+                                        : _speedOptions
+                                            .map((option) => ListTile(
+                                                  onTap: () => _selectSpeed(
+                                                      option['value']),
+                                                  title: Text(
+                                                    option['label'],
+                                                    style: const TextStyle(
+                                                        color: Colors.white),
+                                                  ),
+                                                  trailing: _playbackSpeed ==
+                                                          option['value']
+                                                      ? Icon(Icons.check,
+                                                          color:
+                                                              Theme.of(context)
+                                                                  .colorScheme
+                                                                  .primary)
+                                                      : null,
+                                                  selected: _playbackSpeed ==
+                                                      option['value'],
+                                                  selectedTileColor: Colors
+                                                      .white
+                                                      .withOpacity(0.1),
+                                                ))
+                                            .toList(),
                       ),
               ),
             ),
@@ -836,6 +1261,43 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
         ),
       ),
     );
+  }
+
+  // New methods to display only current available options
+  List<Widget> _buildCurrentQualityOptions() {
+    // Find available qualities for current language
+    final currentStream = widget.streams
+        .where((stream) => stream.language == _currentLanguage)
+        .toList();
+    if (currentStream.isEmpty) return [];
+
+    // Always add Auto option
+    final widgets = [
+      _buildOptionTile('Auto', _currentQuality == 'Auto',
+          () => _selectQuality('Auto', currentStream[0].url)),
+    ];
+
+    // Add available qualities for current stream
+    final sources = currentStream[0].sources;
+    for (var source in sources) {
+      if (source.quality != 'Auto') {
+        widgets.add(_buildOptionTile(
+          '${source.quality}p',
+          _currentQuality == source.quality,
+          () => _selectQuality(source.quality, source.url),
+        ));
+      }
+    }
+
+    return widgets;
+  }
+
+  List<Widget> _buildCurrentLanguageOptions() {
+    // Show only available languages for current video
+    return widget.streams
+        .map((stream) => _buildOptionTile(stream.language,
+            _currentLanguage == stream.language, () => _selectLanguage(stream)))
+        .toList();
   }
 
   Widget _buildOptionTile(String title, bool isSelected, [Function()? onTap]) {
@@ -853,7 +1315,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
-  Widget _buildControlButton(IconData icon, VoidCallback onPressed, [bool isForward = true]) {
+  Widget _buildControlButton(IconData icon, VoidCallback onPressed,
+      [bool isForward = true]) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -892,18 +1355,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         _buildControlButton(
-          Icons.replay_10_rounded,
-          () => _seekRelative(-10),
-          false
-        ),
+            Icons.replay_10_rounded, () => _seekRelative(-10), false),
         const SizedBox(width: 32),
         _buildPlayPauseButton(),
         const SizedBox(width: 32),
         _buildControlButton(
-          Icons.forward_10_rounded,
-          () => _seekRelative(10),
-          true
-        ),
+            Icons.forward_10_rounded, () => _seekRelative(10), true),
       ],
     );
   }
@@ -930,7 +1387,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildTopBar(),
-            if (!_isInitialized) 
+            if (!_isInitialized)
               _buildLoadingIndicator()
             else
               _buildControlsRow(),
@@ -961,6 +1418,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
           Text(
@@ -976,12 +1434,15 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                 SliderTheme(
                   data: SliderTheme.of(context).copyWith(
                     trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 12),
                     activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveTrackColor: Colors.white.withOpacity(0.2),
                     thumbColor: Theme.of(context).colorScheme.primary,
-                    overlayColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                    overlayColor:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.2),
                   ),
                   child: Stack(
                     alignment: Alignment.center,
@@ -993,15 +1454,16 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                           value: _bufferingProgress,
                           backgroundColor: Colors.transparent,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white.withOpacity(0.3)
-                          ),
+                              Colors.white.withOpacity(0.3)),
                           minHeight: 4,
                         ),
                       ),
                       // Playback progress
                       if (_isInitialized)
                         Slider(
-                          value: _isDraggingSlider ? _dragProgress.clamp(0.0, 1.0) : _progress.clamp(0.0, 1.0),
+                          value: _isDraggingSlider
+                              ? _dragProgress.clamp(0.0, 1.0)
+                              : _progress.clamp(0.0, 1.0),
                           min: 0.0,
                           max: 1.0,
                           onChanged: _handleProgressChanged,
@@ -1028,7 +1490,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
-    
+
     if (hours > 0) {
       return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
     }
@@ -1038,7 +1500,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   Widget _buildTopBar() {
     // Get current episode title if available
     String currentTitle = widget.title;
-    if (widget.contentType == 'tv' && widget.episodes != null && widget.currentEpisode != null) {
+    if (widget.contentType == 'tv' &&
+        widget.episodes != null &&
+        widget.currentEpisode != null) {
       final currentEpisodeData = widget.episodes!.firstWhere(
         (ep) => ep.episode == widget.currentEpisode,
         orElse: () => widget.episodes!.first,
@@ -1108,11 +1572,12 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
             iconSize: 28,
             color: Colors.white,
           ),
-          if (Theme.of(context).platform != TargetPlatform.android && 
+          if (Theme.of(context).platform != TargetPlatform.android &&
               Theme.of(context).platform != TargetPlatform.iOS)
             IconButton(
               onPressed: _toggleFullScreen,
-              icon: Icon(_isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
+              icon: Icon(
+                  _isFullScreen ? Icons.fullscreen_exit : Icons.fullscreen),
               iconSize: 28,
               color: Colors.white,
             ),
@@ -1165,7 +1630,10 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   Widget _buildPlayPauseButton() {
-    if (_isBuffering) {
+    // Only show buffering if we're actually stalled due to buffering
+    final bool showBuffering = _isBuffering && !_controller!.value.isPlaying;
+
+    if (showBuffering) {
       return Container(
         width: 56,
         height: 56,
@@ -1221,8 +1689,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   Future<void> _handleNextEpisode() async {
-    if (widget.onEpisodeSelected != null && 
-        widget.currentEpisode != null && 
+    if (widget.onEpisodeSelected != null &&
+        widget.currentEpisode != null &&
         widget.episodes != null &&
         widget.currentEpisode! < widget.episodes!.length) {
       final nextEpisode = widget.currentEpisode! + 1;
@@ -1238,7 +1706,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
   }
 
   void _onVideoProgress() {
-    if (!mounted || _controller == null || !_controller!.value.isInitialized) return;
+    if (!mounted || _controller == null || !_controller!.value.isInitialized)
+      return;
 
     // Check if video is near the end (95% or more)
     final position = _controller!.value.position;
@@ -1247,8 +1716,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
     if (progress >= 0.95 && !_isAutoPlayDialogShowing) {
       // Check conditions for auto-play next
-      if (widget.contentType == 'tv' && 
-          widget.currentEpisode != null && 
+      if (widget.contentType == 'tv' &&
+          widget.currentEpisode != null &&
           widget.episodes != null &&
           widget.currentEpisode! < widget.episodes!.length) {
         if (_autoPlayNext) {
@@ -1275,7 +1744,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
 
   void _showAutoPlayDialog() {
     setState(() => _isAutoPlayDialogShowing = true);
-    
+
     _autoPlayTimer = Timer(const Duration(seconds: 5), () {
       if (mounted && widget.currentEpisode != null) {
         _handleNextEpisode();
@@ -1352,6 +1821,18 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
     );
   }
 
+  // Add this function to detect RTL languages
+  bool _isRTL(String text) {
+    if (text.isEmpty) return false;
+
+    // Arabic, Hebrew, Persian, and other RTL Unicode character ranges
+    final rtlRegex = RegExp(
+        r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0590-\u05FF\uFB50-\uFDFF\uFE70-\uFEFF]');
+
+    // Check if the text contains RTL characters
+    return rtlRegex.hasMatch(text);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller == null) {
@@ -1360,9 +1841,9 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
       );
     }
 
-    final hasNextEpisode = widget.episodes != null && 
-                          widget.currentEpisode != null && 
-                          widget.currentEpisode! < widget.episodes!.length;
+    final hasNextEpisode = widget.episodes != null &&
+        widget.currentEpisode != null &&
+        widget.currentEpisode! < widget.episodes!.length;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -1387,6 +1868,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                 doubleTapZoom: !_isLocked,
                 zoomSensibility: _isLocked ? 0 : 1.0,
                 child: SizedBox(
+                  width: MediaQuery.of(context).size.width,
+                  height: MediaQuery.of(context).size.height,
                   child: Center(
                     child: AspectRatio(
                       aspectRatio: _controller!.value.isInitialized
@@ -1407,7 +1890,7 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                 if (_showRewindIndicator || _showForwardIndicator)
                   _buildSeekIndicators(),
                 _buildTapOverlay(),
-                
+
                 // Controls overlay
                 Stack(
                   children: [
@@ -1424,7 +1907,8 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                           if (_isCountrollesVisible)
                             GestureDetector(
                               onTap: _handleTap,
-                              onDoubleTapDown: (details) => _handleDoubleTapSeek(context, details),
+                              onDoubleTapDown: (details) =>
+                                  _handleDoubleTapSeek(context, details),
                               child: _buildControlsOverlay(),
                             ),
                         ],
@@ -1440,16 +1924,16 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
                         top: 0,
                         bottom: 0,
                         child: EpisodeListForPlayer(
-                        episodes: widget.episodes ?? [],
-                        currentEpisode: widget.currentEpisode,
-                        onEpisodeSelected: _handleEpisodeSelected,
-                        hasNextEpisode: hasNextEpisode,
+                          episodes: widget.episodes ?? [],
+                          currentEpisode: widget.currentEpisode,
+                          onEpisodeSelected: _handleEpisodeSelected,
+                          hasNextEpisode: hasNextEpisode,
+                        ),
                       ),
-                    ),
 
                     // Next episode button
-                    if (widget.contentType == 'tv' && 
-                        _isInitialized && 
+                    if (widget.contentType == 'tv' &&
+                        _isInitialized &&
                         hasNextEpisode &&
                         !_autoPlayNext)
                       Positioned(
@@ -1468,6 +1952,48 @@ class _ContentPlayerState extends State<ContentPlayer> with TickerProviderStateM
               ],
             ),
           ),
+
+          // Add subtitle overlay to the Stack
+          if (_subtitlesEnabled &&
+              _currentSubtitleText != "" &&
+              _currentSubtitleText != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 50,
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Directionality(
+                    textDirection: _isRTL(_currentSubtitleText!)
+                        ? TextDirection.rtl
+                        : TextDirection.ltr,
+                    child: Text(
+                      _currentSubtitleText!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontFamily:
+                            'Arial', // Use a font that supports Arabic well
+                        shadows: [
+                          Shadow(
+                            blurRadius: 4.0,
+                            color: Colors.black,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:appwrite/appwrite.dart';
+import 'package:moviedex/services/connectivity_service.dart';
+import 'dart:io';
 
 class ErrorHandlers {
   static void showErrorSnackbar(BuildContext context, dynamic error) {
@@ -31,27 +33,52 @@ class ErrorHandlers {
     );
   }
 
+  // Enhanced error message formatter with network error detection
   static String _getErrorMessage(dynamic error) {
-    if (error is FirebaseAuthException) {
-      switch (error.code) {
-        case 'weak-password':
-          return 'The password provided is too weak';
-        case 'email-already-in-use':
-          return 'An account already exists for that email';
-        case 'user-not-found':
-          return 'No user found for that email';
-        case 'wrong-password':
-          return 'Wrong password provided';
-        case 'invalid-email':
-          return 'The email address is badly formatted';
-        case 'user-disabled':
-          return 'This user account has been disabled';
-        case 'too-many-requests':
-          return 'Too many attempts. Please try again later';
-        default:
-          return 'Authentication error: ${error.message}';
+    if (error is AppwriteException) {
+      return error.message ?? 'An error occurred';
+    } else if (error is String) {
+      // Check for common error patterns and provide friendly messages
+      if (error.contains('SocketException') ||
+          error.contains('Connection refused') ||
+          error.contains('Network is unreachable')) {
+        return 'Unable to connect to the server. Check your internet connection.';
+      } else if (error.contains('api_key')) {
+        return 'There was a problem with the app configuration.';
+      } else if (error.contains('timeout')) {
+        return 'The connection timed out. Please try again.';
       }
+      return error;
+    } else if (error is Exception) {
+      if (error is SocketException || error is HttpException) {
+        return 'Network connection issue. Please check your internet.';
+      } else if (error.toString().contains('timeout')) {
+        return 'The connection timed out. Please try again later.';
+      }
+      return error.toString().replaceFirst('Exception: ', '');
+    } else {
+      return 'Something went wrong. Please try again.';
     }
-    return error.toString();
+  }
+
+  // Check if the error is related to network connectivity
+  static bool isNetworkError(dynamic error) {
+    if (error is SocketException || error is HttpException) {
+      return true;
+    }
+
+    if (error is String) {
+      return error.contains('SocketException') ||
+          error.contains('Connection refused') ||
+          error.contains('Network is unreachable') ||
+          error.contains('timeout');
+    }
+
+    String errorString = error.toString().toLowerCase();
+    return errorString.contains('socket') ||
+        errorString.contains('network') ||
+        errorString.contains('connection') ||
+        errorString.contains('internet') ||
+        errorString.contains('timeout');
   }
 }

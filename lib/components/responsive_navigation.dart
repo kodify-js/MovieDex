@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'dart:ui';  // Add this import for ImageFilter
+import 'dart:ui'; // Add this import for ImageFilter
 
 class ResponsiveNavigation extends StatelessWidget {
   final int currentIndex;
@@ -45,29 +44,31 @@ class ResponsiveNavigation extends StatelessWidget {
         backgroundColor: theme.colorScheme.surface.withOpacity(0.8),
         selectedIndex: currentIndex,
         onDestinationSelected: onTap,
-        labelType: width > 800 
-            ? NavigationRailLabelType.none 
+        labelType: width > 800
+            ? NavigationRailLabelType.none
             : NavigationRailLabelType.selected,
         useIndicator: false,
         indicatorColor: theme.colorScheme.primary.withOpacity(0.2),
         minWidth: 60,
         minExtendedWidth: 200,
-        destinations: items.map((item) => 
-          NavigationRailDestination(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            icon: _buildIcon(
-              icon: item.icon, 
-              selected: false,
-              theme: theme,
-            ),
-            selectedIcon: _buildIcon(
-              icon: item.selectedIcon ?? item.icon, 
-              selected: true,
-              theme: theme,
-            ),
-            label: Text(item.label),
-          ),
-        ).toList(),
+        destinations: items
+            .map(
+              (item) => NavigationRailDestination(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                icon: _buildIcon(
+                  icon: item.icon,
+                  selected: false,
+                  theme: theme,
+                ),
+                selectedIcon: _buildIcon(
+                  icon: item.selectedIcon ?? item.icon,
+                  selected: true,
+                  theme: theme,
+                ),
+                label: Text(item.label),
+              ),
+            )
+            .toList(),
       );
     }
 
@@ -101,21 +102,23 @@ class ResponsiveNavigation extends StatelessWidget {
               backgroundColor: Colors.transparent,
               elevation: 0,
               height: 75,
-              destinations: items.map((item) => 
-                NavigationDestination(
-                  icon: _buildIcon(
-                    icon: item.icon,
-                    selected: false,
-                    theme: theme,
-                  ),
-                  selectedIcon: _buildIcon(
-                    icon: item.selectedIcon ?? item.icon,
-                    selected: true,
-                    theme: theme,
-                  ),
-                  label: item.label,
-                ),
-              ).toList(),
+              destinations: items
+                  .map(
+                    (item) => NavigationDestination(
+                      icon: _buildIcon(
+                        icon: item.icon,
+                        selected: false,
+                        theme: theme,
+                      ),
+                      selectedIcon: _buildIcon(
+                        icon: item.selectedIcon ?? item.icon,
+                        selected: true,
+                        theme: theme,
+                      ),
+                      label: item.label,
+                    ),
+                  )
+                  .toList(),
             ),
           ),
         ),
@@ -132,14 +135,14 @@ class ResponsiveNavigation extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: selected 
+        color: selected
             ? theme.colorScheme.primary.withOpacity(0.2)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(16),
       ),
       child: IconTheme(
         data: IconThemeData(
-          color: selected 
+          color: selected
               ? theme.colorScheme.primary
               : Colors.white.withOpacity(0.7),
           size: 26,

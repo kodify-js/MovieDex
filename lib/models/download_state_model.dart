@@ -28,6 +28,12 @@ class DownloadState {
   @HiveField(7)
   final int? seasonNumber;
 
+  @HiveField(8)
+  final double speed;
+
+  @HiveField(9)
+  final double timeLeft;
+
   DownloadState({
     required this.contentId,
     required this.status,
@@ -37,5 +43,7 @@ class DownloadState {
     this.lastSegmentIndex,
     this.episodeNumber,
     this.seasonNumber,
+    this.speed = 0,
+    this.timeLeft = 0,
   });
 }
