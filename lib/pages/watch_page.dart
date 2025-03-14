@@ -402,7 +402,6 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     // Reset to Default Orientation
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
