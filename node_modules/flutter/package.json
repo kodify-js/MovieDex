@@ -1,0 +1,37 @@
+{
+  "name": "flutter",
+  "version": "0.0.5",
+  "description": "Twitter oAuth Module for the 1.1 API",
+  "main": "src/Flutter.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gosquared/flutter.git"
+  },
+  "keywords": [
+    "twitter",
+    "oauth"
+  ],
+  "author": {
+    "name": "GoSquared",
+    "email": "support+npm@gosquared.com"
+  },
+  "contributors": [
+    {
+      "name": "Simon Tabor",
+      "email": "simon@gosquared.com"
+    },
+    {
+      "name": "James Taylor",
+      "email": "jt@gosquared.com"
+    }
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gosquared/flutter/issues"
+  },
+  "dependencies": {
+    "oauth": "^0.9.13",
+    "debug": "^2.2.0",
+    "redis": "^0.12.1"
+  }
+}
