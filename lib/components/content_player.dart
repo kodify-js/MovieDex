@@ -327,7 +327,6 @@ class _ContentPlayerState extends State<ContentPlayer>
   Future<void> _initializeVideoPlayer(String url) async {
     // Store the current URL for possible reinitialization
     _currentPlaybackUrl = url;
-    print(url);
     try {
       // Normal initialization without proxy
       _controller = VideoPlayerController.networkUrl(

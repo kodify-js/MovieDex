@@ -57,10 +57,6 @@ class VidSrcSu {
         if (!link!.contains(".m3u8")) continue;
         i++;
         final sources = await _getSources(url: link);
-        if (sources.isEmpty) {
-          isError = true;
-          continue;
-        }
         streams.add(StreamClass(
             language: 'original $i',
             url: link,
@@ -94,8 +90,10 @@ class VidSrcSu {
 
       final response =
           await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch stream: ${response.statusCode}');
+      }
       final sources = _parseM3U8Playlist(response.body, url);
-      if (sources.isEmpty) throw "No valid sources found";
       isError = false;
       return sources;
     } catch (e) {
@@ -112,7 +110,8 @@ class VidSrcSu {
         final quality = _extractQuality(lines[i]);
         if (quality != null && i + 1 < lines.length) {
           final streamUrl = lines[i + 1].contains("./")
-              ? _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl)
+              ? _resolveStreamUrl(
+                  lines[i + 1].split('./')[1].trim(), lines[i + 1])
               : lines[i + 1];
           sources.add(SourceClass(quality: quality, url: streamUrl));
         }

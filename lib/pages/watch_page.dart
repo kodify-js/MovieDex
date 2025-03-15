@@ -418,7 +418,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
       } else {
         setState(() {
           isLoading = false;
-          _stream = stream.where((element) => !element.isError).toList();
+          _stream = stream;
           if (_stream.first.subtitles != null &&
               _stream.first.subtitles!.isNotEmpty) {
             subtitles = _stream.first.subtitles;
@@ -537,7 +537,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _stream.isNotEmpty
+      body: _stream.isNotEmpty && !isLoading && !isError
           ? SizedBox(
               width: double.infinity,
               height: double.infinity,
