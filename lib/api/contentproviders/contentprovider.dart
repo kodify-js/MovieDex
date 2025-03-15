@@ -94,6 +94,6 @@ class ContentProvider {
 
   /// List of all available providers
   List get providers => isAnime == true
-      ? [autoembed, vidsrc, aniwave, vidsecsu, embed, vietautoembed, coitus]
-      : [autoembed, vidsrc, vidsecsu, embed, vietautoembed, coitus];
+      ? [autoembed, vidsrc, aniwave, vidsecsu, vietautoembed, coitus, embed]
+      : [autoembed, vidsrc, vidsecsu, vietautoembed, coitus, embed];
 }

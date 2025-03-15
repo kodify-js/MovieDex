@@ -234,7 +234,9 @@ class Aniwave {
       final videoUrl = watchDocument
           .querySelector("media-provider source")
           ?.attributes['src']
-          ?.replaceAll("https://cors.hi-anime.site/", "");
+          ?.replaceAll("https://cors.hi-anime.site/", "")
+          .replaceAll("https://cdn.aniwave.lat/", "");
+      ;
       final subtitles = watchDocument.querySelectorAll("track").map((e) {
         return SubtitleClass(
             language: e.attributes['srclang'] ?? "",
