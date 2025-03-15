@@ -15,6 +15,8 @@
 
 import 'package:hive_flutter/hive_flutter.dart';
 import 'dart:async';
+import 'dart:io' show Directory, Platform;
+import 'package:path_provider/path_provider.dart';
 import 'package:hive/hive.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:flutter/foundation.dart';
@@ -57,6 +59,40 @@ class SettingsService {
       if (!_settingsBox.containsKey('showUpdateDialog')) {
         await _settingsBox.put('showUpdateDialog', false);
       }
+
+      // Set default download path if not already set
+      if (!_settingsBox.containsKey(_downloadPathKey)) {
+        final defaultPath = await _getDefaultDownloadPath();
+        await _settingsBox.put(_downloadPathKey, defaultPath);
+      }
+    }
+  }
+
+  /// Get default download path based on platform
+  Future<String> _getDefaultDownloadPath() async {
+    try {
+      if (Platform.isAndroid) {
+        return '/storage/emulated/0/Download/MovieDex';
+      } else if (Platform.isIOS) {
+        final directory = await getApplicationDocumentsDirectory();
+        return '${directory.path}/Downloads';
+      } else if (Platform.isWindows) {
+        final directory = await getDownloadsDirectory();
+        return '${directory?.path ?? ''}/MovieDex';
+      } else if (Platform.isMacOS) {
+        final directory = await getDownloadsDirectory();
+        return '${directory?.path ?? ''}/MovieDex';
+      } else if (Platform.isLinux) {
+        final home = Platform.environment['HOME'];
+        return '$home/Downloads/MovieDex';
+      } else {
+        // Fallback for other platforms
+        final directory = await getApplicationDocumentsDirectory();
+        return '${directory.path}/MovieDex';
+      }
+    } catch (e) {
+      debugPrint('Error getting default download path: $e');
+      return '/Downloads/MovieDex';
     }
   }
 
@@ -114,14 +150,22 @@ class SettingsService {
   }
 
   /// Current download path
-  String get downloadPath => _settingsBox.get(
-        _downloadPathKey,
-        defaultValue: '/storage/emulated/0/Download/MovieDex',
-      );
+  Future<String> get downloadPath async {
+    await _ensureInitialized();
+    final savedPath = _settingsBox.get(_downloadPathKey);
+    if (savedPath == null) {
+      final defaultPath = await _getDefaultDownloadPath();
+      await _settingsBox.put(_downloadPathKey, defaultPath);
+      return defaultPath;
+    }
+    return savedPath;
+  }
 
   /// Set download path
   Future<void> setDownloadPath(String path) async {
+    await _ensureInitialized();
     await _settingsBox.put(_downloadPathKey, path);
+    _settingsController.add(null); // Notify listeners
   }
 
   /// Get auto-play next episode setting
@@ -193,5 +237,6 @@ class SettingsService {
   Future<void> saveSetting(String key, dynamic value) async {
     await init();
     await _settingsBox.put(key, value);
+    _settingsController.add(null); // Notify listeners
   }
 }

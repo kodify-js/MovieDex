@@ -16,6 +16,7 @@ import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:html/parser.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
+import 'package:moviedex/services/proxy_service.dart';
 
 /// Handles stream extraction from Aniwave provider
 class Aniwave {
@@ -227,10 +228,10 @@ class Aniwave {
   Future getSource(watchUrl, lang, episodes) async {
     try {
       final watchData = await http.get(
-          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-1/${lang}'),
+          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-2/${lang}'),
           headers: {"Referer": "https://aniwave.at/watch$watchUrl"});
       final watchDocument = parse(watchData.body);
-      final subUrl = watchDocument
+      final videoUrl = watchDocument
           .querySelector("media-provider source")
           ?.attributes['src']
           ?.replaceAll("https://cors.hi-anime.site/", "");
@@ -240,12 +241,16 @@ class Aniwave {
             url: e.attributes['src'] ?? "",
             label: e.attributes['label']);
       }).toList();
-      if (subUrl == null)
+      if (videoUrl == null)
         throw Exception('Failed to fetch stream: No data found');
-      final source = await _getSources(subUrl);
+      final uri = Uri.parse(videoUrl);
+      final url = uri.queryParameters['url'] != null
+          ? uri.queryParameters['url']!
+          : videoUrl;
+      final source = await _getSources(url);
       final stream = new StreamClass(
           language: lang,
-          url: subUrl,
+          url: url,
           sources: source,
           isError: isError,
           subtitles: subtitles,
@@ -259,11 +264,21 @@ class Aniwave {
 
   Future<List<SourceClass>> _getSources(String url) async {
     try {
-      final response =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-
+      final newUrl = Uri.parse(url);
+      final response = await http
+          .get(newUrl.queryParameters['url'] != null
+              ? Uri.parse(newUrl.queryParameters['url']!)
+              : newUrl)
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode != 200) {
+        return [];
+      }
       // Extract quality options
-      final qualities = _parseM3U8Playlist(response.body, url);
+      final qualities = _parseM3U8Playlist(
+          response.body,
+          newUrl.queryParameters['url'] != null
+              ? newUrl.queryParameters['url']!
+              : url);
       if (qualities.isEmpty) {
         return [];
       }

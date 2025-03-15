@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/content_class.dart';
@@ -364,6 +365,7 @@ class _InfopageState extends State<Infopage> {
   }) async {
     // Get selected stream
     final stream = _stream.firstWhere((s) => s.language == language);
+    print('Selected stream: $stream');
     final url = quality == 'Auto'
         ? stream.url
         : stream.sources.firstWhere((s) => s.quality == quality).url;
@@ -1323,10 +1325,7 @@ class _InfopageState extends State<Infopage> {
                                 children: [
                                   isMobile
                                       ? _buildMobileListButton()
-                                      : Theme.of(context).platform ==
-                                                  TargetPlatform.iOS ||
-                                              Theme.of(context).platform ==
-                                                  TargetPlatform.android
+                                      : !kIsWeb
                                           ? _buildDownloadIcon(data)
                                           : const SizedBox(),
                                   Column(

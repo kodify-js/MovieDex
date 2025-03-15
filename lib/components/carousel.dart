@@ -1,7 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:moviedex/api/class/content_class.dart';
 import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/pages/watch_page.dart';
+
+// Custom scroll behavior to enable mouse scrolling
+class CarouselScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
+}
 
 class Carousel extends StatelessWidget {
   const Carousel({
@@ -18,11 +29,11 @@ class Carousel extends StatelessWidget {
     final height = mediaQuery.size.height;
     final isLandscape = width > height;
     final isDesktop = width > 800;
-    
+
     // Adjust sidebar width and remove any extra spacing
     final sidebarWidth = isDesktop ? 200.0 : 0.0;
     final effectiveWidth = width - sidebarWidth;
-    
+
     // Calculate height without padding
     final effectiveHeight = isLandscape
         ? height - mediaQuery.padding.top - kToolbarHeight
@@ -33,23 +44,32 @@ class Carousel extends StatelessWidget {
       height: effectiveHeight,
       margin: EdgeInsets.zero, // Remove margins
       padding: EdgeInsets.zero, // Remove padding
-      child: PageView.builder(
-        itemCount: data.length,
-        controller: PageController(viewportFraction: 1.0),
-        scrollDirection: Axis.horizontal,
-        physics: const PageScrollPhysics(),
-        itemBuilder: (context, index) => _buildCarouselItem(
-          context,
-          data[index],
-          effectiveWidth,
-          effectiveHeight,
+      child: ScrollConfiguration(
+        // Apply custom scroll behavior for mouse scrolling
+        behavior: CarouselScrollBehavior(),
+        child: PageView.builder(
+          itemCount: data.length,
+          controller: PageController(viewportFraction: 1.0),
+          scrollDirection: Axis.horizontal,
+          // Use custom physics for better mouse wheel scrolling
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          // Enable mouse drag scrolling
+          dragStartBehavior: DragStartBehavior.start,
+          itemBuilder: (context, index) => _buildCarouselItem(
+            context,
+            data[index],
+            effectiveWidth,
+            effectiveHeight,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildCarouselItem(
-    BuildContext context, 
+    BuildContext context,
     Contentclass content,
     double width,
     double height,
@@ -120,7 +140,7 @@ class Carousel extends StatelessWidget {
                   // Logo or Title with responsive sizing
                   if (content.logoPath != null)
                     SizedBox(
-                      width: isDesktop 
+                      width: isDesktop
                           ? width * 0.25
                           : width * (isLandscape ? 0.3 : 0.5),
                       child: Image.network(

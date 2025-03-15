@@ -38,6 +38,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:zoom_widget/zoom_widget.dart';
 import '../api/class/subtitle_class.dart';
 import '../services/subtitle_service.dart';
+// Add window_manager import for desktop platforms
+import 'package:window_manager/window_manager.dart';
 
 /// Advanced video player supporting multiple sources and features
 class ContentPlayer extends StatefulWidget {
@@ -71,6 +73,7 @@ class ContentPlayer extends StatefulWidget {
 
   final List<ServerClass> servers;
   final Function(int)? onServerChanged;
+  final Function(int)? onActiveServerReset;
   final int currentServerIndex;
 
   const ContentPlayer({
@@ -89,6 +92,7 @@ class ContentPlayer extends StatefulWidget {
     this.subtitles,
     required this.servers,
     this.onServerChanged,
+    this.onActiveServerReset,
     required this.currentServerIndex,
   });
 
@@ -188,6 +192,22 @@ class _ContentPlayerState extends State<ContentPlayer>
 
   String? _currentPlaybackUrl; // Track current playback URL for reinitializing
 
+  // Add new variables for volume control
+  double _volume = 1.0;
+  bool _isMuted = false;
+
+  // Add new variable for keyboard focus
+  final FocusNode _playerFocusNode = FocusNode();
+
+  // Add flag to track if we're on a desktop platform
+  bool get _isDesktopPlatform =>
+      Theme.of(context).platform == TargetPlatform.windows ||
+      Theme.of(context).platform == TargetPlatform.linux ||
+      Theme.of(context).platform == TargetPlatform.macOS;
+
+  // Store pre-fullscreen window bounds
+  Rect? _windowBoundsBeforeFullScreen;
+
   String getSourceOfQuality(StreamClass data) {
     final source = data.sources
         .where((source) => source.quality == _currentQuality)
@@ -261,9 +281,6 @@ class _ContentPlayerState extends State<ContentPlayer>
     _autoPlayNext = _settingsBox.get('autoPlayNext', defaultValue: true);
     _useHardwareDecoding =
         _settingsBox.get('useHardwareDecoding', defaultValue: true);
-
-    // Apply language preference if available
-    _tryUsePreferredLanguage();
   }
 
   void _tryUsePreferredLanguage() {
@@ -310,38 +327,23 @@ class _ContentPlayerState extends State<ContentPlayer>
   Future<void> _initializeVideoPlayer(String url) async {
     // Store the current URL for possible reinitialization
     _currentPlaybackUrl = url;
-
-    final proxyService = ProxyService.instance;
-    final proxyUrl = proxyService.activeProxy;
-
+    print(url);
     try {
-      if (proxyUrl != null && proxyUrl.isNotEmpty) {
-        // Configure video player with proxy
-        _controller = VideoPlayerController.networkUrl(
-          Uri.parse(url),
-          httpHeaders: {
-            'User-Agent': 'Mozilla/5.0',
-            'Proxy-Authorization':
-                'Basic ${base64.encode(utf8.encode(proxyUrl))}', // Fixed base64Encode
-          },
-          // Add these options for better handling of background/foreground transitions
-          videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: false,
-            allowBackgroundPlayback: false,
-          ),
-        );
-      } else {
-        // Normal initialization without proxy
-        _controller = VideoPlayerController.networkUrl(
-          Uri.parse(url),
-          videoPlayerOptions: VideoPlayerOptions(
-            mixWithOthers: false,
-            allowBackgroundPlayback: false,
-          ),
-        );
-      }
-
-      await _controller?.initialize();
+      // Normal initialization without proxy
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: false,
+          allowBackgroundPlayback: true, // Allow background buffering
+        ),
+      );
+      // Set a longer timeout for initialization
+      await _controller?.initialize().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Video initialization timed out');
+        },
+      );
 
       if (mounted) {
         setState(() {
@@ -350,6 +352,14 @@ class _ContentPlayerState extends State<ContentPlayer>
           _position = _controller!.value.position;
           _controller!.addListener(_onControllerUpdate);
           _controller!.play();
+
+          // Set volume to match current state
+          _controller!.setVolume(_isMuted ? 0.0 : _volume);
+
+          // Set playback speed to match current state
+          if (_playbackSpeed != 1.0) {
+            _controller!.setPlaybackSpeed(_playbackSpeed);
+          }
         });
       }
     } catch (e) {
@@ -453,7 +463,14 @@ class _ContentPlayerState extends State<ContentPlayer>
         );
 
         // Use the onServerChanged callback to switch to next server
-        widget.onServerChanged!(nextServerIndex);
+        widget.onActiveServerReset!(nextServerIndex).then((isSuccess) {
+          if (isSuccess) {
+            setState(() {
+              _controller?.dispose();
+              initPlayer();
+            });
+          }
+        });
         return;
       }
     }
@@ -481,47 +498,56 @@ class _ContentPlayerState extends State<ContentPlayer>
     );
   }
 
+  void initPlayer() {
+    _tryUsePreferredLanguage();
+    StreamClass streamToUse;
+    if (widget.streams.isNotEmpty) {
+      final preferredStreams = widget.streams
+          .where((stream) => stream.language == _currentLanguage)
+          .toList();
+      streamToUse = preferredStreams.isNotEmpty
+          ? preferredStreams.first
+          : widget.streams.first;
+      _currentLanguage = streamToUse.language;
+      // Try to use preferred quality if available
+      List<SourceClass> sources = streamToUse.sources
+          .where((e) => e.quality == _defaultQuality.replaceAll("p", ""))
+          .toList();
+
+      if (sources.isNotEmpty) {
+        setState(() {
+          _currentQuality = _defaultQuality.replaceAll("p", "");
+        });
+        _initializeVideoPlayer(sources.first.url);
+      } else {
+        // Fallback to Auto quality
+        setState(() {
+          _currentQuality = 'Auto';
+        });
+        _initializeVideoPlayer(streamToUse.url);
+      }
+    }
+
+    // Load preferred subtitle if available
+    _tryUsePreferredSubtitle();
+  }
+
   @override
   void initState() {
     super.initState();
     // Register observer for app lifecycle changes
     WidgetsBinding.instance.addObserver(this);
 
+    // Request focus when player is initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _playerFocusNode.requestFocus();
+      }
+    });
+
     WakelockPlus.enable();
     _initStorage();
-    _initSettings().then((_) {
-      // Find stream matching preferred language
-      StreamClass streamToUse;
-      if (widget.streams.isNotEmpty) {
-        final preferredStreams = widget.streams
-            .where((stream) => stream.language == _currentLanguage)
-            .toList();
-        streamToUse = preferredStreams.isNotEmpty
-            ? preferredStreams.first
-            : widget.streams.first;
-
-        // Try to use preferred quality if available
-        List<SourceClass> sources = streamToUse.sources
-            .where((e) => e.quality == _defaultQuality.replaceAll("p", ""))
-            .toList();
-
-        if (sources.isNotEmpty) {
-          setState(() {
-            _currentQuality = _defaultQuality.replaceAll("p", "");
-          });
-          _initializeVideoPlayer(sources.first.url);
-        } else {
-          // Fallback to Auto quality
-          setState(() {
-            _currentQuality = 'Auto';
-          });
-          _initializeVideoPlayer(streamToUse.url);
-        }
-      }
-
-      // Load preferred subtitle if available
-      _tryUsePreferredSubtitle();
-    });
+    _initSettings().then((_) => initPlayer());
 
     _startHideTimer();
 
@@ -612,6 +638,11 @@ class _ContentPlayerState extends State<ContentPlayer>
     Timer.periodic(const Duration(milliseconds: 100), (timer) {
       _updateSubtitles();
     });
+
+    // Initialize window manager for desktop platforms
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initWindowManager();
+    });
   }
 
   Future<void> _initStorage() async {
@@ -631,10 +662,34 @@ class _ContentPlayerState extends State<ContentPlayer>
     }
   }
 
+  Future<void> _initWindowManager() async {
+    if (_isDesktopPlatform) {
+      // Initialize window manager
+      await windowManager.ensureInitialized();
+
+      // Create concrete implementation of WindowListener with renamed callback fields
+      windowManager.addListener(_WindowListenerImpl(
+        onEnterFullScreen: () {
+          if (!_isFullScreen && mounted) {
+            setState(() => _isFullScreen = true);
+          }
+        },
+        onLeaveFullScreen: () {
+          if (_isFullScreen && mounted) {
+            setState(() => _isFullScreen = false);
+          }
+        },
+      ));
+    }
+  }
+
   @override
   void dispose() {
     // Remove observer when disposing
     WidgetsBinding.instance.removeObserver(this);
+
+    // Dispose of focus node
+    _playerFocusNode.dispose();
 
     WakelockPlus.disable();
     // Add to history when finished watching
@@ -652,6 +707,22 @@ class _ContentPlayerState extends State<ContentPlayer>
     _seekRewindAnimationController.dispose();
     _controlsTimer?.cancel();
     _autoPlayTimer?.cancel();
+
+    // Exit fullscreen if active before disposing
+    if (_isFullScreen) {
+      if (_isDesktopPlatform) {
+        windowManager.setFullScreen(false).catchError((error) {
+          debugPrint('Error exiting fullscreen on dispose: $error');
+        });
+      } else {
+        SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.manual,
+          overlays: SystemUiOverlay.values,
+        );
+        SystemChrome.setPreferredOrientations([]);
+      }
+    }
+
     super.dispose();
   }
 
@@ -659,49 +730,58 @@ class _ContentPlayerState extends State<ContentPlayer>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // App is back in foreground - reinitialize video if needed
+      // App is back in foreground
       if (_controller != null &&
-          _controller!.value.isInitialized &&
+          !_controller!.value.isInitialized &&
           _currentPlaybackUrl != null) {
-        // Save current position and playing state before reinitializing
-        final currentPosition = _controller?.value.position;
-        final wasPlaying = _controller?.value.isPlaying ?? false;
-
-        // Dispose and recreate the controller to fix the black screen issue
-        _controller?.pause();
-        _controller?.dispose();
-        _controller = null;
-
-        // Small delay before reinitializing to ensure proper cleanup
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!mounted) return;
-
-          setState(() {
-            _isBuffering = true;
-          });
-
-          _initializeVideoPlayer(_currentPlaybackUrl!).then((_) {
-            if (_controller != null &&
-                _controller!.value.isInitialized &&
-                currentPosition != null) {
-              _controller!.seekTo(currentPosition).then((_) {
-                if (wasPlaying) {
-                  _controller!.play();
-                }
-                setState(() {
-                  _isBuffering = false;
-                });
-              });
-            }
-          });
-        });
+        // Only reinitialize if the controller is no longer initialized
+        // to avoid unnecessary video reloading
+        _reinitializeVideoPlayer();
+      } else if (_controller != null && _isPlaying) {
+        // If controller is still valid but might be paused by the system
+        _controller!.play();
       }
-    } else if (state == AppLifecycleState.inactive) {
-      // App is going to background or being interrupted
-      // Store current playback position for when we resume
+
+      // Re-enable wakelock that might have been disabled in inactive state
+      WakelockPlus.enable();
+
+      // Re-request focus for keyboard events
+      _playerFocusNode.requestFocus();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // App is going to background - pause video and disable wakelock
       if (_controller != null && _controller!.value.isInitialized) {
-        // Optionally pause video when going to background
-        // _controller!.pause();
+        if (_controller!.value.isPlaying) {
+          _controller!.pause();
+        }
+        WakelockPlus.disable();
+      }
+    }
+  }
+
+  // Create a separate method for reinitialization to simplify the code
+  Future<void> _reinitializeVideoPlayer() async {
+    if (!mounted || _currentPlaybackUrl == null) return;
+
+    setState(() {
+      _isBuffering = true;
+    });
+
+    try {
+      final currentPosition = _position ?? Duration.zero;
+      await _initializeVideoPlayer(_currentPlaybackUrl!);
+
+      if (_controller != null && _controller!.value.isInitialized) {
+        await _controller!.seekTo(currentPosition);
+        if (_isPlaying) {
+          await _controller!.play();
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBuffering = false;
+        });
       }
     }
   }
@@ -725,33 +805,175 @@ class _ContentPlayerState extends State<ContentPlayer>
     _startHideTimer();
   }
 
-  void _toggleFullScreen() {
-    setState(() {
-      _isFullScreen = !_isFullScreen;
-      if (_isFullScreen) {
-        // Enable true fullscreen including notch area
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.immersiveSticky,
-        );
+  // Improved fullscreen toggle with better error handling
+  void _toggleFullScreen() async {
+    try {
+      // For desktop platforms, use window_manager
+      if (_isDesktopPlatform) {
+        if (!_isFullScreen) {
+          // Store current window bounds before going fullscreen
+          _windowBoundsBeforeFullScreen = await windowManager.getBounds();
+
+          // Enter fullscreen mode
+          await windowManager.setFullScreen(true);
+          setState(() => _isFullScreen = true);
+        } else {
+          // Exit fullscreen mode
+          await windowManager.setFullScreen(false);
+
+          // Restore previous window bounds if available
+          if (_windowBoundsBeforeFullScreen != null) {
+            try {
+              await windowManager.setBounds(_windowBoundsBeforeFullScreen!);
+            } catch (e) {
+              debugPrint('Error restoring window bounds: $e');
+            }
+          }
+          setState(() => _isFullScreen = false);
+        }
       } else {
-        // Return to normal mode
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.manual,
-          overlays: SystemUiOverlay.values,
-        ).then((_) {
-          SystemChrome.setSystemUIOverlayStyle(
-            const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              systemNavigationBarColor: Colors.transparent,
-            ),
-          );
+        // For mobile platforms, use the existing implementation
+        setState(() {
+          _isFullScreen = !_isFullScreen;
+
+          if (_isFullScreen) {
+            // Enter fullscreen mode - hide system UI
+            SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+            // Set orientation for all platforms
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.landscapeRight,
+              DeviceOrientation.landscapeLeft,
+            ]);
+          } else {
+            // Exit fullscreen mode - restore system UI
+            SystemChrome.setEnabledSystemUIMode(
+              SystemUiMode.manual,
+              overlays: SystemUiOverlay.values,
+            );
+
+            // For mobile, maintain landscape orientation
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.landscapeRight,
+              DeviceOrientation.landscapeLeft,
+            ]);
+          }
         });
       }
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeRight,
-        DeviceOrientation.landscapeLeft,
-      ]);
+
+      // Re-request focus to ensure keyboard events still work
+      _playerFocusNode.requestFocus();
+    } catch (e) {
+      debugPrint('Error toggling fullscreen: $e');
+      // Reset fullscreen state if an error occurs
+      setState(() => _isFullScreen = false);
+    }
+  }
+
+  // Add volume control methods
+  void _changeVolume(double amount) {
+    if (_controller == null) return;
+
+    setState(() {
+      _volume = (_volume + amount).clamp(0.0, 1.0);
+      _controller!.setVolume(_volume);
+      _isMuted = _volume == 0;
+
+      // Show volume indicator temporarily
+      _isCountrollesVisible = true;
+      _cancelAndRestartHideTimer();
     });
+  }
+
+  void _toggleMute() {
+    if (_controller == null) return;
+
+    setState(() {
+      if (_isMuted) {
+        // Unmute - restore previous volume or set to 50% if was 0
+        _volume = _volume == 0 ? 0.5 : _volume;
+        _controller!.setVolume(_volume);
+        _isMuted = false;
+      } else {
+        // Store current volume and mute
+        _controller!.setVolume(0);
+        _isMuted = true;
+      }
+
+      // Show controls when mute state changes
+      _isCountrollesVisible = true;
+      _cancelAndRestartHideTimer();
+    });
+  }
+
+  // Improved key event handling with specific handling for ESC key
+  bool _handleKeyEvent(KeyEvent event) {
+    // Always handle ESC key for fullscreen exit regardless of lock state
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape &&
+        _isFullScreen) {
+      _toggleFullScreen();
+      return true;
+    }
+
+    if (_isLocked) {
+      // Only handle lock toggle key when locked
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.keyL) {
+        _handleLockToggle();
+        return true;
+      }
+      return false;
+    }
+
+    if (event is KeyDownEvent) {
+      switch (event.logicalKey) {
+        case LogicalKeyboardKey.space:
+          _togglePlayPause();
+          return true;
+
+        case LogicalKeyboardKey.arrowLeft:
+          _seekRelative(-10);
+          return true;
+
+        case LogicalKeyboardKey.arrowRight:
+          _seekRelative(10);
+          return true;
+
+        case LogicalKeyboardKey.arrowUp:
+          _changeVolume(0.1);
+          return true;
+
+        case LogicalKeyboardKey.arrowDown:
+          _changeVolume(-0.1);
+          return true;
+
+        case LogicalKeyboardKey.keyF:
+          _toggleFullScreen();
+          return true;
+
+        case LogicalKeyboardKey.keyM:
+          _toggleMute();
+          return true;
+
+        case LogicalKeyboardKey.keyL:
+          _handleLockToggle();
+          return true;
+
+        case LogicalKeyboardKey.escape:
+          if (_isSettingsVisible) {
+            _handleSettingsBack();
+            return true;
+          } else if (_isEpisodesVisible) {
+            setState(() {
+              _isEpisodesVisible = false;
+            });
+            return true;
+          }
+      }
+    }
+
+    return false;
   }
 
   void _toggleSettingsMenu() {
@@ -1149,8 +1371,13 @@ class _ContentPlayerState extends State<ContentPlayer>
                                         ? () {
                                             if (widget.onServerChanged !=
                                                 null) {
-                                              widget
-                                                  .onServerChanged!(entry.key);
+                                              widget.onServerChanged!(entry.key)
+                                                  .then((isSuccess) {
+                                                if (isSuccess) {
+                                                  _controller?.dispose();
+                                                  initPlayer();
+                                                }
+                                              });
                                               // Save preferred server with content-specific key
                                               final preferenceKey = widget
                                                       .data.genres
@@ -1847,154 +2074,158 @@ class _ContentPlayerState extends State<ContentPlayer>
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Center(
-            child: Container(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              color: Colors.black,
-              child: Zoom(
-                initTotalZoomOut: true,
-                maxZoomWidth: MediaQuery.of(context).size.width,
-                maxZoomHeight: MediaQuery.of(context).size.height,
-                canvasColor: Colors.black,
-                backgroundColor: Colors.black,
-                colorScrollBars: Colors.transparent,
-                opacityScrollBars: 0.0,
-                scrollWeight: 0.0,
-                centerOnScale: true,
-                enableScroll: !_isLocked,
-                doubleTapZoom: !_isLocked,
-                zoomSensibility: _isLocked ? 0 : 1.0,
-                child: SizedBox(
-                  width: MediaQuery.of(context).size.width,
-                  height: MediaQuery.of(context).size.height,
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: _controller!.value.isInitialized
-                          ? _controller!.value.aspectRatio
-                          : 16 / 9,
-                      child: VideoPlayer(_controller!),
+      body: KeyboardListener(
+        focusNode: _playerFocusNode,
+        onKeyEvent: _handleKeyEvent,
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                width: MediaQuery.of(context).size.width,
+                height: MediaQuery.of(context).size.height,
+                color: Colors.black,
+                child: Zoom(
+                  initTotalZoomOut: true,
+                  maxZoomWidth: MediaQuery.of(context).size.width,
+                  maxZoomHeight: MediaQuery.of(context).size.height,
+                  canvasColor: Colors.black,
+                  backgroundColor: Colors.black,
+                  colorScrollBars: Colors.transparent,
+                  opacityScrollBars: 0.0,
+                  scrollWeight: 0.0,
+                  centerOnScale: true,
+                  enableScroll: !_isLocked,
+                  doubleTapZoom: !_isLocked,
+                  zoomSensibility: _isLocked ? 0 : 1.0,
+                  child: SizedBox(
+                    width: MediaQuery.of(context).size.width,
+                    height: MediaQuery.of(context).size.height,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: _controller!.value.isInitialized
+                            ? _controller!.value.aspectRatio
+                            : 16 / 9,
+                        child: VideoPlayer(_controller!),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          // Controls Layer - make sure it's above the video
-          Positioned.fill(
-            child: Stack(
-              children: [
-                if (_showRewindIndicator || _showForwardIndicator)
-                  _buildSeekIndicators(),
-                _buildTapOverlay(),
+            // Controls Layer - make sure it's above the video
+            Positioned.fill(
+              child: Stack(
+                children: [
+                  if (_showRewindIndicator || _showForwardIndicator)
+                    _buildSeekIndicators(),
+                  _buildTapOverlay(),
 
-                // Controls overlay
-                Stack(
-                  children: [
-                    // Controls overlay with animation
-                    AnimatedOpacity(
-                      opacity: _isCountrollesVisible ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Stack(
-                        children: [
-                          if (_isCountrollesVisible)
-                            Container(
-                              color: Colors.black.withOpacity(0.3),
-                            ),
-                          if (_isCountrollesVisible)
-                            GestureDetector(
-                              onTap: _handleTap,
-                              onDoubleTapDown: (details) =>
-                                  _handleDoubleTapSeek(context, details),
-                              child: _buildControlsOverlay(),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    // Settings and episodes menus
-                    _buildSettingsMenu(),
-                    if (widget.contentType == 'tv')
-                      AnimatedPositioned(
-                        duration: const Duration(milliseconds: 200),
-                        right: _isEpisodesVisible ? 0 : -400,
-                        top: 0,
-                        bottom: 0,
-                        child: EpisodeListForPlayer(
-                          episodes: widget.episodes ?? [],
-                          currentEpisode: widget.currentEpisode,
-                          onEpisodeSelected: _handleEpisodeSelected,
-                          hasNextEpisode: hasNextEpisode,
+                  // Controls overlay
+                  Stack(
+                    children: [
+                      // Controls overlay with animation
+                      AnimatedOpacity(
+                        opacity: _isCountrollesVisible ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 300),
+                        child: Stack(
+                          children: [
+                            if (_isCountrollesVisible)
+                              Container(
+                                color: Colors.black.withOpacity(0.3),
+                              ),
+                            if (_isCountrollesVisible)
+                              GestureDetector(
+                                onTap: _handleTap,
+                                onDoubleTapDown: (details) =>
+                                    _handleDoubleTapSeek(context, details),
+                                child: _buildControlsOverlay(),
+                              ),
+                          ],
                         ),
                       ),
 
-                    // Next episode button
-                    if (widget.contentType == 'tv' &&
-                        _isInitialized &&
-                        hasNextEpisode &&
-                        !_autoPlayNext)
-                      Positioned(
-                        right: 24,
-                        bottom: 100,
-                        child: NextEpisodeButton(
-                          progress: _progress,
-                          onTap: _handleNextEpisode,
-                        ),
-                      ),
-
-                    // Lock button
-                    _buildLockButton(),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Add subtitle overlay to the Stack
-          if (_subtitlesEnabled &&
-              _currentSubtitleText != "" &&
-              _currentSubtitleText != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 50,
-              child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Directionality(
-                    textDirection: _isRTL(_currentSubtitleText!)
-                        ? TextDirection.rtl
-                        : TextDirection.ltr,
-                    child: Text(
-                      _currentSubtitleText!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontFamily:
-                            'Arial', // Use a font that supports Arabic well
-                        shadows: [
-                          Shadow(
-                            blurRadius: 4.0,
-                            color: Colors.black,
-                            offset: Offset(2.0, 2.0),
+                      // Settings and episodes menus
+                      _buildSettingsMenu(),
+                      if (widget.contentType == 'tv')
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 200),
+                          right: _isEpisodesVisible ? 0 : -400,
+                          top: 0,
+                          bottom: 0,
+                          child: EpisodeListForPlayer(
+                            episodes: widget.episodes ?? [],
+                            currentEpisode: widget.currentEpisode,
+                            onEpisodeSelected: _handleEpisodeSelected,
+                            hasNextEpisode: hasNextEpisode,
                           ),
-                        ],
+                        ),
+
+                      // Next episode button
+                      if (widget.contentType == 'tv' &&
+                          _isInitialized &&
+                          hasNextEpisode &&
+                          !_autoPlayNext)
+                        Positioned(
+                          right: 24,
+                          bottom: 100,
+                          child: NextEpisodeButton(
+                            progress: _progress,
+                            onTap: _handleNextEpisode,
+                          ),
+                        ),
+
+                      // Lock button
+                      _buildLockButton(),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Add subtitle overlay to the Stack
+            if (_subtitlesEnabled &&
+                _currentSubtitleText != "" &&
+                _currentSubtitleText != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 50,
+                child: Center(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Directionality(
+                      textDirection: _isRTL(_currentSubtitleText!)
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
+                      child: Text(
+                        _currentSubtitleText!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontFamily:
+                              'Arial', // Use a font that supports Arabic well
+                          shadows: [
+                            Shadow(
+                              blurRadius: 4.0,
+                              color: Colors.black,
+                              offset: Offset(2.0, 2.0),
+                            ),
+                          ],
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2089,5 +2320,28 @@ class _NavigationButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// Concrete implementation of WindowListener with renamed fields
+class _WindowListenerImpl extends WindowListener {
+  final VoidCallback? onEnterFullScreen; // Renamed from onWindowEnterFullScreen
+  final VoidCallback? onLeaveFullScreen; // Renamed from onWindowLeaveFullScreen
+
+  _WindowListenerImpl({
+    this.onEnterFullScreen,
+    this.onLeaveFullScreen,
+  });
+
+  @override
+  void onWindowEnterFullScreen() {
+    // Call the renamed callback
+    onEnterFullScreen?.call();
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    // Call the renamed callback
+    onLeaveFullScreen?.call();
   }
 }

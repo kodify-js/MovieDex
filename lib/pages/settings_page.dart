@@ -679,23 +679,29 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDownloadSection() {
-    return _buildSettingSection(
-      'Downloads',
-      [
-        ListTile(
-          title: Text('Download Location',
-              style: Theme.of(context).textTheme.bodyLarge),
-          subtitle: Text(
-            SettingsService.instance.downloadPath,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.folder_open),
-            onPressed: _selectDownloadPath,
-          ),
-        ),
-        // ...other download settings...
-      ],
+    return FutureBuilder<String>(
+      future: SettingsService.instance.downloadPath,
+      builder: (context, snapshot) {
+        final path = snapshot.data ?? 'Loading...';
+        return _buildSettingSection(
+          'Downloads',
+          [
+            ListTile(
+              title: Text('Download Location',
+                  style: Theme.of(context).textTheme.bodyLarge),
+              subtitle: Text(
+                path,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.folder_open),
+                onPressed: _selectDownloadPath,
+              ),
+            ),
+            // ...other download settings...
+          ],
+        );
+      },
     );
   }
 

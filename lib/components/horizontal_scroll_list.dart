@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'dart:ui';
 import 'package:moviedex/api/class/content_class.dart';
-import 'package:moviedex/pages/info_page.dart'; // Add this import
+import 'package:moviedex/pages/info_page.dart';
 import 'package:moviedex/components/cached_poster.dart';
+
+// Custom scroll behavior to enable mouse scrolling
+class HorizontalScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+      };
+}
 
 class HorizontalScrollList extends StatelessWidget {
   final String title;
@@ -52,94 +63,107 @@ class HorizontalScrollList extends StatelessWidget {
               }
 
               final data = snapshot.data!;
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                itemCount: data.length,
-                itemBuilder: (context, index) {
-                  Contentclass item = data[index];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => Infopage(id: item.id,name: item.title,type: item.type),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      width: itemWidth,
-                      height: isMobile ? 200 : 250,
-                      child: Stack(
-                        children: [
-                          // Movie Poster with hover effect
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: CachedPoster(
-                                imageUrl: item.poster,
-                                width: itemWidth,
-                                height: isMobile ? 200 : 250,
+              return ScrollConfiguration(
+                // Apply custom scroll behavior for mouse wheel scrolling
+                behavior: HorizontalScrollBehavior(),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: data.length,
+                  itemBuilder: (context, index) {
+                    Contentclass item = data[index];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Infopage(
+                                id: item.id, name: item.title, type: item.type),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        width: itemWidth,
+                        height: isMobile ? 200 : 250,
+                        child: Stack(
+                          children: [
+                            // Movie Poster with hover effect
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: CachedPoster(
+                                  imageUrl: item.poster,
+                                  width: itemWidth,
+                                  height: isMobile ? 200 : 250,
+                                ),
                               ),
                             ),
-                          ),
-                          // Number Badge (if enabled)
-                          if (showNumber)
-                            Positioned(
-                              top: 8,
-                              left: 8,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.5),
-                                        width: 2,
+                            // Number Badge (if enabled)
+                            if (showNumber)
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                        sigmaX: 10, sigmaY: 10),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.5),
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        color: Colors.black.withOpacity(0.2),
                                       ),
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: Colors.black.withOpacity(0.2),
-                                    ),
-                                    child: Text(
-                                      '#${index + 1}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
+                                      child: Text(
+                                        '#${index + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          // Add hover effect overlay
-                          Positioned.fill(
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                splashColor: Colors.white.withOpacity(0.1),
-                                highlightColor: Colors.white.withOpacity(0.05),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => Infopage(id: item.id,name: item.title,type: item.type),
-                                    ),
-                                  );
-                                },
+                            // Add hover effect overlay
+                            Positioned.fill(
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  splashColor: Colors.white.withOpacity(0.1),
+                                  highlightColor:
+                                      Colors.white.withOpacity(0.05),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => Infopage(
+                                            id: item.id,
+                                            name: item.title,
+                                            type: item.type),
+                                      ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               );
             },
           ),

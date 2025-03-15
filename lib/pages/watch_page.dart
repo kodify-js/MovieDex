@@ -143,15 +143,8 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
       _loadEpisodes();
     }
 
-    // Set full immersive mode
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-      overlays: [],
-    );
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
+    // Set full immersive mode with improved reliability
+    _setImmersiveMode();
 
     contentProvider = ContentProvider(
         title: widget.data.title,
@@ -184,20 +177,29 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     });
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // When app is resumed, ensure we're still in landscape mode
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeRight,
-        DeviceOrientation.landscapeLeft,
-      ]);
-
-      // Ensure immersive mode is still active
+  // Add method to set immersive mode reliably
+  void _setImmersiveMode() {
+    // Use a slight delay to ensure it works after any system UI changes
+    Future.delayed(const Duration(milliseconds: 100), () {
+      // Enter fullscreen mode - hide system UI
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.immersiveSticky,
         overlays: [],
       );
+
+      // Set landscape orientation for all platforms
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeRight,
+        DeviceOrientation.landscapeLeft,
+      ]);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // When app is resumed, ensure we restore immersive mode
+      _setImmersiveMode();
     }
   }
 
@@ -338,8 +340,66 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     });
   }
 
-  void _handleServerChanged(int index) async {
-    if (index == _providerIndex || index >= servers.length) return;
+  Future<bool> _resetActiveServers(int index) async {
+    if (index == _providerIndex) {
+      if (index >= servers.length) {
+        setState(() {
+          isError = true;
+        });
+        return false;
+      }
+      return _resetActiveServers(index + 1);
+    }
+    setState(() {
+      isLoading = true;
+    });
+    try {
+      List<StreamClass> stream =
+          await contentProvider.providers[index].getStream();
+      stream = stream.where((element) => !element.isError).toList();
+      if (stream.isEmpty || stream.every((element) => element.isError)) {
+        setState(() {
+          if (index >= servers.length) {
+            isError = true;
+          }
+          servers[index].status = ServerStatus.unavailable;
+          isLoading = false;
+        });
+        if (index >= servers.length) {
+          return false;
+        }
+        return _resetActiveServers(index + 1);
+      } else {
+        setState(() {
+          isLoading = false;
+          _stream = stream;
+          if (_stream.first.subtitles != null &&
+              _stream.first.subtitles!.isNotEmpty) {
+            subtitles = _stream.first.subtitles;
+          }
+          _providerIndex = index;
+          servers[index].status = ServerStatus.active;
+
+          // Save preferred server
+          _savePreferredServer(servers[index].name);
+        });
+        return true;
+      }
+    } catch (e) {
+      setState(() {
+        if (index >= servers.length) {
+          isError = true;
+        }
+        isLoading = false;
+        servers[index].status = ServerStatus.unavailable;
+      });
+      debugPrint('Error loading stream from server: $e');
+      return false;
+    }
+  }
+
+  Future<bool> _handleServerChanged(int index) async {
+    if (index == _providerIndex || index >= servers.length) return false;
 
     setState(() {
       isLoading = true;
@@ -354,28 +414,30 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
           isLoading = false;
           servers[index].status = ServerStatus.unavailable;
         });
-        return;
+        return false;
+      } else {
+        setState(() {
+          isLoading = false;
+          _stream = stream.where((element) => !element.isError).toList();
+          if (_stream.first.subtitles != null &&
+              _stream.first.subtitles!.isNotEmpty) {
+            subtitles = _stream.first.subtitles;
+          }
+          _providerIndex = index;
+          servers[index].status = ServerStatus.active;
+
+          // Save preferred server
+          _savePreferredServer(servers[index].name);
+        });
+        return true;
       }
-
-      setState(() {
-        isLoading = false;
-        _stream = stream.where((element) => !element.isError).toList();
-        if (_stream.first.subtitles != null &&
-            _stream.first.subtitles!.isNotEmpty) {
-          subtitles = _stream.first.subtitles;
-        }
-        _providerIndex = index;
-        servers[index].status = ServerStatus.active;
-
-        // Save preferred server
-        _savePreferredServer(servers[index].name);
-      });
     } catch (e) {
       setState(() {
         isLoading = false;
         servers[index].status = ServerStatus.unavailable;
       });
       debugPrint('Error loading stream from server: $e');
+      return false;
     }
   }
 
@@ -394,14 +456,15 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
       storage?.close();
     }
 
-    // Reset system UI on exit
+    // Reset system UI on exit with improved reliability
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
     );
-    // Reset to Default Orientation
+    // Reset to all orientations
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
@@ -489,6 +552,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
                 subtitles: subtitles,
                 servers: servers,
                 onServerChanged: _handleServerChanged,
+                onActiveServerReset: _resetActiveServers,
                 currentServerIndex: _providerIndex,
               ),
             )

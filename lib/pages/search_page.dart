@@ -131,7 +131,19 @@ class _SearchPageState extends State<SearchPage>
         right: 16,
         bottom: 12, // Added more bottom padding
       ),
-      child: _buildSearchField(),
+      child: Row(
+        children: [
+          // Always visible back button to return to previous page
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            splashRadius: 20,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          // Expanded search field
+          Expanded(child: _buildSearchField()),
+        ],
+      ),
     );
   }
 
@@ -177,6 +189,7 @@ class _SearchPageState extends State<SearchPage>
           suffixIcon: textEditingController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, color: Colors.grey),
+                  splashRadius: 20,
                   onPressed: () {
                     textEditingController.clear();
                     setState(() {
@@ -190,6 +203,12 @@ class _SearchPageState extends State<SearchPage>
           contentPadding:
               const EdgeInsets.symmetric(vertical: 15, horizontal: 16),
         ),
+        onChanged: (value) {
+          // This ensures the clear button appears immediately when typing starts
+          setState(() {
+            // Just trigger a rebuild to show/hide the clear button
+          });
+        },
       ),
     );
   }

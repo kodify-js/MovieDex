@@ -520,7 +520,8 @@ class M3U8DownloaderService {
 
   Future<String> getDownloadPath(String filename, String title) async {
     try {
-      final basePath = '${SettingsService.instance.downloadPath}';
+      // Using await here to resolve the future before continuing
+      final basePath = await SettingsService.instance.downloadPath;
       final directory = Directory(basePath);
 
       // Create directories recursively with proper permissions
@@ -630,7 +631,8 @@ class M3U8DownloaderService {
 
     try {
       // Check if download path exists and is writable
-      final baseDir = Directory(SettingsService.instance.downloadPath);
+      final basePath = await SettingsService.instance.downloadPath;
+      final baseDir = Directory(basePath);
       if (!await baseDir.exists()) {
         await baseDir.create(recursive: true);
       }
@@ -938,8 +940,9 @@ class M3U8DownloaderService {
   Future<void> _cleanupOnError() async {
     try {
       if (_currentContent != null) {
-        final dir = Directory(
-            '${SettingsService.instance.downloadPath}/${_currentContent!.title}');
+        // Get the download path asynchronously
+        final basePath = await SettingsService.instance.downloadPath;
+        final dir = Directory('$basePath/${_currentContent!.title}');
         if (await dir.exists()) {
           await dir.delete(recursive: true);
         }
@@ -974,9 +977,10 @@ class M3U8DownloaderService {
 
       // Clean partial downloads if any
       if (_currentContent != null) {
-        final downloadPath = await getDownloadPath(
-            '${_currentContent!.title}_${_currentQuality ?? ""}',
-            _currentContent!.title);
+        // Get the download path correctly with await
+        final basePath = await SettingsService.instance.downloadPath;
+        final downloadPath =
+            '$basePath/${_currentContent!.title}_${_currentQuality ?? ""}';
         final downloadDir = Directory(downloadPath).parent;
         if (await downloadDir.exists()) {
           await downloadDir.delete(recursive: true);
