@@ -16,7 +16,6 @@ import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:html/parser.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
-import 'package:moviedex/services/proxy_service.dart';
 
 /// Handles stream extraction from Aniwave provider
 class Aniwave {
@@ -89,7 +88,7 @@ class Aniwave {
         final data = await http
             .get(Uri.parse('https://aniwave.at/catalog?keyword=$title'));
         final document = parse(data.body);
-        final results = document.querySelectorAll("div.group div.relative a");
+        final results = document.querySelectorAll("div.mt-6 div.grid a");
         if (results.isEmpty)
           throw Exception('Failed to fetch stream: No data found');
         final search = results.map((e) {
@@ -126,6 +125,7 @@ class Aniwave {
         final body = watchData.body;
         String previousEpisode =
             "0"; // Default to 0 to avoid parsing an empty string
+        final animeId = body.split("animeID")[1].split(":")[1].split(",")[0];
         final container = body
             .split('ep_id')
             .where((e) => e.startsWith('\\"'))
@@ -147,7 +147,8 @@ class Aniwave {
           final data = {
             "episodeId": episodeId,
             "episodeNumber": currentEpisode,
-            "watchUrl": watchUrl.split("ep-").first + "ep-$episodeId"
+            "watchUrl":
+                watchUrl.split("episode-").first + "$animeId-ep-$episodeId"
           };
 
           if (currentEpisode.isNotEmpty) {

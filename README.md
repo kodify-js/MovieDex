@@ -45,6 +45,20 @@ MovieDex is a Flutter-based movie and TV show streaming application that provide
   </tr>
 </table>
 
+## Desktop Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+        <img src="assets/images/desktop-screenshot-1.png" width="400px;" alt="Desktop Home"/>
+    </td>
+  <tr>
+    <td align="center">
+        <img src="assets/images/desktop-screenshot-2.png" width="400px;" alt="Desktop Player"/>
+    </td>
+  </tr>
+</table>
+
 ## Setup Instructions
 
 ### Prerequisites
