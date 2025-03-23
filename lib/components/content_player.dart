@@ -239,7 +239,8 @@ class _ContentPlayerState extends State<ContentPlayer>
         _duration = duration;
         _position = position;
         _isPlaying = _controller!.value.isPlaying;
-        _isBuffering = _controller!.value.isBuffering && !_isPlaying;
+        // _isBuffering = _controller!.value.isBuffering && !_isPlaying;
+
         // Calculate progress only if duration is valid
         if (duration.inMilliseconds > 0) {
           _progress = position.inMilliseconds / duration.inMilliseconds;
@@ -1850,8 +1851,7 @@ class _ContentPlayerState extends State<ContentPlayer>
   }
 
   Widget _buildPlayPauseButton() {
-    // Only show buffering if we're actually stalled due to buffering
-    final bool showBuffering = _isBuffering;
+    final bool showBuffering = _isBuffering && !_isPlaying;
 
     if (showBuffering) {
       return Container(
