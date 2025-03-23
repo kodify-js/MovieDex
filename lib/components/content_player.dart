@@ -233,19 +233,13 @@ class _ContentPlayerState extends State<ContentPlayer>
     if (position.inSeconds == 30) {
       await WatchHistoryService.instance.addToHistory(widget.data);
     }
-
+    _isBuffering = _controller!.value.isBuffering;
     // Update values only if they have changed
     if (duration != _duration || position != _position) {
       setState(() {
         _duration = duration;
         _position = position;
         _isPlaying = _controller!.value.isPlaying;
-
-        // Fix buffering detection - only consider it buffering if it's not playing but should be
-        _isBuffering = _controller!.value.isBuffering &&
-            !_controller!.value.isPlaying &&
-            _isPlaying;
-
         // Calculate progress only if duration is valid
         if (duration.inMilliseconds > 0) {
           _progress = position.inMilliseconds / duration.inMilliseconds;
@@ -1857,7 +1851,7 @@ class _ContentPlayerState extends State<ContentPlayer>
 
   Widget _buildPlayPauseButton() {
     // Only show buffering if we're actually stalled due to buffering
-    final bool showBuffering = _isBuffering && !_controller!.value.isPlaying;
+    final bool showBuffering = _isBuffering;
 
     if (showBuffering) {
       return Container(
