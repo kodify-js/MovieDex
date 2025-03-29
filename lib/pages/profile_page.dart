@@ -115,7 +115,7 @@ class _ProfilePageState extends State<ProfilePage>
               builder: (context) => Infopage(
                 id: item.contentId,
                 type: item.type,
-                name: item.title,
+                title: item.title,
               ),
             ),
           );
@@ -778,7 +778,7 @@ class _ProfilePageState extends State<ProfilePage>
                     builder: (context) => Infopage(
                       id: item.contentId,
                       type: item.type,
-                      name: item.title,
+                      title: item.title,
                     ),
                   ),
                 );
@@ -912,7 +912,7 @@ class _ProfilePageState extends State<ProfilePage>
                                   builder: (context) => Infopage(
                                     id: item.contentId,
                                     type: item.type,
-                                    name: item.title,
+                                    title: item.title,
                                   ),
                                 ),
                               );

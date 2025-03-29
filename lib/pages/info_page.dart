@@ -23,7 +23,7 @@ import 'package:moviedex/components/download_button_widget.dart';
 
 class Infopage extends StatefulWidget {
   final int id;
-  final String name;
+  final String title;
   final String type;
   final Box? storage; // Add storage parameter
 
@@ -31,7 +31,7 @@ class Infopage extends StatefulWidget {
       {super.key,
       required this.id,
       required this.type,
-      required this.name,
+      required this.title,
       this.storage}); // Add this parameter
 
   @override
@@ -53,12 +53,12 @@ class _InfopageState extends State<Infopage> {
   bool isError = false;
   bool _isLoadingStream = false;
   String _appname = "";
+  String? airDate;
   Contentclass? _contentData; // Add this variable to store content data
-
   Future<void> _initStorage() async {
     try {
       if (storage == null || !storage!.isOpen) {
-        storage = await Hive.openBox(widget.name);
+        storage = await Hive.openBox(widget.title);
       }
     } catch (e) {
       debugPrint('Error initializing storage: $e');
@@ -83,6 +83,7 @@ class _InfopageState extends State<Infopage> {
           episodeNumber:
               int.parse((storage?.get("episode") ?? "E1").replaceAll("E", "")),
           seasonNumber: selectedSeason,
+          airDate: airDate,
           title: data.title,
           storage: storage,
         ),
@@ -345,13 +346,14 @@ class _InfopageState extends State<Infopage> {
       throw 'No streams available';
     }
 
-    final quality = await _showQualityDialog(_stream.first);
-    if (quality == null) return;
-
     final language = _stream.length > 1
         ? await _showLanguageDialog(_stream)
         : _stream.first.language;
     if (language == null) return;
+
+    final quality = await _showQualityDialog(
+        _stream.firstWhere((e) => e.language == language));
+    if (quality == null) return;
 
     await _startDownload(data, quality, language);
   }
@@ -365,7 +367,7 @@ class _InfopageState extends State<Infopage> {
   }) async {
     // Get selected stream
     final stream = _stream.firstWhere((s) => s.language == language);
-    print('Selected stream: $stream');
+    print('Selected stream: ${stream.sources[0].url}');
     final url = quality == 'Auto'
         ? stream.url
         : stream.sources.firstWhere((s) => s.quality == quality).url;
@@ -424,7 +426,7 @@ class _InfopageState extends State<Infopage> {
   Future<void> getStream() async {
     try {
       contentProvider = ContentProvider(
-        title: widget.name,
+        title: widget.title,
         id: widget.id,
         type: widget.type,
       );
@@ -433,7 +435,6 @@ class _InfopageState extends State<Infopage> {
         isError = true;
         return;
       }
-
       _stream = await contentProvider.providers[_providerIndex].getStream();
       _stream = _stream.where((element) => !element.isError).toList();
 
@@ -871,6 +872,7 @@ class _InfopageState extends State<Infopage> {
                           await ListService.instance.addToList(data);
                         }
                         setState(() {
+                          airDate = data.seasons![selectedSeason].airDate;
                           _isInList = !_isInList;
                           _isProcessing = false;
                         });
@@ -1096,7 +1098,7 @@ class _InfopageState extends State<Infopage> {
     return Scaffold(
         appBar: AppBar(
           title: Text(
-            widget.name != '' ? widget.name : _appname,
+            widget.title != '' ? widget.title : _appname,
             style: TextStyle(
               fontWeight: FontWeight.bold,
             ),

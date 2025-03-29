@@ -37,10 +37,9 @@ import 'package:moviedex/services/update_service.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
-
   await Hive.initFlutter();
   _registerHiveAdapters();
-  
+
   // Initialize analytics first
   await AnalyticsService.instance.init();
   // Initialize services in dependency order
@@ -49,7 +48,7 @@ Future<void> initializeServices() async {
   await CacheService().init();
   await DownloadsManager.instance.init();
   await Hive.openBox('settings');
-  
+
   // Initialize background service
   await BackgroundDownloadService.instance.init();
 }
@@ -70,7 +69,7 @@ void _registerHiveAdapters() {
   if (!Hive.isAdapterRegistered(5)) {
     Hive.registerAdapter(DownloadItemAdapter());
   }
-  if(!Hive.isAdapterRegistered(6)){
+  if (!Hive.isAdapterRegistered(6)) {
     Hive.registerAdapter(DownloadStateAdapter());
   }
 }
@@ -78,8 +77,8 @@ void _registerHiveAdapters() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await UpdateService.instance.initialize();
-  await initializeServices();  
-  
+  await initializeServices();
+
   runApp(const MyApp());
 }
 
@@ -91,7 +90,6 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-
   @override
   void initState() {
     super.initState();
@@ -122,7 +120,7 @@ class _MyAppState extends State<MyApp> {
                 builder: (context) => Infopage(
                   id: id,
                   type: 'movie',
-                  name: 'Movie $id',
+                  title: 'Movie $id',
                 ),
               );
             }
@@ -132,7 +130,7 @@ class _MyAppState extends State<MyApp> {
                 builder: (context) => Infopage(
                   id: id,
                   type: 'tv',
-                  name: 'TV Show $id',
+                  title: 'TV Show $id',
                 ),
               );
             }
@@ -199,12 +197,13 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      bottomNavigationBar: !isDesktop ? ResponsiveNavigation(
-        currentIndex: currentIndex,
-        onTap: (index) => setState(() => currentIndex = index),
-        items: _navItems,
-      ) : null,
+      bottomNavigationBar: !isDesktop
+          ? ResponsiveNavigation(
+              currentIndex: currentIndex,
+              onTap: (index) => setState(() => currentIndex = index),
+              items: _navItems,
+            )
+          : null,
     );
   }
 }
-
