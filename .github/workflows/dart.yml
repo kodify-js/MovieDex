@@ -28,7 +28,6 @@ jobs:
         with:
           # 11
           flutter-version: "3.6.1"
-          channel: 'stable'
       - name: Install dependencies
         run: flutter pub get
 
