@@ -447,7 +447,7 @@ class _SearchPageState extends State<SearchPage>
               MaterialPageRoute(
                 builder: (context) => Infopage(
                   id: content.id,
-                  name: content.title,
+                  title: content.title,
                   type: content.type,
                 ),
               ),

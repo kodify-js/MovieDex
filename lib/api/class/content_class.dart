@@ -6,34 +6,34 @@ part 'content_class.g.dart';
 class Contentclass {
   @HiveField(0)
   final int id;
-  
+
   @HiveField(1)
   final String backdrop;
-  
+
   @HiveField(2)
   final String title;
-  
+
   @HiveField(3)
   final String language;
-  
+
   @HiveField(4)
   final List<dynamic> genres;
-  
+
   @HiveField(5)
   final String type;
-  
+
   @HiveField(6)
   final String description;
-  
+
   @HiveField(7)
   final String poster;
-  
+
   @HiveField(8)
   String? logoPath;
-  
+
   @HiveField(9)
   double? rating;
-  
+
   @HiveField(10)
   List<Season>? seasons;
 
@@ -90,19 +90,24 @@ class Contentclass {
 class Season {
   @HiveField(0)
   final int id;
-  
+
   @HiveField(1)
   final int season;
+
+  @HiveField(2)
+  final String? airDate;
 
   Season({
     required this.id,
     required this.season,
+    this.airDate,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'season': season,
+      'airDate': airDate,
     };
   }
 
@@ -110,6 +115,7 @@ class Season {
     return Season(
       id: json['id'] as int,
       season: json['season'] as int,
+      airDate: json['airDate'] as String?,
     );
   }
 }

@@ -39,12 +39,15 @@ class ContentProvider {
 
   final bool? isAnime;
 
+  final String? airDate;
+
   ContentProvider(
       {required this.id,
       required this.type,
       required this.title,
       this.isAnime = false,
       this.episodeNumber,
+      this.airDate,
       this.seasonNumber,
       this.animeEpisode});
 
@@ -88,6 +91,7 @@ class ContentProvider {
   Aniwave get aniwave => Aniwave(
       title: title,
       type: type,
+      airDate: airDate,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber,
       animeEpisodes: animeEpisode);

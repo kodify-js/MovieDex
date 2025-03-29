@@ -81,7 +81,9 @@ class HorizontalScrollList extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => Infopage(
-                                id: item.id, name: item.title, type: item.type),
+                                id: item.id,
+                                title: item.title,
+                                type: item.type),
                           ),
                         );
                       },
@@ -150,7 +152,7 @@ class HorizontalScrollList extends StatelessWidget {
                                       MaterialPageRoute(
                                         builder: (context) => Infopage(
                                             id: item.id,
-                                            name: item.title,
+                                            title: item.title,
                                             type: item.type),
                                       ),
                                     );

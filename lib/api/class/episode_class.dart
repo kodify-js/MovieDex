@@ -1,4 +1,4 @@
-class Episode{
+class Episode {
   final int id;
   final String name;
   final int episode;
@@ -13,6 +13,6 @@ class Episode{
     required this.season,
     required this.description,
     required this.airDate,
-    required this.image
+    required this.image,
   });
 }

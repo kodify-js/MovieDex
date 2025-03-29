@@ -217,7 +217,7 @@ class Carousel extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => Infopage(
           id: data.id,
-          name: data.title,
+          title: data.title,
           type: data.type,
         ),
       ),

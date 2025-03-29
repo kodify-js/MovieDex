@@ -7,7 +7,8 @@ import 'package:moviedex/components/episodes_list.dart';
 class EpisodesSection extends StatefulWidget {
   final Contentclass data;
   final int initialSeason;
-  const EpisodesSection({super.key, required this.data, this.initialSeason = 1});
+  const EpisodesSection(
+      {super.key, required this.data, this.initialSeason = 1});
 
   @override
   State<EpisodesSection> createState() => _EpisodesSectionState();
@@ -18,6 +19,7 @@ class _EpisodesSectionState extends State<EpisodesSection> {
   late int selectedSeason;
   List<Episode>? episodes;
   bool isLoading = false;
+  String? airDate;
   @override
   void initState() {
     super.initState();
@@ -31,52 +33,15 @@ class _EpisodesSectionState extends State<EpisodesSection> {
       final newEpisodes = await api.getEpisodes(
         id: widget.data.id,
         season: selectedSeason,
-      );
+      ) as List<Episode>;
       setState(() {
+        airDate = newEpisodes.first.airDate;
         episodes = newEpisodes;
         isLoading = false;
       });
     } catch (e) {
       setState(() => isLoading = false);
     }
-  }
-
-  Widget _buildEpisodeCard(BuildContext context, Episode episode) {
-    return Card(
-      color: Colors.grey[900],
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 160,
-              height: 90,
-              child: episode.image.isNotEmpty
-                ? Image.network(
-                    episode.image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-                  )
-                : _buildPlaceholder(),
-            ),
-          ),
-          // ...rest of episode card...
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      color: Colors.grey[800],
-      child: Center(
-        child: Icon(
-          Icons.movie_outlined,
-          size: 40,
-          color: Colors.grey[600],
-        ),
-      ),
-    );
   }
 
   @override
@@ -95,13 +60,13 @@ class _EpisodesSectionState extends State<EpisodesSection> {
             child: DropdownButton<int>(
               value: selectedSeason,
               dropdownColor: Theme.of(context).colorScheme.secondary,
-              icon: Icon(Icons.arrow_drop_down, color: Theme.of(context).colorScheme.onSecondary),
+              icon: Icon(Icons.arrow_drop_down,
+                  color: Theme.of(context).colorScheme.onSecondary),
               underline: SizedBox(),
               style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).colorScheme.onSecondary,
-                fontWeight: FontWeight.bold
-              ),
+                  fontSize: 16,
+                  color: Theme.of(context).colorScheme.onSecondary,
+                  fontWeight: FontWeight.bold),
               items: List.generate(
                 widget.data.seasons?.length ?? 1,
                 (index) => DropdownMenuItem(
@@ -134,6 +99,7 @@ class _EpisodesSectionState extends State<EpisodesSection> {
                 return EpisodesList(
                   episode: episodes![index],
                   data: widget.data,
+                  airDate: airDate,
                 );
               },
             ),

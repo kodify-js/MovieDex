@@ -26,11 +26,13 @@ class Aniwave {
   final String? name;
   bool isError = false;
   final List? animeEpisodes;
+  final String? airDate;
   Aniwave(
       {required this.title,
       required this.type,
       this.episodeNumber,
       this.seasonNumber,
+      this.airDate,
       this.name = 'Aniwave',
       this.animeEpisodes});
 
@@ -84,9 +86,11 @@ class Aniwave {
     try {
       List episode = animeEpisodes ?? [];
       final List<StreamClass> streams = [];
+      print(
+          'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}');
       if (episode.isEmpty) {
-        final data = await http
-            .get(Uri.parse('https://aniwave.at/catalog?keyword=$title'));
+        final data = await http.get(Uri.parse(
+            'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
         final document = parse(data.body);
         final results = document.querySelectorAll("div.mt-6 div.grid a");
         if (results.isEmpty)

@@ -22,6 +22,7 @@ class WatchPage extends StatefulWidget {
   final String title;
   final Box? storage; // Add storage parameter
   final int? providerIndex;
+  final String? airDate;
   const WatchPage({
     super.key,
     required this.data,
@@ -29,6 +30,7 @@ class WatchPage extends StatefulWidget {
     this.seasonNumber,
     required this.title,
     this.storage,
+    this.airDate,
     this.providerIndex = 0,
   });
 
@@ -50,6 +52,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
   List<String> _addedSub = [];
   List<SubtitleClass>? subtitles;
   List<ServerClass> servers = [];
+
   void getStream() async {
     try {
       if (_providerIndex >= contentProvider.providers.length) {
@@ -150,6 +153,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
         title: widget.data.title,
         id: widget.data.id,
         type: widget.data.type,
+        airDate: widget.airDate,
         episodeNumber: widget.episodeNumber,
         seasonNumber: widget.seasonNumber,
         isAnime: widget.data.genres.contains("Animation"));
@@ -300,6 +304,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
           title: widget.data.title,
           id: widget.data.id,
           type: widget.data.type,
+          airDate: widget.airDate,
           episodeNumber: episodeNumber,
           seasonNumber: currentSeasonNumber,
           animeEpisode: contentProvider.animeEpisode,
@@ -310,6 +315,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
           id: widget.data.id,
           type: widget.data.type,
           episodeNumber: episodeNumber,
+          airDate: widget.airDate,
           seasonNumber: currentSeasonNumber,
           isAnime: contentProvider.isAnime);
     }

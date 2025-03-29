@@ -113,6 +113,7 @@ class VidSrcSu {
               ? _resolveStreamUrl(
                   lines[i + 1].split('./')[1].trim(), lines[i + 1])
               : lines[i + 1];
+          print('Stream URL: $streamUrl');
           sources.add(SourceClass(quality: quality, url: streamUrl));
         }
       }
