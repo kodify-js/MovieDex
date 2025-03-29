@@ -390,8 +390,10 @@ class Api {
             seasons: []);
         if (type == ContentType.tv.value) {
           for (var data in (response['seasons'] as List)) {
-            Season season =
-                Season(id: data['id'], season: data['season_number']);
+            Season season = Season(
+                id: data['id'],
+                season: data['season_number'],
+                airDate: data['air_date']);
             content.seasons?.add(season);
           }
         }
@@ -428,7 +430,6 @@ class Api {
       final response = jsonDecode(data.body);
       if (response['status_code'] != null)
         throw Exception("Failed to fetch data");
-
       final List<Episode> episodes = (response['episodes'] as List)
           .where((episode) => episode['still_path'] != null)
           .map((episode) => Episode(

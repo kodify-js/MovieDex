@@ -34,7 +34,7 @@ class MyListPage extends StatelessWidget {
                     builder: (context) => Infopage(
                       id: item.contentId,
                       type: item.type,
-                      name: item.title,
+                      title: item.title,
                     ),
                   ),
                 );
