@@ -11,6 +11,8 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
@@ -85,21 +87,30 @@ class Aniwave {
       List episode = animeEpisodes ?? [];
       final List<StreamClass> streams = [];
       if (episode.isEmpty) {
+<<<<<<< Updated upstream
         final data = await http
             .get(Uri.parse('https://aniwave.at/catalog?keyword=$title'));
         final document = parse(data.body);
         final results = document.querySelectorAll("div.mt-6 div.grid a");
+=======
+        final response = await http.get(Uri.parse(
+            'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
+        final data =
+            '[${response.body.split("animeList")[1].split("[")[1].split("]")[0].replaceAll("\\", "")}]';
+        final results = jsonDecode(data);
+>>>>>>> Stashed changes
         if (results.isEmpty)
           throw Exception('Failed to fetch stream: No data found');
         final search = results.map((e) {
-          final searchTitle = e.querySelector("img")?.attributes['alt'] ?? "";
+          final searchTitle = e['title'] ?? "";
           final matchPercentage = _calculateSimilarity(searchTitle, title);
 
           final data = {
             "title": searchTitle,
-            "url": e.attributes['href'],
+            "url": '/${e['anSlug']}',
             "matchPercentage": matchPercentage
           };
+
           return data;
         }).toList();
 
@@ -110,18 +121,9 @@ class Aniwave {
         final infoUrl = search.isNotEmpty ? search[0]["url"] : null;
         if (infoUrl == null)
           throw Exception('Failed to fetch stream: No data found');
-        final infoData =
-            await http.get(Uri.parse('https://aniwave.at$infoUrl'));
-        final infoDocument = parse(infoData.body);
-        final watchUrl = infoDocument
-            .querySelector("a.bg-white")
-            ?.attributes['href']
-            ?.split("/watch")[1];
-        if (watchUrl == null)
-          throw Exception('Failed to fetch stream: No data found');
         List episodeList = [];
         final watchData =
-            await http.get(Uri.parse('https://aniwave.at/watch$watchUrl'));
+            await http.get(Uri.parse('https://aniwave.at/about$infoUrl'));
         final body = watchData.body;
         String previousEpisode =
             "0"; // Default to 0 to avoid parsing an empty string
@@ -147,8 +149,7 @@ class Aniwave {
           final data = {
             "episodeId": episodeId,
             "episodeNumber": currentEpisode,
-            "watchUrl":
-                watchUrl.split("episode-").first + "$animeId-ep-$episodeId"
+            "watchUrl": "$infoUrl-$animeId-ep-$episodeId"
           };
 
           if (currentEpisode.isNotEmpty) {
@@ -230,14 +231,11 @@ class Aniwave {
     try {
       final watchData = await http.get(
           Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-2/${lang}'),
-          headers: {"Referer": "https://aniwave.at/watch$watchUrl"});
+          headers: {"Referer": "https://aniwave.at/about$watchUrl"});
       final watchDocument = parse(watchData.body);
       final videoUrl = watchDocument
           .querySelector("media-provider source")
-          ?.attributes['src']
-          ?.replaceAll("https://cors.hi-anime.site/", "")
-          .replaceAll("https://cdn.aniwave.lat/", "");
-      ;
+          ?.attributes['src'];
       final subtitles = watchDocument.querySelectorAll("track").map((e) {
         return SubtitleClass(
             language: e.attributes['srclang'] ?? "",

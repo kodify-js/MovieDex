@@ -8,12 +8,13 @@ class StreamClass {
   final bool isError;
   final List<SubtitleClass>? subtitles;
   final List? animeEpisodes;
-  const StreamClass({
-    required this.language,
-    required this.url,
-    this.isError=false,
-    required this.sources,
-    this.subtitles,
-    this.animeEpisodes
-  });
+  final String? baseUrl;
+  const StreamClass(
+      {required this.language,
+      required this.url,
+      this.isError = false,
+      required this.sources,
+      this.subtitles,
+      this.animeEpisodes,
+      this.baseUrl});
 }
