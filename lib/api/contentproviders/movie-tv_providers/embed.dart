@@ -15,7 +15,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
-import 'package:moviedex/services/proxy_service.dart';
 import 'package:moviedex/utils/utils.dart';
 
 /// Handles stream extraction from Embed provider
@@ -88,17 +87,7 @@ class Embed {
         "Accept": "*/*"
       }).timeout(const Duration(seconds: 5));
       final data = jsonDecode(response.body);
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-      final sourceUrl =
-          data['source'].toString().replaceAll("embed.su/api/proxy/viper/", "");
-=======
       final sourceUrl = data['source'].toString();
->>>>>>> Stashed changes
-=======
-      print(data);
-      final sourceUrl = data['source'].toString();
->>>>>>> a26ee08b469fc3026312200224f337f30c8c7341
       final sources = await _getSources(url: sourceUrl);
       return StreamClass(
           language: 'original',
@@ -124,23 +113,12 @@ class Embed {
         return [SourceClass(quality: "Auto", url: url)];
       }
 
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-      final response = await http.get(Uri.parse(url));
-=======
-=======
->>>>>>> a26ee08b469fc3026312200224f337f30c8c7341
       final response = await http.get(Uri.parse(url), headers: {
         "Referer": baseUrl,
         "User-Agent":
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         "Accept": "*/*"
       });
-<<<<<<< HEAD
->>>>>>> Stashed changes
-=======
-      print(response.body);
->>>>>>> a26ee08b469fc3026312200224f337f30c8c7341
       final sources = _parseM3U8Playlist(response.body, url);
       if (sources.isEmpty) throw "No valid sources found";
       isError = false;

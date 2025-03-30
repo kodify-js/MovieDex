@@ -88,26 +88,12 @@ class Aniwave {
     try {
       List episode = animeEpisodes ?? [];
       final List<StreamClass> streams = [];
-      print(
-          'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}');
       if (episode.isEmpty) {
-<<<<<<< HEAD
-<<<<<<< Updated upstream
-        final data = await http
-            .get(Uri.parse('https://aniwave.at/catalog?keyword=$title'));
-=======
-        final data = await http.get(Uri.parse(
-            'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
->>>>>>> a26ee08b469fc3026312200224f337f30c8c7341
-        final document = parse(data.body);
-        final results = document.querySelectorAll("div.mt-6 div.grid a");
-=======
         final response = await http.get(Uri.parse(
             'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
         final data =
             '[${response.body.split("animeList")[1].split("[")[1].split("]")[0].replaceAll("\\", "")}]';
         final results = jsonDecode(data);
->>>>>>> Stashed changes
         if (results.isEmpty)
           throw Exception('Failed to fetch stream: No data found');
         final search = results.map((e) {
@@ -257,6 +243,7 @@ class Aniwave {
       final url = uri.queryParameters['url'] != null
           ? uri.queryParameters['url']!
           : videoUrl;
+      print(url);
       final source = await _getSources(url);
       final stream = new StreamClass(
           language: lang,
@@ -280,6 +267,7 @@ class Aniwave {
               ? Uri.parse(newUrl.queryParameters['url']!)
               : newUrl)
           .timeout(const Duration(seconds: 5));
+      print(response.body);
       if (response.statusCode != 200) {
         return [];
       }
