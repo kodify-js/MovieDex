@@ -234,7 +234,7 @@ class Aniwave {
   Future getSource(watchUrl, lang, episodes) async {
     try {
       final watchData = await http.get(
-          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-1/${lang}'),
+          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-2/${lang}'),
           headers: {"Referer": "https://aniwave.at/about$watchUrl"});
       final watchDocument = parse(watchData.body);
       final videoUrl = watchDocument
@@ -248,18 +248,16 @@ class Aniwave {
       }).toList();
       if (videoUrl == null)
         throw Exception('Failed to fetch stream: No data found');
-      final url = videoUrl;
+      final uri = Uri.parse(videoUrl);
+      final url = uri.queryParameters['url'] != null
+          ? uri.queryParameters['url']!
+          : videoUrl;
       final source = await _getSources(url);
       final stream = new StreamClass(
-          language: lang == "sub"
-              ? "Sub"
-              : lang == "dub"
-                  ? "English Dub"
-                  : "Raw",
+          language: lang,
           url: url,
           sources: source,
           isError: isError,
-          baseUrl: "https://aniwave.at/",
           subtitles: subtitles,
           animeEpisodes: episodes);
       return stream;
@@ -272,15 +270,20 @@ class Aniwave {
   Future<List<SourceClass>> _getSources(String url) async {
     try {
       final newUrl = Uri.parse(url);
-      final response = await http.get(newUrl, headers: {
-        "origin": "https://aniwave.at/",
-        "Referer": "https://aniwave.at/"
-      }).timeout(const Duration(seconds: 5));
+      final response = await http
+          .get(newUrl.queryParameters['url'] != null
+              ? Uri.parse(newUrl.queryParameters['url']!)
+              : newUrl)
+          .timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) {
         return [];
       }
       // Extract quality options
-      final qualities = _parseM3U8Playlist(response.body, url);
+      final qualities = _parseM3U8Playlist(
+          response.body,
+          newUrl.queryParameters['url'] != null
+              ? newUrl.queryParameters['url']!
+              : url);
       if (qualities.isEmpty) {
         return [];
       }

@@ -87,8 +87,13 @@ class Embed {
         "Accept": "*/*"
       }).timeout(const Duration(seconds: 5));
       final data = jsonDecode(response.body);
-      final sourceUrl = data['source'].toString();
+      final sourceUrl =
+          'https://proxy.rivestream.org/m3u8-proxy?url=${Uri.encodeComponent(data['source'].toString())}&headers=${Uri.encodeComponent('''{
+        "Origin": "$baseUrl",
+        "Referer": "$baseUrl"
+      }''')}';
       final sources = await _getSources(url: sourceUrl);
+      print("Source URL: $sourceUrl");
       return StreamClass(
           language: 'original',
           url: sourceUrl,
