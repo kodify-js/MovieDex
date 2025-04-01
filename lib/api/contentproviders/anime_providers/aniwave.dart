@@ -91,8 +91,13 @@ class Aniwave {
       if (episode.isEmpty) {
         final response = await http.get(Uri.parse(
             'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
+        final main = response.body
+            .split("animeList")[1]
+            .split("[")[1]
+            .split("]")[0]
+            .replaceAll("\\", "");
         final data =
-            '[${response.body.split("animeList")[1].split("[")[1].split("]")[0].replaceAll("\\", "")}]';
+            '[$main${main.endsWith('"') ? ':""}' : main.endsWith("}") ? "" : "}"}]'; // Ensure it's a valid JSON array
         final results = jsonDecode(data);
         if (results.isEmpty)
           throw Exception('Failed to fetch stream: No data found');
@@ -169,6 +174,10 @@ class Aniwave {
             if (dubStream != null) {
               streams.add(dubStream);
             }
+            final rawStream = await getSource(url, 'raw', episode);
+            if (rawStream != null) {
+              streams.add(rawStream);
+            }
           }
         }
       }
@@ -225,7 +234,7 @@ class Aniwave {
   Future getSource(watchUrl, lang, episodes) async {
     try {
       final watchData = await http.get(
-          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-2/${lang}'),
+          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-1/${lang}'),
           headers: {"Referer": "https://aniwave.at/about$watchUrl"});
       final watchDocument = parse(watchData.body);
       final videoUrl = watchDocument
@@ -239,17 +248,18 @@ class Aniwave {
       }).toList();
       if (videoUrl == null)
         throw Exception('Failed to fetch stream: No data found');
-      final uri = Uri.parse(videoUrl);
-      final url = uri.queryParameters['url'] != null
-          ? uri.queryParameters['url']!
-          : videoUrl;
-      print(url);
+      final url = videoUrl;
       final source = await _getSources(url);
       final stream = new StreamClass(
-          language: lang,
+          language: lang == "sub"
+              ? "Sub"
+              : lang == "dub"
+                  ? "English Dub"
+                  : "Raw",
           url: url,
           sources: source,
           isError: isError,
+          baseUrl: "https://aniwave.at/",
           subtitles: subtitles,
           animeEpisodes: episodes);
       return stream;
@@ -262,21 +272,15 @@ class Aniwave {
   Future<List<SourceClass>> _getSources(String url) async {
     try {
       final newUrl = Uri.parse(url);
-      final response = await http
-          .get(newUrl.queryParameters['url'] != null
-              ? Uri.parse(newUrl.queryParameters['url']!)
-              : newUrl)
-          .timeout(const Duration(seconds: 5));
-      print(response.body);
+      final response = await http.get(newUrl, headers: {
+        "origin": "https://aniwave.at/",
+        "Referer": "https://aniwave.at/"
+      }).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) {
         return [];
       }
       // Extract quality options
-      final qualities = _parseM3U8Playlist(
-          response.body,
-          newUrl.queryParameters['url'] != null
-              ? newUrl.queryParameters['url']!
-              : url);
+      final qualities = _parseM3U8Playlist(response.body, url);
       if (qualities.isEmpty) {
         return [];
       }

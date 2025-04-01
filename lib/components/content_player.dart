@@ -323,15 +323,15 @@ class _ContentPlayerState extends State<ContentPlayer>
     // Store the current URL for possible reinitialization
     _currentPlaybackUrl = url;
     try {
+      final Map<String, String> headers = {
+        "origin": widget.streams.first.baseUrl ?? "",
+        "Referer": widget.streams.first.baseUrl ?? "",
+      };
+      print(widget.streams.first.baseUrl);
       // Normal initialization without proxy
       _controller = VideoPlayerController.networkUrl(
         Uri.parse(url),
-        httpHeaders: {
-          "Referer": widget.streams.first.baseUrl ?? "",
-          "User-Agent":
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          "Accept": "*/*"
-        },
+        httpHeaders: headers,
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: false,
           allowBackgroundPlayback: true, // Allow background buffering
