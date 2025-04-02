@@ -39,7 +39,7 @@ class Vidsrc {
       final baseUrl = await _buildStreamUrl();
       final response = await http
           .get(Uri.parse(baseUrl))
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');
@@ -94,8 +94,6 @@ class Vidsrc {
 
   Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment =
-        isMovie ? '' : "&s=${seasonNumber ?? '1'}&e=${episodeNumber ?? '1'}";
     if (isMovie) {
       final C = id.toString().split("").map((e) {
         final encoding = "abcdefghij";

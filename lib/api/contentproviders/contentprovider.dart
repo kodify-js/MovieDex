@@ -17,6 +17,7 @@ import 'package:moviedex/api/contentproviders/movie-tv_providers/coitus.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrc.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrcsu.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/vidzee.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vietautoembed.dart';
 
 /// Manages and coordinates multiple streaming providers
@@ -96,8 +97,23 @@ class ContentProvider {
       seasonNumber: seasonNumber,
       animeEpisodes: animeEpisode);
 
+  Vidzee get vidzee => Vidzee(
+      id: id,
+      type: type,
+      episodeNumber: episodeNumber,
+      seasonNumber: seasonNumber);
+
   /// List of all available providers
   List get providers => isAnime == true
-      ? [vidsrc, aniwave, vidsecsu, coitus, autoembed, vietautoembed, embed]
-      : [vidsrc, vidsecsu, autoembed, coitus, vietautoembed, embed];
+      ? [
+          vidsrc,
+          vidzee,
+          aniwave,
+          vidsecsu,
+          embed,
+          coitus,
+          autoembed,
+          vietautoembed,
+        ]
+      : [vidsrc, vidzee, vidsecsu, embed, coitus, autoembed, vietautoembed];
 }

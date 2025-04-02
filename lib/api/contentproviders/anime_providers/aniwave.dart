@@ -96,8 +96,10 @@ class Aniwave {
             .split("[")[1]
             .split("]")[0]
             .replaceAll("\\", "");
+        List filteredData = main.split(",");
+        filteredData.removeLast();
         final data =
-            '[$main${main.endsWith('"') ? ':""}' : main.endsWith("}") ? "" : "}"}]'; // Ensure it's a valid JSON array
+            '[${filteredData.join(",")}}]'; // Ensure it's a valid JSON array
         final results = jsonDecode(data);
         if (results.isEmpty)
           throw Exception('Failed to fetch stream: No data found');
