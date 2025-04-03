@@ -102,13 +102,13 @@ class Vidsrc {
       String B = C.split('').reversed.join('');
       String A = base64Encode(utf8.encode(B));
       String D = base64Encode(utf8.encode(A));
-      return 'https://api.vid3c.site/allmvse2.php?id=$D';
+      return '';
     } else {
       final formattedString = '${id}-${seasonNumber}-${episodeNumber}';
       final reversedString = formattedString.split('').reversed.join('');
       final firstBase64 = base64Encode(utf8.encode(reversedString));
       final secondBase64 = base64Encode(utf8.encode(firstBase64));
-      return 'https://api.vid3c.site/alltvse2.php?id=${secondBase64}';
+      return '';
     }
   }
 

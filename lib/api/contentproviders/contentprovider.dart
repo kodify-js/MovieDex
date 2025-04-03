@@ -60,11 +60,11 @@ class ContentProvider {
       seasonNumber: seasonNumber);
 
   /// Access to VidSrc provider instance
-  Vidsrc get vidsrc => Vidsrc(
-      id: id,
-      type: type,
-      episodeNumber: episodeNumber,
-      seasonNumber: seasonNumber);
+  // Vidsrc get vidsrc => Vidsrc(
+  //     id: id,
+  //     type: type,
+  //     episodeNumber: episodeNumber,
+  //     seasonNumber: seasonNumber);
 
   Embed get embed => Embed(
       id: id,
@@ -106,7 +106,6 @@ class ContentProvider {
   /// List of all available providers
   List get providers => isAnime == true
       ? [
-          vidsrc,
           vidzee,
           aniwave,
           vidsecsu,
@@ -115,5 +114,5 @@ class ContentProvider {
           autoembed,
           vietautoembed,
         ]
-      : [vidsrc, vidzee, vidsecsu, embed, coitus, autoembed, vietautoembed];
+      : [vidzee, vidsecsu, embed, coitus, autoembed, vietautoembed];
 }
