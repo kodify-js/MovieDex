@@ -38,60 +38,71 @@ class Vidzee {
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
+    final List<StreamClass> streams = [];
     try {
-      final baseUrl = _buildStreamUrl();
-      final response = await http
-          .get(Uri.parse(baseUrl))
-          .timeout(const Duration(seconds: 5));
-      isError = response.statusCode != 200;
-      return await _parseStreams(response.body);
+      for (int i = 1; i <= 6; i++) {
+        final baseUrl = _buildStreamUrl(i);
+        final response = await http.get(Uri.parse(baseUrl), headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+          'referer':
+              'https://player.vidzee.wtf/embed/${type == ContentType.movie.value ? "movie" : "tv"}/${id}',
+          'Origin': 'https://player.vidzee.wtf',
+          "if-none-match": "cj1lgmh7z085j",
+          'Accept': '*/*',
+        }).timeout(const Duration(seconds: 5));
+        isError = response.statusCode != 200;
+        if (isError) {
+          continue; // Skip to next server if error
+        }
+        final body = response.body;
+        final stream = await _parseStreams(body);
+        if (stream.isError) {
+          continue; // Skip to next server if error
+        }
+        streams.add(stream);
+      }
+      print('Vidzee Streams: ${streams}');
+      return streams;
     } catch (e) {
       isError = true;
       return [];
     }
   }
 
-  String _buildStreamUrl() {
+  String _buildStreamUrl(server) {
     final isMovie = type == ContentType.movie.value;
-    final episodeSegment = isMovie
-        ? ''
-        : "&season=${seasonNumber ?? '1'}&episode=${episodeNumber ?? '1'}";
-    return 'https://hilarious-rugelach-6767a8.netlify.app/?destination=https://vidzee.wtf/${isMovie ? "movie" : "tv"}/player.php?id=$id$episodeSegment';
+    final episodeSegment =
+        isMovie ? '' : "&ss=${seasonNumber}&ep=${episodeNumber}";
+    return 'https://player.vidzee.wtf/api/server?id=${id}&sr=${server}$episodeSegment';
   }
 
-  Future<List<StreamClass>> _parseStreams(String body) async {
-    final List<StreamClass> streams = [];
+  Future<StreamClass> _parseStreams(String body) async {
+    StreamClass streams =
+        StreamClass(language: 'original', url: '', sources: [], isError: true);
     final List<SubtitleClass> subtitles = [];
-    final document = parse(body);
-    final content = document
-            .querySelector('div.player-container')
-            ?.attributes['data-stream-sources'] ??
-        '[]';
-    final contentSubtitle = document
-            .querySelector('div.player-container')
-            ?.attributes['data-initial-subtitles'] ??
-        '[]';
-    for (var subtitle in jsonDecode(contentSubtitle)) {
+    final document = jsonDecode(body);
+    final content = document['url'][0];
+    final contentSubtitle = document['tracks'];
+    for (var subtitle in contentSubtitle) {
       final url = subtitle['url'] ?? '';
-      final lang = subtitle['srclang'] ?? '';
-      final lable = subtitle['label'] ?? '';
+      final lang = subtitle['lang'] ?? '';
+      final lable = subtitle['lang'] ?? '';
       if (url.isNotEmpty) {
         subtitles.add(SubtitleClass(url: url, language: lang, label: lable));
       }
     }
-    final source = jsonDecode(content);
-    for (var data in source) {
-      final url = Uri.parse(data['url']).queryParameters['url'] ?? '';
-      if (_isValidStreamUrl(url)) {
-        final sources = await _getSources(url);
-        if (sources.isNotEmpty) {
-          streams.add(StreamClass(
-              language: data['label'],
-              url: url,
-              sources: sources,
-              subtitles: subtitles,
-              isError: isError));
-        }
+    final url =
+        Uri.parse(content['link']).queryParameters['url'] ?? content['link'];
+    if (_isValidStreamUrl(url)) {
+      final sources = await _getSources(url);
+      if (sources.isNotEmpty) {
+        streams = StreamClass(
+            language: content['lang'],
+            url: url,
+            sources: sources,
+            subtitles: subtitles,
+            isError: isError);
       }
     }
 

@@ -1139,9 +1139,12 @@ class _ContentPlayerState extends State<ContentPlayer>
     final tapPosition = details.globalPosition.dx;
 
     setState(() {
-      _consecutiveTaps++;
+      _consecutiveTaps++; // Keep for timer and animation reset
       _isShowingSeekIndicator = true;
       _isCountrollesVisible = false;
+
+      // Always seek by 10 seconds
+      const int seekAmount = 10;
 
       if (tapPosition < screenWidth * 0.5) {
         // Left side - Rewind
@@ -1149,25 +1152,28 @@ class _ContentPlayerState extends State<ContentPlayer>
         _seekRewindAnimationController
           ..reset()
           ..forward();
-        _seekRelative(-10 * _consecutiveTaps);
+        _seekRelative(-seekAmount);
       } else {
         // Right side - Forward
         _showForwardIndicator = true;
         _seekForwardAnimationController
           ..reset()
           ..forward();
-        _seekRelative(10 * _consecutiveTaps);
+        _seekRelative(seekAmount);
       }
     });
 
     _consecutiveTapTimer?.cancel();
     _consecutiveTapTimer = Timer(const Duration(milliseconds: 500), () {
-      setState(() {
-        _consecutiveTaps = 0;
-        _showRewindIndicator = false;
-        _showForwardIndicator = false;
-        _isShowingSeekIndicator = false;
-      });
+      if (mounted) {
+        // Ensure widget is still mounted
+        setState(() {
+          _consecutiveTaps = 0;
+          _showRewindIndicator = false;
+          _showForwardIndicator = false;
+          _isShowingSeekIndicator = false;
+        });
+      }
     });
   }
 
@@ -1627,18 +1633,17 @@ class _ContentPlayerState extends State<ContentPlayer>
 
   Widget _buildLoadingIndicator() {
     return Center(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black45,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const CircularProgressIndicator(
-          color: Colors.white,
-          strokeWidth: 3,
-        ),
+        child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black45,
+        borderRadius: BorderRadius.circular(8),
       ),
-    );
+      child: const CircularProgressIndicator(
+        color: Colors.white,
+        strokeWidth: 3,
+      ),
+    ));
   }
 
   Widget _buildProgressBar() {
@@ -2268,6 +2273,7 @@ class _ContentPlayerState extends State<ContentPlayer>
             ),
             const SizedBox(height: 10),
             Text(
+              // Display shows the cumulative taps * 10s for this sequence
               '${(_consecutiveTaps * 10).toString()}s',
               style: const TextStyle(
                 color: Colors.white,

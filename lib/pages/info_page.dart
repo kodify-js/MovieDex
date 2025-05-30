@@ -153,7 +153,7 @@ class _InfopageState extends State<Infopage> {
 
       // Initialize stream data
       if (_stream.isEmpty) {
-        await getStream();
+        await getStream(1, 1);
       }
 
       if (_stream.isEmpty || isError) {
@@ -204,7 +204,7 @@ class _InfopageState extends State<Infopage> {
 
       // Show quality selection
       if (_stream.isEmpty) {
-        await getStream();
+        await getStream(season, 1);
       }
 
       if (_stream.isEmpty || isError) {
@@ -299,7 +299,7 @@ class _InfopageState extends State<Infopage> {
   }) async {
     try {
       if (_stream.isEmpty) {
-        await getStream();
+        await getStream(seasonNumber, episodeNumber);
       }
 
       if (_stream.isEmpty || isError) {
@@ -339,9 +339,9 @@ class _InfopageState extends State<Infopage> {
 
   Future<void> _handleMovieDownload(Contentclass data) async {
     if (_stream.isEmpty) {
-      await getStream();
+      await getStream(1, 1);
     }
-
+    print('Stream length: ${_stream[0].url}');
     if (_stream.isEmpty || isError) {
       throw 'No streams available';
     }
@@ -423,12 +423,16 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
-  Future<void> getStream() async {
+  Future<void> getStream(int episode, int seasn) async {
     try {
       contentProvider = ContentProvider(
         title: widget.title,
         id: widget.id,
         type: widget.type,
+        isAnime: _contentData?.genres.contains('Animation'),
+        isDownloadMode: true,
+        episodeNumber: episode ?? 1,
+        seasonNumber: seasn ?? 1,
       );
 
       if (_providerIndex >= contentProvider.providers.length) {
@@ -440,7 +444,7 @@ class _InfopageState extends State<Infopage> {
 
       if (_stream.isEmpty) {
         _providerIndex++;
-        await getStream();
+        await getStream(1, 1);
       }
     } catch (e) {
       isError = true;

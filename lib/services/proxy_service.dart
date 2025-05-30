@@ -32,7 +32,7 @@ class ProxyService {
     final useCustomProxy = settings.get('useCustomProxy', defaultValue: false);
     return useCustomProxy
         ? settings.get('proxyUrl')
-        : "https://simple-proxy.metalewis21.workers.dev/?destination=";
+        : "https://hilarious-rugelach-6767a8.netlify.app/?destination=";
   }
 
   /// Validates proxy URL by attempting a test connection

@@ -384,6 +384,7 @@ class Api {
             genres: response['genres'].map((genre) => genre['name']).toList(),
             type: response['media_type'] ?? type,
             description: response['overview'] ?? '',
+            releaseDate: response['release_date'] ?? '',
             poster: imagePath(
                 size: ImageSize.original, path: response['poster_path']),
             rating: response['vote_average'],

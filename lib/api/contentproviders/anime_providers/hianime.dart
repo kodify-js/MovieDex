@@ -20,7 +20,7 @@ import 'package:html/parser.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
 
 /// Handles stream extraction from Aniwave provider
-class Aniwave {
+class Hianime {
   final String title;
   final String type;
   final int? episodeNumber;
@@ -29,19 +29,14 @@ class Aniwave {
   bool isError = false;
   final List? animeEpisodes;
   final String? airDate;
-  Aniwave(
+  Hianime(
       {required this.title,
       required this.type,
       this.episodeNumber,
       this.seasonNumber,
       this.airDate,
-      this.name = 'Aniwave',
+      this.name = 'Hianime',
       this.animeEpisodes});
-
-  bool isNumeric(String? str) {
-    if (str == null) return false;
-    return num.tryParse(str) != null;
-  }
 
   /// Calculates string similarity percentage between two strings
   double _calculateSimilarity(String str1, String str2) {
@@ -89,96 +84,65 @@ class Aniwave {
       List episode = animeEpisodes ?? [];
       final List<StreamClass> streams = [];
       if (episode.isEmpty) {
-        final response = await http.get(Uri.parse(
-            'https://aniwave.at/catalog?keyword=$title${airDate != null ? ("&year=${airDate?.split("-").first}") : ""}'));
-        final main = response.body
-            .split("animeList")[1]
-            .split("[")[1]
-            .split("]")[0]
-            .replaceAll("\\", "");
-        List filteredData = main.split(",");
-        filteredData.removeLast();
-        final data =
-            '[${filteredData.join(",")}}]'; // Ensure it's a valid JSON array
-        final results = jsonDecode(data);
-        if (results.isEmpty)
-          throw Exception('Failed to fetch stream: No data found');
-        final search = results.map((e) {
-          final searchTitle = e['title'] ?? "";
+        final response = await http.get(
+            Uri.parse(
+                'https://hianime.pstream.org/api/v2/hianime/search?q=${title}'),
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+              'origin': 'https://hianime.pstream.org/',
+              'Accept': '*/*',
+            });
+        final animes = jsonDecode(response.body)['data']['animes'];
+        final search = animes.map((e) {
+          final searchTitle = e['name'] ?? "";
           final matchPercentage = _calculateSimilarity(searchTitle, title);
-
           final data = {
             "title": searchTitle,
-            "url": '/${e['anSlug']}',
+            "id": e['id'],
             "matchPercentage": matchPercentage
           };
 
           return data;
         }).toList();
-
         // Sort the search results by match percentage in descending order
         search.sort((a, b) => (b["matchPercentage"] as double)
             .compareTo(a["matchPercentage"] as double));
         // Continue with the highest match
-        final infoUrl = search.isNotEmpty ? search[0]["url"] : null;
-        if (infoUrl == null)
+        final id = search.isNotEmpty ? search[0]["id"] : null;
+        if (id == null)
           throw Exception('Failed to fetch stream: No data found');
         List episodeList = [];
-        final watchData =
-            await http.get(Uri.parse('https://aniwave.at/about$infoUrl'));
-        final body = watchData.body;
-        String previousEpisode =
-            "0"; // Default to 0 to avoid parsing an empty string
-        final animeId = body.split("animeID")[1].split(":")[1].split(",")[0];
-        final container = body
-            .split('ep_id')
-            .where((e) => e.startsWith('\\"'))
-            .map((e) => e.split("//")[0])
-            .where((e) => e.contains("ep_no"))
-            .where((e) => !episodeList.contains(_safelyGetEpisodeNumber(e)))
-            .map((e) {
-          String currentEpisode = _safelyGetEpisodeNumber(e);
-          // If couldn't parse episode number, decrement previous episode
-          if (currentEpisode.isEmpty) {
-            try {
-              currentEpisode = (int.parse(previousEpisode) - 1).toString();
-            } catch (_) {
-              currentEpisode = "0"; // Fallback if parsing fails
-            }
-          }
-
-          String episodeId = _safelyGetEpisodeId(e);
-          final data = {
-            "episodeId": episodeId,
-            "episodeNumber": currentEpisode,
-            "watchUrl": "$infoUrl-$animeId-ep-$episodeId"
-          };
-
-          if (currentEpisode.isNotEmpty) {
-            previousEpisode = currentEpisode;
-          }
-
-          episodeList.add(currentEpisode);
-          return data;
-        }).toList();
-        episode = container;
+        final episodes = await http.get(
+            Uri.parse(
+                'https://hianime.pstream.org/api/v2/hianime/anime/${id}/episodes'),
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+              'origin': 'https://hianime.pstream.org/',
+              'Accept': '*/*',
+            });
+        final body = jsonDecode(episodes.body);
+        for (var e in body['data']['episodes']) {
+          episodeList.add({
+            "episodeNumber": e['number'].toString(),
+            "id": e['episodeId'],
+          });
+        }
+        episode = episodeList;
       }
-
       if (episode.isNotEmpty) {
         for (int i = 0; i < episode.length; i++) {
-          if (episode[i]["episodeNumber"] == episodeNumber.toString()) {
-            final url = episode[i]["watchUrl"];
-            final stream = await getSource(url, 'sub', episode);
+          if (episode[i]["episodeNumber"].toString() ==
+              episodeNumber.toString()) {
+            final id = episode[i]["id"];
+            final stream = await getSource(id, 'sub', episode);
             if (stream != null) {
               streams.add(stream);
             }
-            final dubStream = await getSource(url, 'dub', episode);
+            final dubStream = await getSource(id, 'dub', episode);
             if (dubStream != null) {
               streams.add(dubStream);
-            }
-            final rawStream = await getSource(url, 'raw', episode);
-            if (rawStream != null) {
-              streams.add(rawStream);
             }
           }
         }
@@ -195,59 +159,19 @@ class Aniwave {
     }
   }
 
-  /// Safely extracts episode number avoiding index errors
-  String _safelyGetEpisodeNumber(String input) {
-    try {
-      final parts = input.split("ep_no");
-      if (parts.length < 2) return "";
-
-      final numParts = parts[1].split(",");
-      if (numParts.isEmpty) return "";
-
-      final valueParts = numParts[0].split(":");
-      if (valueParts.length < 2) return "";
-
-      return valueParts[1];
-    } catch (e) {
-      print("Episode number parsing error: $e");
-      return "";
-    }
-  }
-
-  /// Safely extracts episode ID avoiding index errors
-  String _safelyGetEpisodeId(String input) {
-    try {
-      final parts = input.split("ep_no");
-      if (parts.isEmpty) return "";
-
-      final idParts = parts[0].split(":");
-      if (idParts.length < 2) return "";
-
-      final valueParts = idParts[1].split(",");
-      if (valueParts.isEmpty) return "";
-
-      return valueParts[0];
-    } catch (e) {
-      print("Episode ID parsing error: $e");
-      return "";
-    }
-  }
-
-  Future getSource(watchUrl, lang, episodes) async {
+  Future getSource(id, lang, episodes) async {
     try {
       final watchData = await http.get(
-          Uri.parse('https://aniwave.at/api/jwplayer$watchUrl/hd-2/${lang}'),
-          headers: {"Referer": "https://aniwave.at/about$watchUrl"});
-      final watchDocument = parse(watchData.body);
-      final videoUrl = watchDocument
-          .querySelector("media-provider source")
-          ?.attributes['src'];
-      final subtitles = watchDocument.querySelectorAll("track").map((e) {
-        return SubtitleClass(
-            language: e.attributes['srclang'] ?? "",
-            url: e.attributes['src'] ?? "",
-            label: e.attributes['label']);
-      }).toList();
+          Uri.parse(
+              'https://hianime.pstream.org/api/v2/hianime/episode/sources?animeEpisodeId=${id}&server=hd-2&category=${lang}'),
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+            'origin': 'https://hianime.pstream.org/',
+            'Accept': '*/*',
+          });
+      final watchDocument = jsonDecode(watchData.body);
+      final videoUrl = watchDocument['data']['sources'][0]['url'];
       if (videoUrl == null)
         throw Exception('Failed to fetch stream: No data found');
       final uri = Uri.parse(videoUrl);
@@ -255,12 +179,22 @@ class Aniwave {
           ? uri.queryParameters['url']!
           : videoUrl;
       final source = await _getSources(url);
+      List<SubtitleClass> subtitleClass = [];
+      for (var subtitle in watchDocument['data']['tracks']) {
+        if (subtitle['kind'] == "captions") {
+          subtitleClass.add(SubtitleClass(
+            language: subtitle['label'] ?? 'Unknown',
+            label: subtitle['label'] ?? 'Unknown',
+            url: subtitle['file'] ?? '',
+          ));
+        }
+      }
       final stream = new StreamClass(
           language: lang,
           url: url,
           sources: source,
           isError: isError,
-          subtitles: subtitles,
+          subtitles: subtitleClass,
           animeEpisodes: episodes);
       return stream;
     } catch (e) {

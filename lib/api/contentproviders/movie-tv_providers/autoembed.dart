@@ -1,11 +1,11 @@
 /**
- * AutoEmbed Stream Provider
+ * Coitus Stream Provider
  * 
- * Handles video stream extraction from AutoEmbed:
- * - Stream source detection
- * - Quality options parsing
- * - Direct link extraction
- * - Error handling
+ * Handles video stream extraction from Coitus:
+ * - Stream URL extraction
+ * - Quality parsing
+ * - M3U8 playlist handling
+ * - Error management
  * 
  * Part of MovieDex - MIT Licensed
  * Copyright (c) 2024 MovieDex Contributors
@@ -16,106 +16,136 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/api/class/subtitle_class.dart';
 import 'package:moviedex/services/proxy_service.dart';
 import 'package:moviedex/utils/utils.dart';
 
-/// Handles stream extraction from AutoEmbed provider
-class AutoEmbed {
+/// Handles stream extraction from Coitus provider
+class Autoembed {
   final int id;
   final String type;
   final int? episodeNumber;
   final int? seasonNumber;
-  final String? name;
   bool isError = false;
-
-  AutoEmbed(
+  final String? name;
+  Autoembed(
       {required this.id,
       required this.type,
       this.episodeNumber,
       this.seasonNumber,
-      this.name = 'AutoEmbed (Multi Language <Use Vpn>)'});
+      this.name = 'Autoembed'});
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
     try {
-      final baseUrl = _buildStreamUrl();
-      print(baseUrl);
+      final baseUrl = await _buildStreamUrl();
       final response = await http
           .get(Uri.parse(baseUrl))
           .timeout(const Duration(seconds: 5));
-      isError = response.statusCode != 200;
-      return await _parseStreams(response.body);
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch stream: ${response.statusCode}');
+      }
+      print(response.body);
+      final data = jsonDecode(response.body);
+
+      // Check if data is a List, if not wrap it in a List
+      final contentList = data is List ? data : [data];
+
+      if (contentList.isEmpty) {
+        throw Exception('No streams available');
+      }
+
+      final streams = await Future.wait(contentList.map((content) async {
+        final m3u8Url = content['source']['files'][0]['file'] as String?;
+        if (m3u8Url == null || m3u8Url.isEmpty) {
+          return null;
+        }
+
+        final sources =
+            await _getSources(sourcesData: content['source']['files']);
+
+        List<SubtitleClass> subtitles = [];
+        for (var subtitle in content['source']['subtitles']) {
+          subtitles.add(SubtitleClass(
+              url: subtitle['url'] ?? '',
+              language: subtitle['lang'] ?? 'unknown',
+              label: subtitle['lang'] ?? 'unknown'));
+        }
+        return sources.isEmpty
+            ? null
+            : StreamClass(
+                language: content['language'] ?? 'original',
+                url: m3u8Url,
+                sources: sources,
+                subtitles: subtitles,
+                isError: false);
+      }));
+
+      // Filter out null values and return valid streams
+      return streams.whereType<StreamClass>().toList();
     } catch (e) {
+      print('Stream error: $e');
       isError = true;
-      return [];
+      return [
+        StreamClass(language: 'original', url: '', sources: [], isError: true)
+      ];
     }
   }
 
-  String _buildStreamUrl() {
+  Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
     final episodeSegment =
         isMovie ? '' : "/${seasonNumber ?? '1'}/${episodeNumber ?? '1'}";
     final proxyUrl = ProxyService.instance.activeProxy;
-    return '${proxyUrl}https://hin.autoembed.cc/${isMovie ? "movie" : "tv"}/$id$episodeSegment';
+    return '${proxyUrl}https://flix.1anime.app/${isMovie ? "movie" : "tv"}/autoembed/${id}$episodeSegment';
   }
 
-  Future<List<StreamClass>> _parseStreams(String body) async {
-    final List<StreamClass> streams = [];
-    final script = body.split("sources:")[1];
-    final List source = jsonDecode('${script.split("],")[0]}]');
-    for (var data in source) {
-      final url = data['file'];
-      if (_isValidStreamUrl(url)) {
-        final sources = await _getSources(url);
-        if (sources.isNotEmpty) {
-          streams.add(StreamClass(
-              language: data['label'],
-              url: url,
-              sources: sources,
-              isError: isError));
-        }
-      }
-    }
-
-    return streams;
-  }
-
-  bool _isValidStreamUrl(String url) {
-    return url.contains('stream') ||
-        url.contains('embed') ||
-        url.contains('.m3u8') ||
-        url.contains('player');
-  }
-
-  Future<List<SourceClass>> _getSources(String url) async {
+  /// Extracts quality options from M3U8 playlist or direct URL
+  Future<List<SourceClass>> _getSources({required List sourcesData}) async {
     try {
-      final response =
-          await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-
-      // Extract quality options
-      final qualities = _parseQualities(response.body, url);
-      if (qualities.isEmpty) {
-        return [];
+      if (sourcesData.isEmpty) throw "No valid sources found";
+      List<SourceClass> sources = [];
+      isError = false;
+      for (var source in sourcesData) {
+        sources.add(SourceClass(
+          quality: source['quality'] ?? 'unknown',
+          url: source['file'] ?? '',
+        ));
       }
-      return qualities;
+      return sources;
     } catch (e) {
+      isError = true;
       return [];
     }
   }
 
-  List<SourceClass> _parseQualities(String body, String url) {
-    try {
-      final data = body.split("./");
-      final result = data.where((url) => url.contains(".m3u8")).map((link) {
-        return SourceClass(
-            quality: link.split("/")[0],
-            url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
-      }).toList();
-      isError = false;
-      return result;
-    } catch (e) {
-      isError = true;
-      throw Exception("Failed to load video: ${e.toString()}");
+  List<SourceClass> _parseM3U8Playlist(String playlist, String baseUrl) {
+    final sources = <SourceClass>[];
+    final lines = playlist.split('\n');
+
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].contains('#EXT-X-STREAM-INF')) {
+        final quality = _extractQuality(lines[i]);
+        if (quality != null && i + 1 < lines.length) {
+          final streamUrl = lines[i + 1].contains("./")
+              ? _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl)
+              : lines[i + 1];
+          sources.add(SourceClass(quality: quality, url: streamUrl));
+        }
+      }
     }
+    return sources;
+  }
+
+  String? _extractQuality(String infoLine) {
+    final resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
+    final match = resolutionRegex.firstMatch(infoLine);
+    return match?.group(1);
+  }
+
+  String _resolveStreamUrl(String streamUrl, String baseUrl) {
+    final resolvedUri = '${baseUrl.split('index')[0]}$streamUrl';
+    return resolvedUri.toString();
   }
 }

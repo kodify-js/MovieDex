@@ -37,6 +37,9 @@ class Contentclass {
   @HiveField(10)
   List<Season>? seasons;
 
+  @HiveField(11)
+  String? releaseDate;
+
   Contentclass({
     required this.id,
     required this.backdrop,
@@ -49,6 +52,7 @@ class Contentclass {
     this.logoPath,
     this.rating,
     this.seasons,
+    this.releaseDate,
   });
 
   Map<String, dynamic> toJson() {
@@ -64,6 +68,7 @@ class Contentclass {
       'logoPath': logoPath,
       'rating': rating,
       'seasons': seasons?.map((s) => s.toJson()).toList(),
+      'releaseDate': releaseDate,
     };
   }
 
@@ -82,6 +87,7 @@ class Contentclass {
       seasons: (json['seasons'] as List<dynamic>?)
           ?.map((e) => Season.fromJson(e as Map<String, dynamic>))
           .toList(),
+      releaseDate: json['releaseDate'] as String?,
     );
   }
 }

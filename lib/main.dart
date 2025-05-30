@@ -22,7 +22,6 @@ import 'package:moviedex/pages/profile_page.dart';
 import 'package:moviedex/pages/tvshow_page.dart';
 import 'package:moviedex/providers/downloads_provider.dart';
 import 'package:moviedex/models/downloads_manager.dart';
-import 'package:moviedex/services/analytics_service.dart';
 import 'package:moviedex/services/list_service.dart';
 import 'package:provider/provider.dart';
 import 'package:moviedex/providers/theme_provider.dart';
@@ -39,9 +38,6 @@ import 'package:moviedex/services/update_service.dart';
 Future<void> initializeServices() async {
   await Hive.initFlutter();
   _registerHiveAdapters();
-
-  // Initialize analytics first
-  await AnalyticsService.instance.init();
   // Initialize services in dependency order
   await ListService.instance.init();
   await WatchHistoryService.instance.init();

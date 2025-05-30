@@ -11,14 +11,15 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
-import 'package:moviedex/api/contentproviders/anime_providers/aniwave.dart';
-import 'package:moviedex/api/contentproviders/movie-tv_providers/autoembed.dart';
-import 'package:moviedex/api/contentproviders/movie-tv_providers/coitus.dart';
+import 'dart:io';
+
+import 'package:moviedex/api/contentproviders/anime_providers/hianime.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/xprime.dart';
+import 'package:moviedex/api/contentproviders/movie-tv_providers/Autoembed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrc.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrcsu.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidzee.dart';
-import 'package:moviedex/api/contentproviders/movie-tv_providers/vietautoembed.dart';
 
 /// Manages and coordinates multiple streaming providers
 class ContentProvider {
@@ -42,6 +43,8 @@ class ContentProvider {
 
   final String? airDate;
 
+  final bool? isDownloadMode;
+
   ContentProvider(
       {required this.id,
       required this.type,
@@ -50,29 +53,17 @@ class ContentProvider {
       this.episodeNumber,
       this.airDate,
       this.seasonNumber,
-      this.animeEpisode});
+      this.animeEpisode,
+      this.isDownloadMode = false});
 
   /// Access to AutoEmbed provider instance
-  AutoEmbed get autoembed => AutoEmbed(
+  Xprime get xprime => Xprime(
       id: id,
       type: type,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber);
-
-  /// Access to VidSrc provider instance
-  // Vidsrc get vidsrc => Vidsrc(
-  //     id: id,
-  //     type: type,
-  //     episodeNumber: episodeNumber,
-  //     seasonNumber: seasonNumber);
 
   Embed get embed => Embed(
-      id: id,
-      type: type,
-      episodeNumber: episodeNumber,
-      seasonNumber: seasonNumber);
-
-  VietAutoEmbed get vietautoembed => VietAutoEmbed(
       id: id,
       type: type,
       episodeNumber: episodeNumber,
@@ -83,13 +74,13 @@ class ContentProvider {
       type: type,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber);
-  Coitus get coitus => Coitus(
+  Autoembed get autoembed => Autoembed(
       id: id,
       type: type,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber);
 
-  Aniwave get aniwave => Aniwave(
+  Hianime get hianime => Hianime(
       title: title,
       type: type,
       airDate: airDate,
@@ -104,15 +95,36 @@ class ContentProvider {
       seasonNumber: seasonNumber);
 
   /// List of all available providers
-  List get providers => isAnime == true
-      ? [
-          vidzee,
-          aniwave,
-          vidsecsu,
-          embed,
-          coitus,
-          autoembed,
-          vietautoembed,
-        ]
-      : [vidzee, vidsecsu, embed, coitus, autoembed, vietautoembed];
+  List get providers => isDownloadMode == true
+      ? isAnime == true
+          ? Platform.isWindows
+              ? [
+                  hianime,
+                ]
+              : [
+                  hianime,
+                ]
+          : Platform.isWindows
+              ? [vidsecsu, xprime, autoembed]
+              : [vidzee, vidsecsu, xprime, autoembed]
+      : isAnime == true
+          ? Platform.isWindows
+              ? [
+                  vidzee,
+                  hianime,
+                  vidsecsu,
+                  xprime,
+                  autoembed,
+                ]
+              : [
+                  vidzee,
+                  hianime,
+                  vidsecsu,
+                  embed,
+                  xprime,
+                  autoembed,
+                ]
+          : Platform.isWindows
+              ? [vidzee, vidsecsu, autoembed, xprime]
+              : [vidzee, embed, vidsecsu, autoembed, xprime];
 }
