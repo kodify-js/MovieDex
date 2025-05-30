@@ -52,9 +52,18 @@ android {
         targetSdkVersion 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        multiDexEnabled true
+        
+        // Optimize for faster startup
+        resConfigs "en", "xxhdpi"
     } 
 
     buildTypes {
+        debug {
+            minifyEnabled false
+            shrinkResources false
+            debuggable true
+        }
         release {
             signingConfig signingConfigs.debug
             minifyEnabled true
@@ -63,6 +72,12 @@ android {
             multiDexEnabled true
         }
     }
+    
+    // Optimize build performance
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsc.so'
+    }
 }
 
 flutter {
@@ -70,8 +85,10 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
     implementation 'androidx.multidex:multidex:2.0.1'
-    implementation 'com.google.firebase:firebase-analytics:17.4.1'
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.3'
+    implementation 'com.google.firebase:firebase-analytics:21.5.0'
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.startup:startup-runtime:1.1.1'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

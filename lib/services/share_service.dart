@@ -7,9 +7,8 @@ class ShareService {
   static const String domain = 'https://moviedex.co';
 
   static Future<void> shareContent(int id, String type, String title) async {
-    final String url = '$domain/$type/$id';
+    final String url = '$domain/$type/${title.replaceAll(" ", "-")}/$id';
     String text = 'Check out $title on MovieDex\n$url';
-
     try {
       if (kIsWeb) {
         // For web, try navigator.share or fallback to clipboard

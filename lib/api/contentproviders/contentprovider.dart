@@ -98,15 +98,11 @@ class ContentProvider {
   List get providers => isDownloadMode == true
       ? isAnime == true
           ? Platform.isWindows
-              ? [
-                  hianime,
-                ]
-              : [
-                  hianime,
-                ]
+              ? [hianime, vidzee, xprime, autoembed]
+              : [hianime, vidzee, xprime, autoembed]
           : Platform.isWindows
-              ? [vidsecsu, xprime, autoembed]
-              : [vidzee, vidsecsu, xprime, autoembed]
+              ? [vidzee, autoembed, xprime]
+              : [vidzee, autoembed, xprime]
       : isAnime == true
           ? Platform.isWindows
               ? [

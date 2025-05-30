@@ -36,43 +36,74 @@ import 'package:moviedex/services/update_service.dart';
 
 /// Initialize core application services in required order
 Future<void> initializeServices() async {
-  await Hive.initFlutter();
-  _registerHiveAdapters();
-  // Initialize services in dependency order
-  await ListService.instance.init();
-  await WatchHistoryService.instance.init();
-  await CacheService().init();
-  await DownloadsManager.instance.init();
-  await Hive.openBox('settings');
+  try {
+    await Hive.initFlutter();
+    _registerHiveAdapters();
 
-  // Initialize background service
-  await BackgroundDownloadService.instance.init();
+    // Initialize critical services first
+    await Hive.openBox('settings');
+
+    // Initialize services in dependency order with error handling
+    await _initializeWithFallback(() => ListService.instance.init());
+    await _initializeWithFallback(() => WatchHistoryService.instance.init());
+    await _initializeWithFallback(() => CacheService().init());
+    await _initializeWithFallback(() => DownloadsManager.instance.init());
+
+    // Initialize background service only when app is actively opened
+    // Don't auto-start on boot to prevent crashes
+    await _initializeWithFallback(
+        () => BackgroundDownloadService.instance.init());
+  } catch (e) {
+    debugPrint('Error initializing services: $e');
+    // Continue with app startup even if some services fail
+  }
+}
+
+Future<void> _initializeWithFallback(
+    Future<void> Function() initFunction) async {
+  try {
+    await initFunction();
+  } catch (e) {
+    debugPrint('Service initialization failed: $e');
+    // Continue with app startup
+  }
 }
 
 void _registerHiveAdapters() {
-  if (!Hive.isAdapterRegistered(1)) {
-    Hive.registerAdapter(CacheModelAdapter());
-  }
-  if (!Hive.isAdapterRegistered(2)) {
-    Hive.registerAdapter(ContentclassAdapter());
-  }
-  if (!Hive.isAdapterRegistered(3)) {
-    Hive.registerAdapter(SeasonAdapter());
-  }
-  if (!Hive.isAdapterRegistered(4)) {
-    Hive.registerAdapter(ListItemAdapter());
-  }
-  if (!Hive.isAdapterRegistered(5)) {
-    Hive.registerAdapter(DownloadItemAdapter());
-  }
-  if (!Hive.isAdapterRegistered(6)) {
-    Hive.registerAdapter(DownloadStateAdapter());
+  try {
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(CacheModelAdapter());
+    }
+    if (!Hive.isAdapterRegistered(2)) {
+      Hive.registerAdapter(ContentclassAdapter());
+    }
+    if (!Hive.isAdapterRegistered(3)) {
+      Hive.registerAdapter(SeasonAdapter());
+    }
+    if (!Hive.isAdapterRegistered(4)) {
+      Hive.registerAdapter(ListItemAdapter());
+    }
+    if (!Hive.isAdapterRegistered(5)) {
+      Hive.registerAdapter(DownloadItemAdapter());
+    }
+    if (!Hive.isAdapterRegistered(6)) {
+      Hive.registerAdapter(DownloadStateAdapter());
+    }
+  } catch (e) {
+    debugPrint('Error registering Hive adapters: $e');
   }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await UpdateService.instance.initialize();
+
+  // Initialize update service with error handling
+  try {
+    await UpdateService.instance.initialize();
+  } catch (e) {
+    debugPrint('Update service initialization failed: $e');
+  }
+
   await initializeServices();
 
   runApp(const MyApp());
@@ -89,8 +120,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    // Remove the update check from here since it's now in splash screen
   }
+
+  // Add a global navigator key
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
@@ -99,42 +133,159 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider.value(value: DownloadsProvider.instance),
       ],
-      child: Builder(
-        builder: (context) => MaterialApp(
-          title: 'Movie Dex',
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) => MaterialApp(
+          title: 'MovieDex',
           debugShowCheckedModeBanner: false,
-          theme: Provider.of<ThemeProvider>(context).getTheme(context),
+          theme: themeProvider.getTheme(context),
+          navigatorKey: navigatorKey,
           initialRoute: '/',
           routes: {
             '/': (context) => const SplashScreen(),
-            '/home': (context) => const HomePage(),
           },
           onGenerateRoute: (settings) {
+            print('onGenerateRoute called with: ${settings.name}');
+
+            if (settings.name == '/home') {
+              return MaterialPageRoute(
+                builder: (context) => const HomePage(),
+              );
+            }
+
             if (settings.name?.contains('/movie') ?? false) {
-              final id = int.parse(settings.name!.split('/')[2]);
-              return MaterialPageRoute(
-                builder: (context) => Infopage(
-                  id: id,
-                  type: 'movie',
-                  title: 'Movie $id',
-                ),
-              );
+              try {
+                final parts = settings.name!.split('/');
+                if (parts.length >= 4) {
+                  final title = parts[2].replaceAll("-", " ");
+                  final id = int.parse(parts[3]);
+                  return MaterialPageRoute(
+                    builder: (context) => Infopage(
+                      id: id,
+                      type: 'movie',
+                      title: title,
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error parsing movie route: $e');
+              }
             }
+
             if (settings.name?.contains('/tv') ?? false) {
-              final id = int.parse(settings.name!.split('/')[2]);
-              return MaterialPageRoute(
-                builder: (context) => Infopage(
-                  id: id,
-                  type: 'tv',
-                  title: 'TV Show $id',
-                ),
-              );
+              try {
+                final parts = settings.name!.split('/');
+                if (parts.length >= 4) {
+                  final title = parts[2].replaceAll("-", " ");
+                  final id = int.parse(parts[3]);
+                  return MaterialPageRoute(
+                    builder: (context) => Infopage(
+                      id: id,
+                      type: 'tv',
+                      title: title,
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error parsing TV route: $e');
+              }
             }
-            return null;
+
+            // Default fallback
+            return MaterialPageRoute(
+              builder: (context) => const HomePage(),
+            );
+          },
+          onUnknownRoute: (settings) {
+            print('onUnknownRoute called with: ${settings.name}');
+            // Handle deep links that come through as unknown routes
+            final routeName = settings.name;
+
+            if (routeName?.contains('/movie') ?? false) {
+              try {
+                final parts = routeName!.split('/');
+                if (parts.length >= 4) {
+                  final title = parts[2].replaceAll("-", " ");
+                  final id = int.parse(parts[3]);
+                  return MaterialPageRoute(
+                    builder: (context) => DeepLinkHandler(
+                      child: Infopage(
+                        id: id,
+                        type: 'movie',
+                        title: title,
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error parsing movie deep link: $e');
+              }
+            }
+
+            if (routeName?.contains('/tv') ?? false) {
+              try {
+                final parts = routeName!.split('/');
+                if (parts.length >= 4) {
+                  final title = parts[2].replaceAll("-", " ");
+                  final id = int.parse(parts[3]);
+                  return MaterialPageRoute(
+                    builder: (context) => DeepLinkHandler(
+                      child: Infopage(
+                        id: id,
+                        type: 'tv',
+                        title: title,
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                print('Error parsing TV deep link: $e');
+              }
+            }
+
+            return MaterialPageRoute(
+              builder: (context) => const HomePage(),
+            );
           },
         ),
       ),
     );
+  }
+}
+
+// Handler for deep links that shows splash first
+class DeepLinkHandler extends StatefulWidget {
+  final Widget child;
+
+  const DeepLinkHandler({super.key, required this.child});
+
+  @override
+  State<DeepLinkHandler> createState() => _DeepLinkHandlerState();
+}
+
+class _DeepLinkHandlerState extends State<DeepLinkHandler> {
+  bool _showSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _handleSplash();
+  }
+
+  void _handleSplash() async {
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _showSplash = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return const SplashScreen();
+    }
+    return widget.child;
   }
 }
 

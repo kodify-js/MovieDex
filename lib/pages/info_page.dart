@@ -198,54 +198,6 @@ class _InfopageState extends State<Infopage> {
     }
   }
 
-  Future<void> _downloadFullSeason(Contentclass data, int season) async {
-    try {
-      final episodes = await api.getEpisodes(id: data.id, season: season);
-
-      // Show quality selection
-      if (_stream.isEmpty) {
-        await getStream(season, 1);
-      }
-
-      if (_stream.isEmpty || isError) {
-        throw 'No streams available';
-      }
-
-      final quality = await _showQualityDialog(_stream.first);
-      if (quality == null) return;
-
-      // Show progress dialog
-      if (!mounted) return;
-      _showDownloadProgressDialog(episodes.length);
-
-      // Download each episode
-      for (var episode in episodes) {
-        if (!mounted) break;
-
-        await _startDownload(
-          data,
-          quality,
-          _stream.first.language,
-          episodeNumber: episode.episode,
-          seasonNumber: season,
-        );
-      }
-
-      if (mounted) {
-        Navigator.pop(context); // Close progress dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Season $season downloaded successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error downloading season: $e')),
-        );
-      }
-    }
-  }
-
   void _showDownloadProgressDialog(int totalEpisodes) {
     showDialog(
       context: context,
@@ -365,7 +317,6 @@ class _InfopageState extends State<Infopage> {
     int? episodeNumber,
     int? seasonNumber,
   }) async {
-    // Get selected stream
     final stream = _stream.firstWhere((s) => s.language == language);
     print('Selected stream: ${stream.sources[0].url}');
     final url = quality == 'Auto'
@@ -375,7 +326,6 @@ class _InfopageState extends State<Infopage> {
     final fileName =
         '${data.title}${data.type == ContentType.tv.value ? '_S${seasonNumber}E$episodeNumber' : ''}_$quality';
 
-    // Initialize downloader callbacks
     _downloader.setCallbacks(
       onProgress: (progress) {
         DownloadsProvider.instance.updateProgress(
@@ -386,9 +336,6 @@ class _InfopageState extends State<Infopage> {
           data.poster,
           quality,
         );
-        if (mounted) {
-          setState(() {}); // Update UI to reflect download progress
-        }
       },
       onError: (error) {
         if (mounted) {
@@ -399,7 +346,6 @@ class _InfopageState extends State<Infopage> {
       },
     );
 
-    // Add to downloading list and update button text
     DownloadsProvider.instance.updateProgress(
       data.id,
       0.0,
@@ -408,9 +354,6 @@ class _InfopageState extends State<Infopage> {
       data.poster,
       quality,
     );
-    if (mounted) {
-      setState(() {}); // Update UI to reflect download start
-    }
 
     await _downloader.startDownload(
       context,
@@ -453,6 +396,7 @@ class _InfopageState extends State<Infopage> {
   }
 
   Future<String?> _showQualityDialog(StreamClass stream) {
+    print(stream.sources);
     return showModalBottomSheet<String>(
       context: context,
       builder: (context) => Container(
@@ -555,109 +499,101 @@ class _InfopageState extends State<Infopage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Drag handle
-                    Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[600],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        const Text(
-                          'Download Episodes',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Drag handle
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[600],
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        const Spacer(),
-                        // Season selector
-                        _buildSeasonPicker(data),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Download all button
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _downloadFullSeason(data, selectedSeason);
-                      },
-                      icon: const Icon(Icons.download_rounded),
-                      label: const Text('Download All Episodes'),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 48),
                       ),
-                    ),
-                  ],
+                      Row(
+                        children: [
+                          const Text(
+                            'Download Episodes',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Season selector
+                          _buildSeasonPicker(data, setDialogState),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const Divider(height: 1),
-              // Episodes list
-              Expanded(
-                child: FutureBuilder(
-                  future: api.getEpisodes(id: data.id, season: selectedSeason),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                const Divider(height: 1),
+                // Episodes list
+                Expanded(
+                  child: FutureBuilder(
+                    key: ValueKey(selectedSeason), // Add key to force rebuild
+                    future:
+                        api.getEpisodes(id: data.id, season: selectedSeason),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    final episodes = snapshot.data!;
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: episodes.length,
-                      itemBuilder: (context, index) {
-                        final episode = episodes[index];
-                        final isDownloaded = _isEpisodeDownloaded(
-                          episode.episode,
-                          selectedSeason,
-                        );
+                      final episodes = snapshot.data!;
+                      return ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: episodes.length,
+                        itemBuilder: (context, index) {
+                          final episode = episodes[index];
+                          final isDownloaded = _isEpisodeDownloaded(
+                            episode.episode,
+                            selectedSeason,
+                          );
 
-                        return _buildDownloadEpisodeItem(
-                          episode: episode,
-                          isDownloaded: isDownloaded,
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await _handleEpisodeDownload(
-                              data,
-                              seasonNumber: selectedSeason,
-                              episodeNumber: episode.episode,
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
+                          return _buildDownloadEpisodeItem(
+                            episode: episode,
+                            isDownloaded: isDownloaded,
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await _handleEpisodeDownload(
+                                data,
+                                seasonNumber: selectedSeason,
+                                episodeNumber: episode.episode,
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSeasonPicker(Contentclass data) {
+  Widget _buildSeasonPicker(Contentclass data, StateSetter setDialogState) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
@@ -665,7 +601,11 @@ class _InfopageState extends State<Infopage> {
       ),
       child: PopupMenuButton<int>(
         initialValue: selectedSeason,
-        onSelected: (season) => setState(() => selectedSeason = season),
+        onSelected: (season) {
+          setDialogState(() {
+            selectedSeason = season;
+          });
+        },
         itemBuilder: (context) => List.generate(
           data.seasons?.length ?? 0,
           (index) => PopupMenuItem(
@@ -905,7 +845,7 @@ class _InfopageState extends State<Infopage> {
             ),
           ],
         ),
-        const SizedBox(width: 16), // Add spacing between buttons
+        const SizedBox(width: 16),
       ],
     );
   }
@@ -920,7 +860,7 @@ class _InfopageState extends State<Infopage> {
 
   void _playDownloadedEpisode(Episode episode) {
     if (_contentData == null) return;
-    // code for playing Downloaded Episode
+    // Implementation for playing downloaded episode
   }
 
   String _getEpisodeDisplayText(int seasonNumber, int episodeNumber) {
@@ -937,7 +877,6 @@ class _InfopageState extends State<Infopage> {
 
   Future<void> _handleSingleEpisodeDownload(Episode episode) async {
     if (_isEpisodeDownloaded(episode.episode, selectedSeason)) {
-      // Episode already downloaded - show play option
       final download = DownloadsManager.instance.getDownload(
         widget.id,
         episodeNumber: episode.episode,
@@ -950,7 +889,6 @@ class _InfopageState extends State<Infopage> {
       }
     }
 
-    // Not downloaded - start new download
     await storage?.put('episode', 'E${episode.episode}');
     await storage?.put('season', 'S$selectedSeason');
 
@@ -1061,7 +999,7 @@ class _InfopageState extends State<Infopage> {
         season: selectedSeason,
         episode: episodeNumber,
         airDate: '',
-        name: '', // These fields aren't used in playback
+        name: '',
         description: '',
         image: '',
       ));
