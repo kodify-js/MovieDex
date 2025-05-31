@@ -18,22 +18,24 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> _initSettings() async {
     _settingsBox = await Hive.openBox('settings');
     _amoledMode = _settingsBox.get('amoledMode', defaultValue: false);
-    _accentColor = Color(_settingsBox.get('accentColor', defaultValue: Colors.blue.value));
+    _accentColor =
+        Color(_settingsBox.get('accentColor', defaultValue: Colors.blue.value));
     _fontFamily = _settingsBox.get('fontFamily', defaultValue: 'Inter');
     notifyListeners();
   }
 
   ThemeData getTheme(BuildContext context) {
     final isDark = true; // Always dark theme
-    
+
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: _accentColor,  // Use _accentColor directly
+      seedColor: _accentColor, // Use _accentColor directly
       brightness: Brightness.dark,
-      primary: _accentColor,    // Use _accentColor directly
+      primary: _accentColor, // Use _accentColor directly
       surface: _amoledMode ? Colors.black : null,
       background: _amoledMode ? Colors.black : const Color(0xFF0A0A0A),
       onBackground: Colors.white,
-      surfaceVariant: _amoledMode ? Colors.black : Colors.black.withOpacity(0.3),
+      surfaceVariant:
+          _amoledMode ? Colors.black : Colors.black.withOpacity(0.3),
     );
 
     return ThemeData(
@@ -41,7 +43,7 @@ class ThemeProvider extends ChangeNotifier {
       useMaterial3: true,
       scaffoldBackgroundColor: colorScheme.surface,
       fontFamily: _fontFamily, // Add font family to theme
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: colorScheme.surfaceContainerHighest,
         elevation: 0,
         shape: RoundedRectangleBorder(
