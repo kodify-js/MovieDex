@@ -98,11 +98,103 @@ class ContentProvider {
   List get providers => isDownloadMode == true
       ? isAnime == true
           ? Platform.isWindows
-              ? [hianime, vidzee, xprime, autoembed]
-              : [hianime, vidzee, xprime, autoembed]
+              ? [
+                  Hianime(
+                    title: title,
+                    type: type,
+                    airDate: airDate,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                    animeEpisodes: animeEpisode,
+                  ),
+                  Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Xprime(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Autoembed(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  )
+                ]
+              : [
+                  Hianime(
+                    title: title,
+                    type: type,
+                    airDate: airDate,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                    animeEpisodes: animeEpisode,
+                  ),
+                  Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Xprime(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Autoembed(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  )
+                ]
           : Platform.isWindows
-              ? [vidzee, autoembed, xprime]
-              : [vidzee, autoembed, xprime]
+              ? [
+                  Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Autoembed(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Xprime(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  )
+                ]
+              : [
+                  Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Autoembed(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Xprime(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  )
+                ]
       : isAnime == true
           ? Platform.isWindows
               ? [

@@ -26,7 +26,8 @@ class DownloadProgress {
   });
 }
 
-class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<int, DownloadProgress>> {
+class DownloadsProvider extends ChangeNotifier
+    implements ValueListenable<Map<int, DownloadProgress>> {
   static final DownloadsProvider instance = DownloadsProvider._internal();
   DownloadsProvider._internal();
 
@@ -53,17 +54,34 @@ class DownloadsProvider extends ChangeNotifier implements ValueListenable<Map<in
     Duration? timeRemaining,
   }) {
     final currentDownload = _activeDownloads[contentId];
+
+    // Ensure progress only increases (except when resuming from pause or starting new download)
+    double finalProgress = progress.clamp(0.0, 1.0);
+    if (currentDownload != null &&
+        status == 'downloading' &&
+        !isPaused &&
+        currentDownload.status != 'paused') {
+      // Only allow progress to increase during active downloading
+      finalProgress = progress > currentDownload.progress
+          ? progress
+          : currentDownload.progress;
+    }
+
     _activeDownloads[contentId] = DownloadProgress(
-      progress: progress,
+      progress: finalProgress,
       status: status,
       title: title,
       poster: poster,
       quality: quality,
       isPaused: isPaused,
-      speed: speed != null ? speed.abs() : currentDownload?.speed?.abs(), // Ensure positive speed
+      speed: speed != null ? speed.abs() : currentDownload?.speed?.abs(),
       timeRemaining: timeRemaining ?? currentDownload?.timeRemaining,
-      lastSpeed: speed != null ? speed.abs() : currentDownload?.speed ?? currentDownload?.lastSpeed,
-      lastTimeRemaining: timeRemaining ?? currentDownload?.timeRemaining ?? currentDownload?.lastTimeRemaining,
+      lastSpeed: speed != null
+          ? speed.abs()
+          : currentDownload?.speed ?? currentDownload?.lastSpeed,
+      lastTimeRemaining: timeRemaining ??
+          currentDownload?.timeRemaining ??
+          currentDownload?.lastTimeRemaining,
     );
     notifyListeners();
   }

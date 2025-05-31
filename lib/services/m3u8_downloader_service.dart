@@ -614,7 +614,7 @@ class M3U8DownloaderService {
   }
 
   Future<String> startDownload(
-    BuildContext context, // Add context parameter
+    BuildContext context,
     String m3u8Url,
     String title,
     Contentclass content,
@@ -622,7 +622,8 @@ class M3U8DownloaderService {
     int? episodeNumber,
     int? seasonNumber,
   }) async {
-    debugPrint('Starting download: $title, URL: $m3u8Url');
+    debugPrint(
+        'Starting download: $title, Episode: $episodeNumber, Season: $seasonNumber, URL: $m3u8Url');
 
     if (_isActive) {
       debugPrint('Download already in progress');
@@ -662,9 +663,16 @@ class M3U8DownloaderService {
       _activeDownloadId =
           '${content.id}_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Create download paths
-      final fileName =
-          '${title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${quality}.mp4';
+      // Create download paths with proper episode info
+      String fileName;
+      if (episodeNumber != null && seasonNumber != null) {
+        fileName =
+            '${content.title.replaceAll(RegExp(r'[^\w\s-]'), '')}_S${seasonNumber.toString().padLeft(2, '0')}E${episodeNumber.toString().padLeft(2, '0')}_${quality}.mp4';
+      } else {
+        fileName =
+            '${title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${quality}.mp4';
+      }
+
       final downloadPath = await getDownloadPath(fileName, title);
       final downloadDir = Directory(downloadPath).parent;
 
@@ -690,8 +698,9 @@ class M3U8DownloaderService {
 
       // Fetch M3U8 segments
       debugPrint('Fetching M3U8 playlist');
-      final downloadId =
-          '${content.id}_${episodeNumber ?? 0}_${seasonNumber ?? 0}';
+      final downloadId = episodeNumber != null && seasonNumber != null
+          ? '${content.id}_${seasonNumber}_${episodeNumber}'
+          : '${content.id}_movie';
 
       // Get segments list if not already fetched
       if (!_segmentsList.containsKey(downloadId)) {
@@ -703,26 +712,22 @@ class M3U8DownloaderService {
       final startIndex = _lastDownloadedSegment[downloadId] ?? 0;
       final totalSegments = segments.length;
 
-      // Reset counters
-      _currentSegment = 0;
+      // Reset counters properly
+      _currentSegment = startIndex;
       _totalDownloadedBytes = 0;
       _estimatedTotalBytes = 0;
       _totalSegments = segments.length;
 
       // Reset download tracking
-      _downloadStartTime = null;
+      _downloadStartTime = DateTime.now();
       _totalBytesDownloaded = 0;
       _downloadSpeed = 0;
       _speedSamples.clear();
       _timeRemainingSamples.clear();
       _lastTimeUpdate = null;
 
-      // Initialize _downloadStartTime at the start of download
-      _downloadStartTime = DateTime.now();
-
       for (var i = startIndex; i < totalSegments; i++) {
         if (_isCancelled) {
-          // Save last downloaded segment index
           _lastDownloadedSegment[downloadId] = i;
           DownloadsProvider.instance.pauseDownload(content.id);
           throw 'Download paused';
@@ -740,14 +745,14 @@ class M3U8DownloaderService {
         try {
           await _downloadSegment(segment, segmentPath);
           _lastDownloadedSegment[downloadId] = i + 1;
+          _currentSegment = i + 1;
         } catch (e) {
-          // On error, save progress and rethrow
           _lastDownloadedSegment[downloadId] = i;
           DownloadsProvider.instance.pauseDownload(content.id);
           rethrow;
         }
 
-        // Update progress
+        // Calculate accurate progress
         final progress = (i + 1) / totalSegments;
         _updateProgress(content, progress);
       }
@@ -1102,29 +1107,35 @@ class M3U8DownloaderService {
   }
 
   void _updateProgress(Contentclass content, double progress) {
-    onProgressCallback?.call(progress);
-
-    // Keep existing speed and time when updating progress
-    final currentProgress =
-        DownloadsProvider.instance.getDownloadProgress(content.id);
+    // Ensure progress only increases and stays within bounds
+    final clampedProgress = progress.clamp(0.0, 1.0);
 
     DownloadsProvider.instance.updateProgress(
       content.id,
-      progress,
+      clampedProgress,
       'downloading',
       content.title,
       content.poster,
       _currentQuality ?? '',
       isPaused: _isPaused,
-      speed: currentProgress?.speed ?? _downloadSpeed,
-      timeRemaining: currentProgress?.timeRemaining,
+      speed: _currentSpeed,
+      timeRemaining: _currentTimeRemaining,
     );
+  }
 
-    _showProgressNotification(
-      content.title,
-      progress,
-      isPaused: _isPaused,
-    );
+  // Add missing method for estimated time remaining
+  Duration _getEstimatedTimeRemaining() {
+    if (_currentSpeed <= 0 || _totalExpectedBytes <= 0) {
+      return Duration.zero;
+    }
+
+    final remainingBytes = _totalExpectedBytes - _totalBytesDownloaded;
+    if (remainingBytes <= 0) {
+      return Duration.zero;
+    }
+
+    final remainingSeconds = remainingBytes / (_currentSpeed * 1024 * 1024);
+    return Duration(seconds: remainingSeconds.round());
   }
 
   // Add these properties to store last download state
@@ -1168,7 +1179,21 @@ class M3U8DownloaderService {
 
     // Calculate speed using non-null _downloadStartTime
     if (now.difference(_downloadStartTime!).inMilliseconds >= 500) {
-      // ...existing speed calculation code...
+      final elapsedSeconds = now.difference(_downloadStartTime!).inSeconds;
+      if (elapsedSeconds > 0 && _totalBytesDownloaded > 0) {
+        _currentSpeed =
+            _totalBytesDownloaded / (elapsedSeconds * 1024 * 1024); // MB/s
+
+        // Calculate time remaining
+        if (_totalExpectedBytes > 0 && _currentSpeed > 0) {
+          final remainingBytes = _totalExpectedBytes - _totalBytesDownloaded;
+          if (remainingBytes > 0) {
+            final remainingSeconds =
+                remainingBytes / (_currentSpeed * 1024 * 1024);
+            _currentTimeRemaining = Duration(seconds: remainingSeconds.round());
+          }
+        }
+      }
     }
 
     // Calculate progress
@@ -1178,7 +1203,7 @@ class M3U8DownloaderService {
 
     // Ensure we have valid values
     final speed =
-        _currentSpeed.isNaN || _currentSpeed < 0 ? 0.01 : _currentSpeed;
+        _currentSpeed.isNaN || _currentSpeed < 0 ? 0.0 : _currentSpeed;
     final timeRemaining = _currentTimeRemaining.inSeconds < 0
         ? Duration.zero
         : _currentTimeRemaining;
@@ -1200,5 +1225,16 @@ class M3U8DownloaderService {
       progress,
       isPaused: false,
     );
+  }
+
+  // Add getter for active download status
+  bool get isActive => _isActive;
+
+  // Add getter for current download content
+  Contentclass? get currentContent => _currentContent;
+
+  // Add method to check if specific content is downloading
+  bool isDownloading(int contentId) {
+    return _isActive && _currentContent?.id == contentId;
   }
 }

@@ -250,6 +250,7 @@ class _InfopageState extends State<Infopage> {
     required int episodeNumber,
   }) async {
     try {
+      print('Handling download for S$seasonNumber E$episodeNumber');
       if (_stream.isEmpty) {
         await getStream(seasonNumber, episodeNumber);
       }
@@ -318,47 +319,27 @@ class _InfopageState extends State<Infopage> {
     int? seasonNumber,
   }) async {
     final stream = _stream.firstWhere((s) => s.language == language);
-    print('Selected stream: ${stream.sources[0].url}');
-    final url = quality == 'Auto'
+    final sourceUrl = quality == 'Auto'
         ? stream.url
-        : stream.sources.firstWhere((s) => s.quality == quality).url;
+        : stream.sources
+            .firstWhere((s) => s.quality == quality,
+                orElse: () => stream.sources.first)
+            .url;
 
-    final fileName =
-        '${data.title}${data.type == ContentType.tv.value ? '_S${seasonNumber}E$episodeNumber' : ''}_$quality';
+    // Create proper title for episode downloads
+    String downloadTitle = data.title;
+    if (episodeNumber != null && seasonNumber != null) {
+      downloadTitle =
+          '${data.title} S${seasonNumber.toString().padLeft(2, '0')}E${episodeNumber.toString().padLeft(2, '0')}';
+    }
 
-    _downloader.setCallbacks(
-      onProgress: (progress) {
-        DownloadsProvider.instance.updateProgress(
-          data.id,
-          progress,
-          'downloading',
-          data.title,
-          data.poster,
-          quality,
-        );
-      },
-      onError: (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error)),
-          );
-        }
-      },
-    );
-
-    DownloadsProvider.instance.updateProgress(
-      data.id,
-      0.0,
-      'downloading',
-      data.title,
-      data.poster,
-      quality,
-    );
+    print('Starting download with URL: $sourceUrl');
+    print('Episode: $episodeNumber, Season: $seasonNumber');
 
     await _downloader.startDownload(
       context,
-      url,
-      fileName,
+      sourceUrl,
+      downloadTitle,
       data,
       quality,
       episodeNumber: episodeNumber,
@@ -366,7 +347,7 @@ class _InfopageState extends State<Infopage> {
     );
   }
 
-  Future<void> getStream(int episode, int seasn) async {
+  Future<void> getStream(int season, int episode) async {
     try {
       contentProvider = ContentProvider(
         title: widget.title,
@@ -374,8 +355,8 @@ class _InfopageState extends State<Infopage> {
         type: widget.type,
         isAnime: _contentData?.genres.contains('Animation'),
         isDownloadMode: true,
-        episodeNumber: episode ?? 1,
-        seasonNumber: seasn ?? 1,
+        episodeNumber: episode,
+        seasonNumber: season,
       );
 
       if (_providerIndex >= contentProvider.providers.length) {
