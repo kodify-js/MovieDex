@@ -81,7 +81,7 @@ class ThemeProvider extends ChangeNotifier {
         backgroundColor: _amoledMode ? Colors.black : null,
         foregroundColor: Colors.white,
       ),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: _amoledMode ? Colors.black : null,
         elevation: 0,
         shape: RoundedRectangleBorder(

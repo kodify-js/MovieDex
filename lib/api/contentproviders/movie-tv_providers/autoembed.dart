@@ -39,6 +39,7 @@ class Autoembed {
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = await _buildStreamUrl();
+      print('Autoembed URL: $baseUrl');
       final response = await http
           .get(Uri.parse(baseUrl))
           .timeout(const Duration(seconds: 5));

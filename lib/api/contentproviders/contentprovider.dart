@@ -13,7 +13,7 @@
 
 import 'dart:io';
 
-import 'package:moviedex/api/contentproviders/anime_providers/hianime.dart';
+import 'package:moviedex/api/contentproviders/anime_providers/gogo.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/xprime.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/Autoembed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
@@ -62,7 +62,11 @@ class ContentProvider {
       type: type,
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber);
-
+  Vidsrc get vidsrc => Vidsrc(
+      id: id,
+      type: type,
+      episodeNumber: episodeNumber,
+      seasonNumber: seasonNumber);
   Embed get embed => Embed(
       id: id,
       type: type,
@@ -80,7 +84,7 @@ class ContentProvider {
       episodeNumber: episodeNumber,
       seasonNumber: seasonNumber);
 
-  Hianime get hianime => Hianime(
+  Gogo get gogo => Gogo(
       title: title,
       type: type,
       airDate: airDate,
@@ -99,7 +103,7 @@ class ContentProvider {
       ? isAnime == true
           ? Platform.isWindows
               ? [
-                  Hianime(
+                  Gogo(
                     title: title,
                     type: type,
                     airDate: airDate,
@@ -108,6 +112,12 @@ class ContentProvider {
                     animeEpisodes: animeEpisode,
                   ),
                   Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  VidSrcSu(
                     id: id,
                     type: type,
                     episodeNumber: episodeNumber,
@@ -127,7 +137,7 @@ class ContentProvider {
                   )
                 ]
               : [
-                  Hianime(
+                  Gogo(
                     title: title,
                     type: type,
                     airDate: airDate,
@@ -136,6 +146,12 @@ class ContentProvider {
                     animeEpisodes: animeEpisode,
                   ),
                   Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  VidSrcSu(
                     id: id,
                     type: type,
                     episodeNumber: episodeNumber,
@@ -162,6 +178,12 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
+                  VidSrcSu(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
                   Autoembed(
                     id: id,
                     type: type,
@@ -177,6 +199,12 @@ class ContentProvider {
                 ]
               : [
                   Vidzee(
+                    id: id,
+                    type: type,
+                    episodeNumber: episodeNumber,
+                    seasonNumber: seasonNumber,
+                  ),
+                  Vidsrc(
                     id: id,
                     type: type,
                     episodeNumber: episodeNumber,
@@ -199,20 +227,22 @@ class ContentProvider {
           ? Platform.isWindows
               ? [
                   vidzee,
-                  hianime,
+                  gogo,
+                  vidsrc,
                   vidsecsu,
                   xprime,
                   autoembed,
                 ]
               : [
                   vidzee,
-                  hianime,
+                  gogo,
+                  vidsrc,
                   vidsecsu,
                   embed,
                   xprime,
                   autoembed,
                 ]
           : Platform.isWindows
-              ? [vidzee, vidsecsu, autoembed, xprime]
-              : [vidzee, embed, vidsecsu, autoembed, xprime];
+              ? [vidzee, vidsrc, vidsecsu, autoembed, xprime]
+              : [vidzee, vidsrc, embed, vidsecsu, autoembed, xprime];
 }

@@ -42,6 +42,7 @@ class Xprime {
   Future<List<StreamClass>> getStream() async {
     try {
       final baseUrl = await _buildStreamUrl();
+      print('Xprime URL: $baseUrl');
       final response = await http
           .get(Uri.parse(baseUrl))
           .timeout(const Duration(seconds: 5));

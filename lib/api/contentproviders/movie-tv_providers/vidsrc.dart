@@ -13,7 +13,9 @@
 
 import 'dart:convert';
 
+import 'package:html/parser.dart';
 import 'package:http/http.dart' as http;
+import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/utils/utils.dart';
@@ -29,7 +31,7 @@ class Vidsrc {
   Vidsrc(
       {required this.id,
       required this.type,
-      this.name = 'VidSrc.vip (Multi Language)',
+      this.name = 'MovieDex',
       this.episodeNumber,
       this.seasonNumber});
 
@@ -47,31 +49,28 @@ class Vidsrc {
       List<StreamClass> streams = [];
       List languages = [];
       String lang;
-      final data = jsonDecode(response.body);
-      for (var value in data.values) {
-        if (value == null ||
-            value['url'] == "" ||
-            value['url']
-                .toString()
-                .contains("https://proxy.vid1.site/proxy?url=")) continue;
-        if (languages.contains(value['language'])) {
-          final count = languages
-              .where((e) => e.toString().contains(value['language']))
-              .length;
-          lang = '${value['language']} $count';
-          languages.add(lang);
-        } else {
-          languages.add(value['language'] ?? 'original');
-          lang = value['language'];
-        }
-        final stream = await getAllStreams(value, lang);
-        if (!stream.isError) {
-          streams.add(stream);
-        }
-      }
-      if (streams.isEmpty) {
-        throw Exception('No streams found');
-      }
+      final data = parse(response.body);
+      final frame = data.querySelector('div #player_iframe');
+      final src = "https:${frame?.attributes['src'] ?? ''}";
+      print('VidSrc URL: $src');
+      final streamData =
+          await http.get(Uri.parse(src)).timeout(const Duration(seconds: 10));
+      final text = streamData.body.toString();
+      final iframeData =
+          "https://cloudnestra.com/prorcp/${text.split("'/prorcp/")[1].split("'")[0]}";
+      final iframeResponse = await http
+          .get(Uri.parse(iframeData))
+          .timeout(const Duration(seconds: 10));
+      final site = iframeResponse.body.toString();
+      final link = site.split("file: '")[1].split("'")[0];
+      final streamLink =
+          "https://sl4ytr9k.vlop.fun/m3u8-proxy?url=${link}&headers=%7B%22referer%22%3A%22https%3A%2F%2Fcloudnestra.com%2F%22%2C%22origin%22%3A%22https%3A%2F%2Fcloudnestra.com%22%7D";
+      final sources = await _getSources(url: streamLink);
+      streams.add(StreamClass(
+          language: 'original',
+          url: streamLink,
+          sources: sources,
+          isError: isError));
       return streams;
     } catch (e) {
       print('Stream error: $e');
@@ -83,32 +82,16 @@ class Vidsrc {
     }
   }
 
-  Future<StreamClass> getAllStreams(data, language) async {
-    final sources = await _getSources(url: data['url']);
-    return StreamClass(
-        language: language,
-        url: data['url'],
-        sources: sources,
-        isError: isError);
-  }
-
   Future<String> _buildStreamUrl() async {
     final isMovie = type == ContentType.movie.value;
+    final tmdbId = await Api().getExternalIds(id: id, type: type);
+    if (tmdbId == null) {
+      return '';
+    }
     if (isMovie) {
-      final C = id.toString().split("").map((e) {
-        final encoding = "abcdefghij";
-        return encoding[int.parse(e)];
-      }).join("");
-      String B = C.split('').reversed.join('');
-      String A = base64Encode(utf8.encode(B));
-      String D = base64Encode(utf8.encode(A));
-      return '';
+      return 'https://sl4ytr9k.vlop.fun/?destination=https%3A%2F%2Fvidsrc.net%2Fembed%2F$tmdbId';
     } else {
-      final formattedString = '${id}-${seasonNumber}-${episodeNumber}';
-      final reversedString = formattedString.split('').reversed.join('');
-      final firstBase64 = base64Encode(utf8.encode(reversedString));
-      final secondBase64 = base64Encode(utf8.encode(firstBase64));
-      return '';
+      return 'https://sl4ytr9k.vlop.fun/?destination=https%3A%2F%2Fvidsrc.net%2Fembed%2Ftv%3Fimdb%3D$tmdbId%26season%3D$seasonNumber%26episode%3D$episodeNumber';
     }
   }
 
