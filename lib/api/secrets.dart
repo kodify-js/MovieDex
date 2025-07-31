@@ -1,4 +1,4 @@
-const appName = "";
+const appName = "Movie Dex";
 const apiKey = "";
 const projectId = "";
 const databaseId = "";
