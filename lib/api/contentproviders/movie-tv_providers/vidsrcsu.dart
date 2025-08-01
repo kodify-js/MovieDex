@@ -38,7 +38,9 @@ class VidSrcSu {
       final baseUrl = await _buildStreamUrl();
       final response = await http.get(Uri.parse(baseUrl), headers: {
         "User-Agent": "Mozilla/5.0",
-        "Accept": "text/html"
+        "Accept": "text/html",
+        "referer": "https://vidsrc.su/",
+        "origin": "https://vidsrc.su"
       }).timeout(const Duration(seconds: 5));
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');

@@ -127,6 +127,26 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadContentProvider(
+    bool isAnime,
+  ) async {
+    contentProvider = ContentProvider(
+      title: widget.data.title,
+      id: widget.data.id,
+      type: widget.data.type,
+      episodeNumber: widget.episodeNumber,
+      seasonNumber: widget.seasonNumber,
+      airDate: widget.airDate,
+      animeEpisode: [],
+      isAnime: isAnime,
+    );
+    await contentProvider.loadRiveProviders();
+    // Initialize servers from content provider
+    servers = contentProvider.providers
+        .map((provider) => ServerClass(name: provider.name))
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -149,35 +169,24 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     // Set full immersive mode with improved reliability
     _setImmersiveMode();
 
-    contentProvider = ContentProvider(
-        title: widget.data.title,
-        id: widget.data.id,
-        type: widget.data.type,
-        airDate: widget.airDate,
-        episodeNumber: widget.episodeNumber,
-        seasonNumber: widget.seasonNumber,
-        isAnime: widget.data.genres.contains("Animation"));
-
-    contentProvider.providers.forEach((element) {
-      servers.add(ServerClass(name: element.name));
-    });
-
-    _loadPreferredServer().then((_) {
-      if (_stream.isEmpty) {
-        getStream();
-      } else {
-        setState(() {
-          if (_stream.first.subtitles != null &&
-              _stream.first.subtitles!.isNotEmpty) {
-            subtitles = _stream.first.subtitles;
-          } else {
-            getSubtitles(
-                episode: contentProvider.episodeNumber,
-                season: contentProvider.seasonNumber);
-          }
-          isLoading = false;
-        });
-      }
+    _loadContentProvider(widget.data.genres.contains("Animation")).then((_) {
+      _loadPreferredServer().then((_) {
+        if (_stream.isEmpty) {
+          getStream();
+        } else {
+          setState(() {
+            if (_stream.first.subtitles != null &&
+                _stream.first.subtitles!.isNotEmpty) {
+              subtitles = _stream.first.subtitles;
+            } else {
+              getSubtitles(
+                  episode: contentProvider.episodeNumber,
+                  season: contentProvider.seasonNumber);
+            }
+            isLoading = false;
+          });
+        }
+      });
     });
   }
 

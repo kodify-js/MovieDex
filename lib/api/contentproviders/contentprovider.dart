@@ -11,15 +11,17 @@
  * Copyright (c) 2024 MovieDex Contributors
  */
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:moviedex/api/contentproviders/anime_providers/gogo.dart';
-import 'package:moviedex/api/contentproviders/movie-tv_providers/xprime.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/Autoembed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/embed.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrc.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidsrcsu.dart';
 import 'package:moviedex/api/contentproviders/movie-tv_providers/vidzee.dart';
+import 'package:moviedex/api/contentproviders/rive_providers/rive.dart';
+import 'package:http/http.dart' as http;
 
 /// Manages and coordinates multiple streaming providers
 class ContentProvider {
@@ -44,7 +46,7 @@ class ContentProvider {
   final String? airDate;
 
   final bool? isDownloadMode;
-
+  List<Rive> riveProviders = [];
   ContentProvider(
       {required this.id,
       required this.type,
@@ -55,13 +57,28 @@ class ContentProvider {
       this.seasonNumber,
       this.animeEpisode,
       this.isDownloadMode = false});
+  Future<void> loadRiveProviders() async {
+    try {
+      final baseUrl = "http://scrapper.rivestream.org/api/providers";
+      final response = await http.get(Uri.parse(baseUrl));
+      final providers = jsonDecode(response.body);
+      List<Rive> riveProviders = [];
+      for (final provider in providers['data']) {
+        riveProviders.add(Rive(
+          id: id,
+          type: type,
+          episodeNumber: episodeNumber,
+          seasonNumber: seasonNumber,
+          name: provider,
+        ));
+      }
+      this.riveProviders = riveProviders;
+    } catch (e) {
+      print("Error loading Rive providers: $e");
+      this.riveProviders = [];
+    }
+  }
 
-  /// Access to AutoEmbed provider instance
-  Xprime get xprime => Xprime(
-      id: id,
-      type: type,
-      episodeNumber: episodeNumber,
-      seasonNumber: seasonNumber);
   Vidsrc get vidsrc => Vidsrc(
       id: id,
       type: type,
@@ -117,13 +134,8 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
+                  ...this.riveProviders,
                   VidSrcSu(
-                    id: id,
-                    type: type,
-                    episodeNumber: episodeNumber,
-                    seasonNumber: seasonNumber,
-                  ),
-                  Xprime(
                     id: id,
                     type: type,
                     episodeNumber: episodeNumber,
@@ -151,13 +163,8 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
+                  ...this.riveProviders,
                   VidSrcSu(
-                    id: id,
-                    type: type,
-                    episodeNumber: episodeNumber,
-                    seasonNumber: seasonNumber,
-                  ),
-                  Xprime(
                     id: id,
                     type: type,
                     episodeNumber: episodeNumber,
@@ -178,6 +185,7 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
+                  ...this.riveProviders,
                   VidSrcSu(
                     id: id,
                     type: type,
@@ -190,12 +198,6 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
-                  Xprime(
-                    id: id,
-                    type: type,
-                    episodeNumber: episodeNumber,
-                    seasonNumber: seasonNumber,
-                  )
                 ]
               : [
                   Vidzee(
@@ -204,6 +206,7 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
+                  ...this.riveProviders,
                   Vidsrc(
                     id: id,
                     type: type,
@@ -216,33 +219,40 @@ class ContentProvider {
                     episodeNumber: episodeNumber,
                     seasonNumber: seasonNumber,
                   ),
-                  Xprime(
-                    id: id,
-                    type: type,
-                    episodeNumber: episodeNumber,
-                    seasonNumber: seasonNumber,
-                  )
                 ]
       : isAnime == true
           ? Platform.isWindows
               ? [
                   vidzee,
                   gogo,
+                  ...this.riveProviders,
                   vidsrc,
                   vidsecsu,
-                  xprime,
                   autoembed,
                 ]
               : [
                   vidzee,
                   gogo,
+                  ...this.riveProviders,
                   vidsrc,
                   vidsecsu,
                   embed,
-                  xprime,
                   autoembed,
                 ]
           : Platform.isWindows
-              ? [vidzee, vidsrc, vidsecsu, autoembed, xprime]
-              : [vidzee, vidsrc, embed, vidsecsu, autoembed, xprime];
+              ? [
+                  vidzee,
+                  ...this.riveProviders,
+                  vidsrc,
+                  vidsecsu,
+                  autoembed,
+                ]
+              : [
+                  vidzee,
+                  ...this.riveProviders,
+                  vidsrc,
+                  embed,
+                  vidsecsu,
+                  autoembed,
+                ];
 }

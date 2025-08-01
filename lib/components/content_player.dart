@@ -38,6 +38,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:zoom_widget/zoom_widget.dart';
 import '../api/class/subtitle_class.dart';
 import '../services/subtitle_service.dart';
+
 // Add window_manager import for desktop platforms
 import 'package:window_manager/window_manager.dart';
 
@@ -325,12 +326,14 @@ class _ContentPlayerState extends State<ContentPlayer>
     try {
       final Map<String, String> headers = {
         "origin": widget.streams.first.baseUrl ?? "",
-        "Referer": widget.streams.first.baseUrl ?? "",
+        "referer": "${widget.streams.first.baseUrl}/" ?? "",
       };
-      print(widget.streams.first.baseUrl);
       // Normal initialization without proxy
       _controller = VideoPlayerController.networkUrl(
         Uri.parse(url),
+        formatHint: widget.streams.first.formatHint != null
+            ? VideoFormat.hls
+            : VideoFormat.other,
         httpHeaders: headers,
         videoPlayerOptions: VideoPlayerOptions(
           mixWithOthers: false,

@@ -19,6 +19,7 @@ import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/utils/utils.dart';
+import 'package:video_player/video_player.dart';
 
 /// Handles stream extraction from VidSrc provider
 class Vidsrc {
@@ -52,7 +53,6 @@ class Vidsrc {
       final data = parse(response.body);
       final frame = data.querySelector('div #player_iframe');
       final src = "https:${frame?.attributes['src'] ?? ''}";
-      print('VidSrc URL: $src');
       final streamData =
           await http.get(Uri.parse(src)).timeout(const Duration(seconds: 10));
       final text = streamData.body.toString();
@@ -63,14 +63,15 @@ class Vidsrc {
           .timeout(const Duration(seconds: 10));
       final site = iframeResponse.body.toString();
       final link = site.split("file: '")[1].split("'")[0];
-      final streamLink =
-          "https://sl4ytr9k.vlop.fun/m3u8-proxy?url=${link}&headers=%7B%22referer%22%3A%22https%3A%2F%2Fcloudnestra.com%2F%22%2C%22origin%22%3A%22https%3A%2F%2Fcloudnestra.com%22%7D";
-      final sources = await _getSources(url: streamLink);
+      print(link);
+      final sources = await _getSources(url: link);
       streams.add(StreamClass(
           language: 'original',
-          url: streamLink,
+          url: link,
           sources: sources,
-          isError: isError));
+          isError: isError,
+          formatHint: VideoFormat.hls,
+          baseUrl: "https://cloudnestra.com"));
       return streams;
     } catch (e) {
       print('Stream error: $e');
@@ -125,7 +126,9 @@ class Vidsrc {
           final streamUrl = lines[i + 1].contains("./")
               ? _resolveStreamUrl(lines[i + 1].split('./')[1].trim(), baseUrl)
               : lines[i + 1];
-          sources.add(SourceClass(quality: quality, url: streamUrl));
+          sources.add(SourceClass(
+              quality: quality,
+              url: "https://tmstr3.shadowlandschronicles.com$streamUrl"));
         }
       }
     }

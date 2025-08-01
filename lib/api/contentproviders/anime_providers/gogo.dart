@@ -18,6 +18,7 @@ import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:html/parser.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
+import 'package:video_player/video_player.dart';
 
 /// Handles stream extraction from Aniwave provider
 class Gogo {
@@ -124,7 +125,6 @@ class Gogo {
             'Accept': 'application/json, text/plain, */*',
           });
       for (var server in jsonDecode(servers.body)) {
-        if (server['id'] == 'pahe') continue; // Skip GogoAnime server
         if (server['hasDub']) {
           final stream =
               await getSource(id, server['id'], 'dub', episodeNumber);
@@ -148,7 +148,7 @@ class Gogo {
     try {
       final watchData = await http.get(
           Uri.parse(
-              'https://backend.animetsu.to/api/anime/tiddies?server=$server&id=$id&num=$episodes${lang != null ? '&lang=$lang' : ''}'),
+              'https://backend.animetsu.to/api/anime/tiddies?server=$server&id=$id&num=$episodes${lang != null ? '&subType=$lang' : ''}'),
           headers: {
             'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
@@ -159,25 +159,85 @@ class Gogo {
       final watchDocument = jsonDecode(watchData.body);
       final sources = watchDocument['sources'];
       List<SourceClass> source = [];
+      print("Sources: ${sources}");
       for (var sourceData in sources) {
         if (sourceData['url'] != null && sourceData['quality'] != null) {
-          source.add(SourceClass(
-              quality: sourceData['quality'].toString().replaceAll("p", ""),
-              url:
-                  "https://sl4ytr9k.vlop.fun/m3u8-proxy?url=${sourceData['url'].toString()}&headers=%7B%22referer%22%3A%22https%3A%2F%2Fanimetsu.to%2F%22%2C%22origin%22%3A%22https%3A%2F%2Fanimetsu.to%22%7D"));
+          if (sourceData['quality'] == 'master') {
+            final data = await _getSources(url: sourceData['url']);
+            if (data.isNotEmpty) {
+              source.addAll(data);
+            }
+          } else {
+            source.add(SourceClass(
+                quality: sourceData['quality'].toString().replaceAll("p", ""),
+                url: sourceData['url'].toString()));
+          }
         }
       }
       final stream = new StreamClass(
-        language: lang == null ? server : "$server-$lang",
-        url:
-            "https://sl4ytr9k.vlop.fun/m3u8-proxy?url=${sources[0]['url']}&headers=%7B%22referer%22%3A%22https%3A%2F%2Fanimetsu.to%2F%22%2C%22origin%22%3A%22https%3A%2F%2Fanimetsu.to%22%7D",
-        sources: source,
-        isError: isError,
-      );
+          language: lang == null ? server : "$server-$lang",
+          url: sources[0]['url'],
+          sources: source,
+          isError: isError,
+          formatHint: sources[0]['quality'] == 'master'
+              ? VideoFormat.hls
+              : VideoFormat.other,
+          baseUrl: "https://animetsu.to");
       return stream;
     } catch (e) {
       print("errpr $e in ${lang}");
       return;
     }
+  }
+
+  Future<List<SourceClass>> _getSources({required String url}) async {
+    try {
+      final response = await http.get(Uri.parse(url), headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+        'origin': 'https://animetsu.to/',
+        'referer': 'https://animetsu.to/',
+        'Accept': 'application/json, text/plain, */*',
+      }).timeout(const Duration(seconds: 5));
+      print(response.body);
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch stream: ${response.statusCode}');
+      }
+      final sources = _parseM3U8Playlist(response.body, url);
+      isError = false;
+      return sources;
+    } catch (e) {
+      isError = true;
+      return [];
+    }
+  }
+
+  List<SourceClass> _parseM3U8Playlist(String playlist, String baseUrl) {
+    final sources = <SourceClass>[];
+    final lines = playlist.split('\n');
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].contains('#EXT-X-STREAM-INF')) {
+        final quality = _extractQuality(lines[i]);
+        if (quality != null && i + 1 < lines.length) {
+          final streamUrl = lines[i + 1].contains("./")
+              ? _resolveStreamUrl(
+                  lines[i + 1].split('./')[1].trim(), lines[i + 1])
+              : lines[i + 1];
+          sources.add(SourceClass(quality: quality, url: streamUrl));
+        }
+      }
+    }
+    return sources;
+  }
+
+  String? _extractQuality(String infoLine) {
+    final resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)');
+    final match = resolutionRegex.firstMatch(infoLine);
+    return match?.group(1);
+  }
+
+  String _resolveStreamUrl(String streamUrl, String baseUrl) {
+    final resolvedUri = '${baseUrl.split('index')[0]}$streamUrl';
+    return resolvedUri.toString();
   }
 }
