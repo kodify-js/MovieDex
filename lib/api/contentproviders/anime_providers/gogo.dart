@@ -18,10 +18,11 @@ import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:html/parser.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
+import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:video_player/video_player.dart';
 
 /// Handles stream extraction from Aniwave provider
-class Gogo {
+class Gogo implements Provider {
   final String title;
   final String type;
   final int? episodeNumber;
@@ -85,7 +86,7 @@ class Gogo {
       final List<StreamClass> streams = [];
       final response = await http.get(
           Uri.parse(
-              'https://backend.animetsu.to/api/anime/search?query=$title&page=1&perPage=20'),
+              'https://b.animetsu.live/api/anime/search/?query=$title'),
           headers: {
             'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',

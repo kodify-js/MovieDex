@@ -97,6 +97,10 @@ void _registerHiveAdapters() {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Hive early so UpdateService can use it
+  await Hive.initFlutter();
+  _registerHiveAdapters();
+
   // Initialize update service with error handling
   try {
     await UpdateService.instance.initialize();

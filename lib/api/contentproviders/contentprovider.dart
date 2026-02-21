@@ -23,6 +23,10 @@ import 'package:moviedex/api/contentproviders/movie-tv_providers/vidzee.dart';
 import 'package:moviedex/api/contentproviders/rive_providers/rive.dart';
 import 'package:http/http.dart' as http;
 
+abstract class Provider{
+  void getStream();
+}
+
 /// Manages and coordinates multiple streaming providers
 class ContentProvider {
   /// Content identifier

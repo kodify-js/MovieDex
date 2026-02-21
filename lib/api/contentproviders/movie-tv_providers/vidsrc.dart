@@ -18,11 +18,12 @@ import 'package:http/http.dart' as http;
 import 'package:moviedex/api/api.dart';
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:video_player/video_player.dart';
 
 /// Handles stream extraction from VidSrc provider
-class Vidsrc {
+class Vidsrc implements Provider {
   final int id;
   final String type;
   final int? episodeNumber;
@@ -47,6 +48,7 @@ class Vidsrc {
       if (response.statusCode != 200) {
         throw Exception('Failed to fetch stream: ${response.statusCode}');
       }
+      print(response.body);
       List<StreamClass> streams = [];
       List languages = [];
       String lang;
@@ -90,9 +92,9 @@ class Vidsrc {
       return '';
     }
     if (isMovie) {
-      return 'https://sl4ytr9k.vlop.fun/?destination=https%3A%2F%2Fvidsrc.net%2Fembed%2F$tmdbId';
+      return 'https://vsembed.ru/embed/$tmdbId';
     } else {
-      return 'https://sl4ytr9k.vlop.fun/?destination=https%3A%2F%2Fvidsrc.net%2Fembed%2Ftv%3Fimdb%3D$tmdbId%26season%3D$seasonNumber%26episode%3D$episodeNumber';
+      return 'https://vsembed.ru/embed/$tmdbId%26season%3D$seasonNumber%26episode%3D$episodeNumber';
     }
   }
 

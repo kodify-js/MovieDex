@@ -5,7 +5,7 @@ class AppwriteService {
   static final AppwriteService instance = AppwriteService._internal();
   late final Client client;
   late final Account account;
-  late final Databases databases;
+  late final TablesDB tablesDB;
   
   // Replace with your Appwrite endpoint and project ID
   static const String _endpoint = 'https://cloud.appwrite.io/v1';
@@ -23,7 +23,7 @@ class AppwriteService {
       .setSelfSigned();
     
     account = Account(client);
-    databases = Databases(client);
+    tablesDB = TablesDB(client);
   }
 
   // Check if user is logged in
@@ -98,27 +98,27 @@ class AppwriteService {
   }
 
   // Database operations
-  Future<Document> createDocument({
+  Future<Row> createDocument({
     required String collectionId,
     required Map<String, dynamic> data,
     String? documentId,
   }) async {
-    return await databases.createDocument(
+    return await tablesDB.createRow(
       databaseId: _databaseId,
-      collectionId: collectionId,
-      documentId: documentId ?? ID.unique(),
+      tableId: collectionId,
+      rowId: documentId ?? ID.unique(),
       data: data,
     );
   }
 
-  Future<Document> getDocument({
+  Future<Row> getDocument({
     required String collectionId,
     required String documentId,
   }) async {
-    return await databases.getDocument(
+    return await tablesDB.getRow(
       databaseId: _databaseId,
-      collectionId: collectionId,
-      documentId: documentId,
+      tableId: collectionId,
+      rowId: documentId,
     );
   }
 
@@ -126,20 +126,20 @@ class AppwriteService {
     required String collectionId,
     required String documentId,
   }) async {
-    await databases.deleteDocument(
+    await tablesDB.deleteRow(
       databaseId: _databaseId,
-      collectionId: collectionId,
-      documentId: documentId,
+      tableId: collectionId,
+      rowId: documentId,
     );
   }
 
-  Future<DocumentList> listDocuments({
+  Future<RowList> listDocuments({
     required String collectionId,
     List<String>? queries,
   }) async {
-    return await databases.listDocuments(
+    return await tablesDB.listRows(
       databaseId: _databaseId,
-      collectionId: collectionId,
+      tableId: collectionId,
       queries: queries,
     );
   }

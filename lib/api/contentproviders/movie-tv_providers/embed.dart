@@ -15,10 +15,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/utils/utils.dart';
 
 /// Handles stream extraction from Embed provider
-class Embed {
+class Embed implements Provider {
   final int id;
   final String type;
   final int? episodeNumber;
@@ -45,7 +46,7 @@ class Embed {
       }
 
       final data = response.body;
-      RegExp regExp = RegExp(r"atob\(`([^`]+)`\)");
+      RegExp regExp = RegExp(r"\(`([^`]+)`\)");
       final match = regExp.firstMatch(data)!.group(1);
       final decoded = jsonDecode(await stringAtob(match!));
       final mhash = decoded['hash'].toString();

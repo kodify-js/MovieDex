@@ -14,10 +14,11 @@
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
+import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/utils/utils.dart';
 
 /// Handles stream extraction from VidSrcSu provider
-class VidSrcSu {
+class VidSrcSu implements Provider {
   final int id;
   final String type;
   final int? episodeNumber;

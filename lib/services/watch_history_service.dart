@@ -117,7 +117,7 @@ class WatchHistoryService {
       );
 
       // Merge with local data
-      for (var doc in serverDocs.documents) {
+      for (var doc in serverDocs.rows) {
         final serverItem = ListItem.fromJson(doc.data);
         final localItem = _historyBox.get(serverItem.contentId.toString());
 
@@ -220,7 +220,7 @@ class WatchHistoryService {
           collectionId: AppwriteService.watchHistoryCollection,
           queries: ['user_id = "${user.$id}"'],
         );
-        for (var doc in docs.documents) {
+        for (var doc in docs.rows) {
           await AppwriteService.instance.deleteDocument(
             collectionId: AppwriteService.watchHistoryCollection,
             documentId: doc.$id,

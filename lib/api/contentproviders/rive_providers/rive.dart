@@ -12,18 +12,16 @@
  */
 
 import 'dart:convert';
-
-import 'package:appwrite/models.dart';
-import 'package:html/parser.dart';
 import 'package:http/http.dart' as http;
 import 'package:moviedex/api/class/source_class.dart';
 import 'package:moviedex/api/class/stream_class.dart';
 import 'package:moviedex/api/class/subtitle_class.dart';
+import 'package:moviedex/api/contentproviders/contentprovider.dart';
 import 'package:moviedex/utils/utils.dart';
 import 'package:video_player/video_player.dart';
 
 /// Handles stream extraction from Rive provider
-class Rive {
+class Rive implements Provider {
   final int id;
   final String type;
   final int? episodeNumber;
@@ -40,16 +38,13 @@ class Rive {
 
   /// Fetches available streams for content
   Future<List<StreamClass>> getStream() async {
-    final List<StreamClass> streams = [];
     try {
-      final lang = [];
       final baseUrl = _buildStreamUrl();
       final response = await http.get(Uri.parse(baseUrl));
       isError = response.statusCode != 200;
       final body = response.body;
       final data = await _parseStreams(body);
-      streams.add(data);
-      return streams;
+      return data;
     } catch (e) {
       isError = true;
       return [];
@@ -63,69 +58,71 @@ class Rive {
     return "http://scrapper.rivestream.org/api/provider?provider=$name&id=$id$episodeSegment";
   }
 
-  Future<StreamClass> _parseStreams(String body) async {
+  Future<List<StreamClass>> _parseStreams(String body) async {
     try {
-      StreamClass streams = StreamClass(
-          language: 'original', url: '', sources: [], isError: true);
+      final List<StreamClass> streams = [];
+      final List<SourceClass> sources = [];
       final List<SubtitleClass> subtitles = [];
       final document = jsonDecode(body)['data'];
+      print(document);
       if (document == null) {
         throw Exception("No data found in Rive response");
       }
-      final content = document['sources'][0];
-      final contentSubtitle = document['captions'] ?? [];
-      for (var subtitle in contentSubtitle) {
-        final url = subtitle['file'] ?? '';
-        final lang = subtitle['label'] ?? '';
-        final lable = subtitle['label'] ?? '';
-        if (url.isNotEmpty) {
-          subtitles.add(SubtitleClass(url: url, language: lang, label: lable));
-        }
+      for (final subtitle in document['captions'] ?? []) {
+        subtitles.add(SubtitleClass(
+          language: subtitle['label'],
+          url: subtitle['file'],
+          label: subtitle['label'],
+        ));
       }
-      List<SourceClass> sources = [];
-      final url =
-          Uri.parse(content['url']).queryParameters['url'] ?? content['url'];
-      print("Rive Stream URL: $url");
-      final headers = Uri.parse(content['url']).queryParameters['headers'];
-      final referer = headers != null
+      for (final source in document['sources']) {
+        final url = source['url'];
+        int qualityValue;
+        try {
+          qualityValue = int.parse(source['quality'].toString().replaceAll('p', ''));
+        } catch (e) {
+          qualityValue = 0;
+        }
+        final headers = Uri.parse(url).queryParameters['headers'];
+        final referer = headers != null
           ? jsonDecode(headers)['Referer']
           : "https://rivestream.net";
-      print("Rive Referer: $referer");
-      if (content['format'] != "hls" && content['format'] != "m3u8") {
-        for (final source in document['sources']) {
+        if (qualityValue == 0) {
+          streams.add(StreamClass(
+            language: source['quality'].toString(),
+            url: url,
+            sources: await _getSources(url, referer),
+            subtitles: subtitles,
+            formatHint:VideoFormat.other,
+          ));
+        }else {
           sources.add(SourceClass(
             quality: source['quality'].toString(),
             url: url,
           ));
         }
-      } else {
-        if (_isValidStreamUrl(url)) {
-          sources = await _getSources(url, referer);
-        }
       }
-      streams = StreamClass(
-          language: 'original',
+      if (sources.isNotEmpty) {
+        final uri = Uri.parse(document['sources'][0]['url']);
+        final url = uri.queryParameters['url'] ?? document['sources'][0]['url'];
+        final referer = uri.queryParameters['headers'] != null
+          ? jsonDecode(uri.queryParameters['headers']!)['Referer']
+          : "https://rivestream.net";
+        streams.add(StreamClass(
+          language: 'Original',
           url: url,
           sources: sources,
-          subtitles: subtitles,
           baseUrl: referer,
-          formatHint: content['format'] != 'hls' && content['format'] != 'm3u8'
-              ? VideoFormat.other
-              : VideoFormat.hls,
-          isError: isError);
+          subtitles: subtitles,
+          formatHint: VideoFormat.other, 
+        ));
+      }
 
       return streams;
     } catch (e) {
       print("Error parsing Rive streams: $e");
       throw Exception("Failed to parse Rive streams: ${e.toString()}");
     }
-  }
-
-  bool _isValidStreamUrl(String url) {
-    return url.contains('stream') ||
-        url.contains('embed') ||
-        url.contains('.m3u8') ||
-        url.contains('player');
   }
 
   Future<List<SourceClass>> _getSources(String url, String referer) async {
@@ -138,6 +135,10 @@ class Rive {
         'referer': referer,
       }).timeout(const Duration(seconds: 5));
       // Extract quality options
+      print(response.body);
+      if (response.statusCode != 200) {
+        return [];
+      }
       if (response.body.toString().contains(".ts") &&
           !response.body.toString().contains(".m3u8")) {
         return [SourceClass(quality: 'auto', url: url)];
@@ -155,11 +156,23 @@ class Rive {
   List<SourceClass> _parseQualities(String body, String url) {
     try {
       final data = body.split("./");
-      final result = data.where((url) => url.contains(".m3u8")).map((link) {
+      List<SourceClass> result = data.where((url) => url.contains(".m3u8")).map((link) {
         return SourceClass(
             quality: link.split("/")[0],
             url: '${url.split('/index.m3u8')[0]}/${link.split('\n')[0]}');
       }).toList();
+      print(result);
+      print(result.isEmpty);
+      if (result.isEmpty){
+        result = body.split("RESOLUTION=").where((url) => url.contains("stream/")).map((link) {
+          final quality = link.split("\n")[0].split("x")[1];
+          final streamUrl = link.split("\n")[1].trim();
+          print("${url.split('/index.m3u8')[0]}$streamUrl");
+          return SourceClass(
+              quality: quality,
+              url: '${url.split('/index.m3u8')[0]}$streamUrl');
+        }).toList();
+      }
       isError = false;
       return result;
     } catch (e) {

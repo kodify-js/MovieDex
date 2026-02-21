@@ -1,4 +1,4 @@
-import 'package:appwrite/models.dart';
+import 'package:appwrite/models.dart' as appwrite;
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:hive/hive.dart';
@@ -186,10 +186,10 @@ class _ProfilePageState extends State<ProfilePage>
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
 
-    return FutureBuilder<User?>(
+    return FutureBuilder<appwrite.User?>(
       future: _getCurrentUser(),
       builder: (context, snapshot) {
-        final User? currentUser = snapshot.data;
+        final appwrite.User? currentUser = snapshot.data;
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
@@ -262,7 +262,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Future<User?> _getCurrentUser() async {
+  Future<appwrite.User?> _getCurrentUser() async {
     try {
       if (await AppwriteService.instance.isLoggedIn()) {
         return await AppwriteService.instance.getCurrentUser();
@@ -308,7 +308,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  Widget _buildProfileHeader(User? user) {
+  Widget _buildProfileHeader(appwrite.User? user) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),

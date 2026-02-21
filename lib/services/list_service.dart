@@ -71,7 +71,7 @@ class ListService {
       );
 
       // Merge with local data
-      for (var doc in serverDocs.documents) {
+      for (var doc in serverDocs.rows) {
         final serverItem = ListItem.fromJson(doc.data);
         final localItem = _listBox?.get(serverItem.contentId.toString());
 

@@ -76,6 +76,11 @@
                 android:resource="@drawable/launch_background" />
         </activity>
         
+        <!-- Background service with required foregroundServiceType for Android 14+ -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:foregroundServiceType="dataSync" />
+
         <!-- Boot receiver to handle restart -->
         <receiver android:name="io.flutter.plugins.flutter_background_service.BootReceiver"
             android:enabled="true"

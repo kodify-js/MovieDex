@@ -61,7 +61,7 @@ dependencies:
   file_picker: ^8.3.5
   flutter_background_service_android: ^6.3.0
   open_filex: ^4.7.0
-  appwrite: ^13.1.1
+  appwrite: ^20.3.2
   shimmer: ^3.0.0
   wakelock_plus: ^1.2.10
   html: ^0.15.5

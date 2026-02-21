@@ -131,7 +131,7 @@ class _WatchPageState extends State<WatchPage> with WidgetsBindingObserver {
     bool isAnime,
   ) async {
     contentProvider = ContentProvider(
-      title: widget.data.title,
+      title: "${widget.data.title} ${widget.seasonNumber != null && widget.seasonNumber! > 1 ? "Season ${widget.seasonNumber}" : ""}",
       id: widget.data.id,
       type: widget.data.type,
       episodeNumber: widget.episodeNumber,
